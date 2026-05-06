@@ -175,11 +175,17 @@ Owner user は削除できません。
 | Method | Path | 内容 | 認証 |
 | --- | --- | --- | --- |
 | `GET` | `/api/billing/plan` | Owner の有効プラン状態を取得 | `admin` |
+| `GET` | `/api/billing/board-activation` | 現在または予約中プランで有効にするボード候補を取得 | `admin` |
+| `POST` | `/api/billing/board-activation` | 有効ボード候補を保存、または現在プランの有効ボードを適用 | `admin` |
 | `POST` | `/api/billing/checkout` | 有料プランの Checkout Session を作成 | `admin` |
 | `POST` | `/api/billing/portal` | 支払い管理 Session を作成 | `admin` |
 | `POST` | `/api/billing/webhook` | 決済 webhook を署名検証し、Owner subscription を同期 | webhook signature |
 
+`/api/billing/board-activation` は、ダウングレード予約中は `pending_active_board_ids` を保存し、現行プランへの即時適用時だけボードの `status` を更新します。
+
 `BILLING_MODE=disabled` では `/billing` 導線は表示されず、`/api/billing/webhook` は 404 を返します。webhook は raw body と `STRIPE_WEBHOOK_SECRET` で署名検証し、event id を保存して重複処理を避けます。
+
+Stripe webhook は下位プランへの変更予約や `cancel_at_period_end=true` を検知した時点で、移行先プラン上限に収まる `pending_active_board_ids` を自動生成します。優先順位は `boards.last_viewed_at`、`updated_at`、`created_at` の降順です。実際の切替時に pending 候補だけを `active` として残し、それ以外を `inactive_due_to_plan` にします。pending 候補が空または不正な場合も同じ優先順位で再選択し、全ボード無効化を避けます。
 
 Plan 制限に到達した場合、ボード作成・更新やメディア追加 API は `403` と machine readable な `code` を返します。主な code は `plan_limit_board_count`、`plan_limit_storage`、`plan_limit_image_count`、`plan_limit_video_disabled`、`plan_limit_resolution`、`plan_limit_upload_size`、`plan_limit_template_disabled` です。`PLAN_ENFORCEMENT_MODE=unlimited` では制限を適用しません。
 

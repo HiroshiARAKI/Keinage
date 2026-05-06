@@ -5,9 +5,18 @@ import { eq, or } from "drizzle-orm";
 import { db } from "@/db";
 import { ownerSubscriptions, stripeEvents } from "@/db/schema";
 import {
+  applyPendingPlanBoardSelection,
+  buildDefaultPendingActiveBoardIds,
+  parsePendingActiveBoardIds,
+} from "@/lib/plan-board-selection";
+import {
+  getPlanDefinition,
+  isBillingInterval,
+  isPlanCode,
   resolveStripePriceId,
   type BillingInterval,
   type PaidPlanCode,
+  type PlanCode,
   type SubscriptionStatus,
 } from "@/lib/plans";
 
@@ -52,6 +61,15 @@ interface ResolvedSubscriptionState {
   cancelAtPeriodEnd: boolean;
 }
 
+const PLAN_RANK: Record<PlanCode, number> = {
+  free: 0,
+  lite: 1,
+  standard: 2,
+  standard_plus: 3,
+  self_hosted: 10,
+  unlimited: 10,
+};
+
 function asObject(value: unknown): StripeObject | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as StripeObject
@@ -74,6 +92,34 @@ function stripeId(value: unknown): string | null {
 function toIsoFromStripeSeconds(value: unknown): string | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return new Date(value * 1000).toISOString();
+}
+
+function isFutureIso(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const time = Date.parse(value);
+  return Number.isFinite(time) && time > Date.now();
+}
+
+function isDueIso(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const time = Date.parse(value);
+  return Number.isFinite(time) && time <= Date.now();
+}
+
+function isPlanDowngrade(fromPlanCode: PlanCode, toPlanCode: PlanCode): boolean {
+  return PLAN_RANK[toPlanCode] < PLAN_RANK[fromPlanCode];
+}
+
+function isSubscriptionUsable(status: SubscriptionStatus): boolean {
+  return status === "trialing" || status === "active" || status === "past_due";
+}
+
+function normalizeStoredPlanCode(value: string | null | undefined): PlanCode {
+  return isPlanCode(value) ? value : "free";
+}
+
+function normalizeStoredBillingInterval(value: string | null | undefined): BillingInterval | null {
+  return isBillingInterval(value) ? value : null;
 }
 
 function metadataOwnerUserId(object: StripeObject | null): string | null {
@@ -253,10 +299,139 @@ async function findOwnerByStripeIds(input: {
   });
 }
 
+async function pendingBoardIdsForPlan(input: {
+  ownerUserId: string;
+  planCode: PlanCode;
+  previousPendingPlanCode?: string | null;
+  previousPendingEffectiveAt?: string | null;
+  previousPendingActiveBoardIds?: string | null;
+  nextEffectiveAt: string | null;
+}) {
+  const existingPendingIds = parsePendingActiveBoardIds(input.previousPendingActiveBoardIds);
+  if (
+    input.previousPendingPlanCode === input.planCode
+    && input.previousPendingEffectiveAt === input.nextEffectiveAt
+    && existingPendingIds.length > 0
+  ) {
+    return existingPendingIds;
+  }
+
+  return buildDefaultPendingActiveBoardIds(
+    input.ownerUserId,
+    getPlanDefinition(input.planCode).limits.boards,
+  );
+}
+
+async function applyPendingIfDue(existing: typeof ownerSubscriptions.$inferSelect | null) {
+  if (!existing?.pendingPlanCode || !isPlanCode(existing.pendingPlanCode)) return false;
+  if (!isDueIso(existing.pendingPlanEffectiveAt)) return false;
+
+  await applyPendingPlanBoardSelection({
+    ownerUserId: existing.ownerUserId,
+    pendingActiveBoardIds: parsePendingActiveBoardIds(existing.pendingActiveBoardIds),
+    targetPlanCode: existing.pendingPlanCode,
+  });
+  return true;
+}
+
+async function applyFreePlanSelection(existing: typeof ownerSubscriptions.$inferSelect | null) {
+  if (!existing) return;
+  await applyPendingPlanBoardSelection({
+    ownerUserId: existing.ownerUserId,
+    pendingActiveBoardIds: parsePendingActiveBoardIds(existing.pendingActiveBoardIds),
+    targetPlanCode: "free",
+  });
+}
+
 async function upsertOwnerSubscription(state: ResolvedSubscriptionState) {
   const existing = await db.query.ownerSubscriptions.findFirst({
     where: eq(ownerSubscriptions.ownerUserId, state.ownerUserId),
   });
+  const now = new Date().toISOString();
+  const storedPlanCode = normalizeStoredPlanCode(existing?.planCode);
+  const storedBillingInterval = normalizeStoredBillingInterval(existing?.billingInterval);
+  const shouldApplyPending =
+    existing?.pendingPlanCode === state.planCode && isDueIso(existing.pendingPlanEffectiveAt);
+
+  if (shouldApplyPending) {
+    await applyPendingIfDue(existing);
+  }
+
+  if (
+    existing
+    && !shouldApplyPending
+    && state.cancelAtPeriodEnd
+    && storedPlanCode !== "free"
+    && isSubscriptionUsable(state.status)
+    && isFutureIso(state.currentPeriodEnd)
+  ) {
+    const pendingIds = await pendingBoardIdsForPlan({
+      ownerUserId: state.ownerUserId,
+      planCode: "free",
+      previousPendingPlanCode: existing.pendingPlanCode,
+      previousPendingEffectiveAt: existing.pendingPlanEffectiveAt,
+      previousPendingActiveBoardIds: existing.pendingActiveBoardIds,
+      nextEffectiveAt: state.currentPeriodEnd,
+    });
+
+    await db
+      .update(ownerSubscriptions)
+      .set({
+        billingMode: "stripe",
+        planCode: storedPlanCode,
+        billingInterval: storedBillingInterval,
+        status: state.status,
+        stripeCustomerId: state.stripeCustomerId,
+        stripeSubscriptionId: state.stripeSubscriptionId,
+        currentPeriodEnd: state.currentPeriodEnd,
+        cancelAtPeriodEnd: true,
+        pendingPlanCode: "free",
+        pendingBillingInterval: null,
+        pendingPlanEffectiveAt: state.currentPeriodEnd,
+        pendingActiveBoardIds: JSON.stringify(pendingIds),
+        updatedAt: now,
+      })
+      .where(eq(ownerSubscriptions.ownerUserId, state.ownerUserId));
+    return;
+  }
+
+  if (
+    existing
+    && !shouldApplyPending
+    && isSubscriptionUsable(state.status)
+    && isFutureIso(state.currentPeriodEnd)
+    && isPlanDowngrade(storedPlanCode, state.planCode)
+  ) {
+    const pendingIds = await pendingBoardIdsForPlan({
+      ownerUserId: state.ownerUserId,
+      planCode: state.planCode,
+      previousPendingPlanCode: existing.pendingPlanCode,
+      previousPendingEffectiveAt: existing.pendingPlanEffectiveAt,
+      previousPendingActiveBoardIds: existing.pendingActiveBoardIds,
+      nextEffectiveAt: state.currentPeriodEnd,
+    });
+
+    await db
+      .update(ownerSubscriptions)
+      .set({
+        billingMode: "stripe",
+        planCode: storedPlanCode,
+        billingInterval: storedBillingInterval,
+        status: state.status,
+        stripeCustomerId: state.stripeCustomerId,
+        stripeSubscriptionId: state.stripeSubscriptionId,
+        currentPeriodEnd: state.currentPeriodEnd,
+        cancelAtPeriodEnd: state.cancelAtPeriodEnd,
+        pendingPlanCode: state.planCode,
+        pendingBillingInterval: state.billingInterval,
+        pendingPlanEffectiveAt: state.currentPeriodEnd,
+        pendingActiveBoardIds: JSON.stringify(pendingIds),
+        updatedAt: now,
+      })
+      .where(eq(ownerSubscriptions.ownerUserId, state.ownerUserId));
+    return;
+  }
+
   const values = {
     billingMode: "stripe",
     planCode: state.planCode,
@@ -266,7 +441,11 @@ async function upsertOwnerSubscription(state: ResolvedSubscriptionState) {
     stripeSubscriptionId: state.stripeSubscriptionId,
     currentPeriodEnd: state.currentPeriodEnd,
     cancelAtPeriodEnd: state.cancelAtPeriodEnd,
-    updatedAt: new Date().toISOString(),
+    pendingPlanCode: null,
+    pendingBillingInterval: null,
+    pendingPlanEffectiveAt: null,
+    pendingActiveBoardIds: null,
+    updatedAt: now,
   };
 
   if (existing) {
@@ -382,6 +561,8 @@ async function handleSubscriptionEvent(eventType: string, object: StripeObject) 
       });
       if (!existing) return "ignored" as const;
 
+      await applyFreePlanSelection(existing);
+
       await db
         .update(ownerSubscriptions)
         .set({
@@ -390,11 +571,20 @@ async function handleSubscriptionEvent(eventType: string, object: StripeObject) 
           status: "canceled",
           currentPeriodEnd: toIsoFromStripeSeconds(object.current_period_end),
           cancelAtPeriodEnd: false,
+          pendingPlanCode: null,
+          pendingBillingInterval: null,
+          pendingPlanEffectiveAt: null,
+          pendingActiveBoardIds: null,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(ownerSubscriptions.ownerUserId, existing.ownerUserId));
       return "processed" as const;
     }
+
+    const existing = await db.query.ownerSubscriptions.findFirst({
+      where: eq(ownerSubscriptions.ownerUserId, state.ownerUserId),
+    });
+    await applyFreePlanSelection(existing ?? null);
 
     await upsertOwnerSubscription({
       ...state,
@@ -434,6 +624,29 @@ async function handleInvoiceEvent(eventType: string, object: StripeObject) {
       eventType,
     });
     return "ignored" as const;
+  }
+
+  if (eventType === "invoice.payment_succeeded") {
+    const applied = await applyPendingIfDue(existing);
+    if (applied && existing.pendingPlanCode && isPlanCode(existing.pendingPlanCode)) {
+      await db
+        .update(ownerSubscriptions)
+        .set({
+          planCode: existing.pendingPlanCode,
+          billingInterval: normalizeStoredBillingInterval(existing.pendingBillingInterval),
+          status: "active",
+          stripeCustomerId: stripeCustomerId ?? existing.stripeCustomerId,
+          stripeSubscriptionId: stripeSubscriptionId ?? existing.stripeSubscriptionId,
+          cancelAtPeriodEnd: false,
+          pendingPlanCode: null,
+          pendingBillingInterval: null,
+          pendingPlanEffectiveAt: null,
+          pendingActiveBoardIds: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(ownerSubscriptions.ownerUserId, existing.ownerUserId));
+      return "processed" as const;
+    }
   }
 
   await db

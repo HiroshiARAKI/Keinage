@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { boards } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
+import { isBoardDisplayable } from "@/lib/board-status";
 import { addClient, removeClient } from "@/lib/sse";
 import { isInOwnerScope } from "@/lib/ownership";
 
@@ -22,7 +23,7 @@ export async function GET(
     where: eq(boards.id, boardId),
   });
 
-  if (!board || !board.isActive) {
+  if (!board || !isBoardDisplayable(board)) {
     return new Response("Board not found", { status: 404 });
   }
 

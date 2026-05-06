@@ -1,11 +1,13 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { boards, mediaItems } from "@/db/schema";
 
 export interface OwnerUsage {
   boards: number;
+  totalBoards: number;
+  inactiveDueToPlanBoards: number;
   mediaItems: number;
   images: number;
   videos: number;
@@ -27,14 +29,21 @@ export async function getOwnerBoardCount(ownerUserId: string): Promise<number> {
   const [row] = await db
     .select({ count: count() })
     .from(boards)
-    .where(eq(boards.ownerUserId, ownerUserId));
+    .where(and(eq(boards.ownerUserId, ownerUserId), eq(boards.status, "active")));
 
   return aggregateNumber(row?.count);
 }
 
 export async function getOwnerUsage(ownerUserId: string): Promise<OwnerUsage> {
-  const [boardCount, mediaUsage] = await Promise.all([
+  const [boardCount, boardStatusUsage, mediaUsage] = await Promise.all([
     getOwnerBoardCount(ownerUserId),
+    db
+      .select({
+        totalBoards: count(),
+        inactiveDueToPlanBoards: sql<number>`count(*) filter (where ${boards.status} = 'inactive_due_to_plan')`,
+      })
+      .from(boards)
+      .where(eq(boards.ownerUserId, ownerUserId)),
     db
       .select({
         mediaItems: count(),
@@ -47,9 +56,12 @@ export async function getOwnerUsage(ownerUserId: string): Promise<OwnerUsage> {
       .where(eq(boards.ownerUserId, ownerUserId)),
   ]);
 
+  const [boardStatusRow] = boardStatusUsage;
   const [row] = mediaUsage;
   return {
     boards: boardCount,
+    totalBoards: aggregateNumber(boardStatusRow?.totalBoards),
+    inactiveDueToPlanBoards: aggregateNumber(boardStatusRow?.inactiveDueToPlanBoards),
     mediaItems: aggregateNumber(row?.mediaItems),
     images: aggregateNumber(row?.images),
     videos: aggregateNumber(row?.videos),

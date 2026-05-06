@@ -28,6 +28,8 @@ export const boards = pgTable("boards", {
   templateId: text("template_id").notNull(), // "simple" | "photo-clock" | "retro" | "message" | "call-number"
   config: text("config").notNull().default("{}"),
   isActive: boolean("is_active").notNull().default(true),
+  status: text("status").notNull().default("active"),
+  lastViewedAt: text("last_viewed_at"),
   createdAt: text("created_at")
     .notNull()
     .default(isoNow),
@@ -113,6 +115,10 @@ export const ownerSubscriptions = pgTable(
     stripeSubscriptionId: text("stripe_subscription_id"),
     currentPeriodEnd: text("current_period_end"),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    pendingPlanCode: text("pending_plan_code"),
+    pendingBillingInterval: text("pending_billing_interval"),
+    pendingPlanEffectiveAt: text("pending_plan_effective_at"),
+    pendingActiveBoardIds: text("pending_active_board_ids"),
     createdAt: text("created_at")
       .notNull()
       .default(isoNow),

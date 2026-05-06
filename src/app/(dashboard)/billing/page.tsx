@@ -6,6 +6,7 @@ import { getEffectivePlanForUser } from "@/lib/billing";
 import { getRequestI18n } from "@/lib/i18n-server";
 import { getOwnerUsage } from "@/lib/owner-usage";
 import { getBillingConfig } from "@/lib/plans";
+import { getPlanBoardSelectionState } from "@/lib/plan-board-selection";
 import { BillingClient } from "@/components/dashboard/BillingClient";
 
 type BillingNotice =
@@ -54,12 +55,16 @@ export default async function BillingPage({
     getEffectivePlanForUser(session.user),
     searchParams,
   ]);
-  const usage = await getOwnerUsage(effectivePlan.ownerUserId);
+  const [usage, boardSelection] = await Promise.all([
+    getOwnerUsage(effectivePlan.ownerUserId),
+    getPlanBoardSelectionState(effectivePlan.ownerUserId),
+  ]);
 
   return (
     <BillingClient
       effectivePlan={effectivePlan}
       usage={usage}
+      boardSelection={boardSelection}
       billingNotice={toBillingNotice(resolvedSearchParams.billing)}
     />
   );

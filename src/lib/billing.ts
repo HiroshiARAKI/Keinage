@@ -20,6 +20,17 @@ import {
 
 type UserLike = Pick<typeof users.$inferSelect, "id" | "attribute" | "ownerUserId">;
 
+function parsePendingActiveBoardIds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value): value is string => typeof value === "string" && value.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 export interface OwnerSubscriptionState {
   id: string;
   ownerUserId: string;
@@ -31,6 +42,10 @@ export interface OwnerSubscriptionState {
   stripeSubscriptionId: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  pendingPlanCode: PlanCode | null;
+  pendingBillingInterval: BillingInterval | null;
+  pendingPlanEffectiveAt: string | null;
+  pendingActiveBoardIds: string[];
 }
 
 export interface EffectivePlan {
@@ -55,6 +70,12 @@ function normalizeSubscription(
     stripeSubscriptionId: row.stripeSubscriptionId,
     currentPeriodEnd: row.currentPeriodEnd,
     cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+    pendingPlanCode: isPlanCode(row.pendingPlanCode) ? row.pendingPlanCode : null,
+    pendingBillingInterval: isBillingInterval(row.pendingBillingInterval)
+      ? row.pendingBillingInterval
+      : null,
+    pendingPlanEffectiveAt: row.pendingPlanEffectiveAt,
+    pendingActiveBoardIds: parsePendingActiveBoardIds(row.pendingActiveBoardIds),
   };
 }
 

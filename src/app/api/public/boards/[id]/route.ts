@@ -6,6 +6,8 @@ import { boards, mediaItems, messages } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { getEffectivePlanForOwner } from "@/lib/billing";
+import { isBoardDisplayable } from "@/lib/board-status";
+import { recordBoardViewed } from "@/lib/board-view-tracking";
 import { publicDeliveryUrlForPublicPath } from "@/lib/media-storage";
 import { isInOwnerScope } from "@/lib/ownership";
 import { normalizeConfig } from "@/lib/utils";
@@ -19,7 +21,7 @@ export async function GET(
   const board = await db.query.boards.findFirst({
     where: eq(boards.id, id),
   });
-  if (!board || !board.isActive) {
+  if (!board || !isBoardDisplayable(board)) {
     return NextResponse.json({ error: "Board not found" }, { status: 404 });
   }
 
@@ -33,6 +35,8 @@ export async function GET(
       return NextResponse.json({ error: "Board not found" }, { status: 404 });
     }
   }
+
+  await recordBoardViewed(board);
 
   const media = await db
     .select()

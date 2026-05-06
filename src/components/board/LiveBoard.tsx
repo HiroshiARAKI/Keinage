@@ -121,6 +121,8 @@ export default function LiveBoard({
         templateId: data.templateId,
         config: parseJsonObject(data.config),
         isActive: data.isActive,
+        status: data.status,
+        lastViewedAt: data.lastViewedAt,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
       });

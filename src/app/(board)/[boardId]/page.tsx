@@ -6,6 +6,8 @@ import { boards, mediaItems, messages } from "@/db/schema";
 import { eq, asc, and, or, isNull, gt } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { getEffectivePlanForOwner } from "@/lib/billing";
+import { isBoardDisplayable } from "@/lib/board-status";
+import { recordBoardViewed } from "@/lib/board-view-tracking";
 import { publicDeliveryUrlForPublicPath } from "@/lib/media-storage";
 import { isInOwnerScope } from "@/lib/ownership";
 import { getTemplate } from "@/lib/templates";
@@ -25,7 +27,7 @@ export default async function BoardPage({
     where: eq(boards.id, boardId),
   });
 
-  if (!board || !board.isActive) {
+  if (!board || !isBoardDisplayable(board)) {
     notFound();
   }
 
@@ -49,6 +51,8 @@ export default async function BoardPage({
       notFound();
     }
   }
+
+  await recordBoardViewed(board);
 
   const normalizedBoard = normalizeConfig(board);
 

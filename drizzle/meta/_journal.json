@@ -85,6 +85,13 @@
       "when": 1777697897389,
       "tag": "0011_square_ronan",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778071708806,
+      "tag": "0012_legal_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }
