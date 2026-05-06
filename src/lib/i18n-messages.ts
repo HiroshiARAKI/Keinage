@@ -805,7 +805,7 @@ const jaJP: MessageCatalog = {
   "billing.value.included": "あり",
   "billing.value.none": "なし",
   "billing.boardSelectionTitle": "プラン変更後の有効ボード",
-  "billing.boardSelectionDescription": "{plan} では有効ボードは {limit} 件までです。有効に残すボードを選択してください。",
+  "billing.boardSelectionDescription": "{plan} では有効ボードは {limit} 件までです。残すボードを選択してください。",
   "billing.boardSelectionPendingDescription": "次回更新日から {plan} に変更されます。直近で表示された {limit} 件を自動的に有効候補として選択しています。プラン変更までは変更できます。",
   "billing.boardSelectionPendingEffectiveAt": "{date} に適用",
   "billing.boardSelectionAuto": "自動選択を使う",
