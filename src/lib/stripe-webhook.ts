@@ -333,6 +333,35 @@ async function upsertOwnerSubscription(state: ResolvedSubscriptionState) {
     }
 
     if (
+      state.cancelAtPeriodEnd
+      && existing.planCode !== "free"
+      && ["trialing", "active", "past_due"].includes(state.status)
+      && isFutureIso(state.currentPeriodEnd)
+    ) {
+      await db
+        .update(ownerSubscriptions)
+        .set({
+          billingMode: "stripe",
+          status: state.status,
+          stripeCustomerId: state.stripeCustomerId,
+          stripeSubscriptionId: state.stripeSubscriptionId,
+          currentPeriodEnd: state.currentPeriodEnd,
+          cancelAtPeriodEnd: true,
+          pendingPlanCode: "free",
+          pendingBillingInterval: null,
+          pendingPlanEffectiveAt: state.currentPeriodEnd,
+          pendingActiveBoardIds:
+            existing.pendingPlanCode === "free"
+            && existing.pendingPlanEffectiveAt === state.currentPeriodEnd
+              ? existing.pendingActiveBoardIds
+              : null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(ownerSubscriptions.ownerUserId, state.ownerUserId));
+      return;
+    }
+
+    if (
       isDowngradePlan(existing.planCode, state.planCode)
       && ["trialing", "active", "past_due"].includes(state.status)
       && isFutureIso(state.currentPeriodEnd)
@@ -478,6 +507,17 @@ async function handleSubscriptionEvent(eventType: string, object: StripeObject) 
       });
       if (!existing) return "ignored" as const;
 
+      if (
+        existing.pendingPlanCode
+        && isDueIso(existing.pendingPlanEffectiveAt)
+      ) {
+        await applyPendingPlanBoardSelection({
+          ownerUserId: existing.ownerUserId,
+          limit: getPlanDefinition(existing.pendingPlanCode).limits.boards,
+          selectedBoardIds: parsePendingActiveBoardIds(existing.pendingActiveBoardIds),
+        });
+      }
+
       await db
         .update(ownerSubscriptions)
         .set({
@@ -486,6 +526,10 @@ async function handleSubscriptionEvent(eventType: string, object: StripeObject) 
           status: "canceled",
           currentPeriodEnd: toIsoFromStripeSeconds(object.current_period_end),
           cancelAtPeriodEnd: false,
+          pendingPlanCode: null,
+          pendingBillingInterval: null,
+          pendingPlanEffectiveAt: null,
+          pendingActiveBoardIds: null,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(ownerSubscriptions.ownerUserId, existing.ownerUserId));
