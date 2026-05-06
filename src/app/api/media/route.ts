@@ -16,8 +16,9 @@ import {
 import {
   deleteStoredObject,
   publicPathForStorageKey,
+  scopedMediaStorageKey,
   storageKeyFromPublicPath,
-  thumbnailStorageKeyFromFilename,
+  thumbnailStorageKeyFromStorageKey,
   thumbnailStorageKeyFromPublicPath,
   writeStoredObject,
 } from "@/lib/media-storage";
@@ -164,10 +165,16 @@ export async function POST(request: NextRequest) {
     throw error;
   }
 
-  // Generate unique filename
+  // Generate owner/board scoped storage key.
   const ext = path.extname(file.name) || `.${file.type.split("/")[1]}`;
   const sanitizedExt = ext.replace(/[^a-zA-Z0-9.]/g, "");
-  const filename = `${randomUUID()}${sanitizedExt}`;
+  const mediaId = randomUUID();
+  const storageKey = scopedMediaStorageKey({
+    ownerUserId: board.ownerUserId,
+    boardId,
+    mediaId,
+    extension: sanitizedExt,
+  });
 
   let buffer: Buffer = Buffer.from(await file.arrayBuffer());
 
@@ -219,7 +226,7 @@ export async function POST(request: NextRequest) {
   }
 
   let thumbnail =
-    mediaType === "image" ? await generateThumbnail(buffer, filename) : null;
+    mediaType === "image" ? await generateThumbnail(buffer, path.basename(storageKey)) : null;
 
   if (mediaType === "video" && poster instanceof File && poster.size > 0) {
     if (!ALLOWED_VIDEO_POSTER_TYPES.includes(poster.type)) {
@@ -246,10 +253,10 @@ export async function POST(request: NextRequest) {
     throw error;
   }
 
-  await writeStoredObject(filename, buffer, file.type);
+  await writeStoredObject(storageKey, buffer, file.type);
   if (thumbnail) {
     await writeStoredObject(
-      thumbnailStorageKeyFromFilename(filename),
+      thumbnailStorageKeyFromStorageKey(storageKey),
       thumbnail.buffer,
       thumbnail.contentType,
     );
@@ -278,7 +285,7 @@ export async function POST(request: NextRequest) {
     .values({
       boardId,
       type: mediaType,
-      filePath: publicPathForStorageKey(filename),
+      filePath: publicPathForStorageKey(storageKey),
       fileSizeBytes: buffer.length,
       thumbnailSizeBytes: thumbnail?.buffer.length ?? 0,
       displayOrder: maxOrder + 1,

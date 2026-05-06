@@ -295,8 +295,9 @@ flowchart TB
 ```
 
 - DB には `/uploads/<filename>` の公開パスを保存します。
-- S3 未設定時は `uploads/` と `uploads/thumbs/` に保存します。
-- S3 設定時は `S3_INTERNAL_ENDPOINT` を優先し、なければ `S3_ENDPOINT` を使います。
+- 新規アップロードの object key は `owners/<owner>/boards/<board>/media/<mediaId>.<ext>` とし、Owner / board scope を key に含めます。サムネイルは同じ scope の `media/thumbs/` に保存します。既存の flat key も引き続き読み出せます。
+- S3 未設定時は `uploads/` に保存します。S3 設定時は `S3_INTERNAL_ENDPOINT` を優先し、なければ `S3_ENDPOINT` を使います。AWS S3 では `S3_ENDPOINT` を省略できます。
+- `CLOUDFRONT_BASE_URL` または `S3_PUBLIC_BASE_URL` を設定すると、public board の media URL は CDN base URL を使います。private board は `/uploads/[...path]` route を維持し、認可と `private, no-store` cache-control を適用します。
 - 画像は `src/lib/image.ts` でリサイズとサムネイル生成を行います。
 - standalone build 後の動的ファイル配信に対応するため、`/uploads/[...path]` route で保存先から読み出します。
 

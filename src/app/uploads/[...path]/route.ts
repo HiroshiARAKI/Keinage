@@ -14,18 +14,25 @@ export const dynamic = "force-dynamic";
 
 function buildCandidateMediaPaths(filename: string): string[] {
   const publicPath = `/uploads/${filename}`;
-  if (!filename.startsWith("thumbs/")) {
+  if (!filename.startsWith("thumbs/") && !filename.includes("/thumbs/")) {
     return [publicPath];
   }
 
   const thumbName = path.posix.basename(filename);
   const ext = path.posix.extname(thumbName).toLowerCase();
   const base = thumbName.slice(0, thumbName.length - ext.length);
-  const candidates = [`/uploads/${base}${ext}`];
+  const thumbPrefix = "thumbs/";
+  const thumbnailSegment = `/${thumbPrefix}`;
+  const originalPrefix = filename.startsWith(thumbPrefix)
+    ? ""
+    : filename.slice(0, filename.lastIndexOf(thumbnailSegment) + 1);
+  const candidates = [`/uploads/${originalPrefix}${base}${ext}`];
 
   // GIF thumbnails are generated as JPG files.
   if (ext === ".jpg") {
-    candidates.push(`/uploads/${base}.gif`);
+    candidates.push(`/uploads/${originalPrefix}${base}.gif`);
+    candidates.push(`/uploads/${originalPrefix}${base}.mp4`);
+    candidates.push(`/uploads/${originalPrefix}${base}.webm`);
   }
 
   return [...new Set(candidates)];

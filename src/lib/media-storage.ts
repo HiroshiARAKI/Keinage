@@ -31,7 +31,7 @@ const MEDIA_EXTS = new Set([...IMAGE_EXTS, ...VIDEO_EXTS]);
 type StorageDriver = "local" | "s3";
 
 type S3Config = {
-  endpoint: string;
+  endpoint?: string;
   region: string;
   bucket: string;
   accessKeyId: string;
@@ -74,6 +74,31 @@ function sanitizeStorageKey(key: string): string {
   return normalized;
 }
 
+function sanitizeKeySegment(value: string): string {
+  return value.trim().replace(/[^a-zA-Z0-9._=-]/g, "_").slice(0, 120);
+}
+
+function configuredPublicBaseUrl(): string | null {
+  const raw =
+    process.env.CLOUDFRONT_BASE_URL?.trim()
+    || process.env.S3_PUBLIC_BASE_URL?.trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, "");
+}
+
+function cacheControlForStorageKey(key: string): string {
+  const safeKey = sanitizeStorageKey(key);
+  if (isThumbnailStorageKey(safeKey)) {
+    return "public, max-age=31536000, immutable";
+  }
+
+  if (mediaTypeFromStorageKey(safeKey) === "video") {
+    return "public, max-age=31536000, immutable";
+  }
+
+  return "public, max-age=31536000, immutable";
+}
+
 function resolveLocalPath(key: string): string {
   const resolved = path.resolve(LOCAL_UPLOAD_DIR, key);
   if (!resolved.startsWith(LOCAL_UPLOAD_DIR)) {
@@ -93,27 +118,27 @@ function getS3Config(): S3Config | null {
   const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY?.trim();
   const region = process.env.S3_REGION?.trim() || "us-east-1";
 
-  const values = [endpoint, bucket, accessKeyId, secretAccessKey];
+  const values = [bucket, accessKeyId, secretAccessKey];
   const provided = values.filter(Boolean).length;
 
-  if (provided === 0) {
+  if (provided === 0 && !endpoint) {
     cachedConfig = null;
     return cachedConfig;
   }
 
   if (provided !== values.length) {
     throw new Error(
-      "Incomplete S3 storage configuration. Set S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, and S3_SECRET_ACCESS_KEY.",
+      "Incomplete S3 storage configuration. Set S3_BUCKET, S3_ACCESS_KEY_ID, and S3_SECRET_ACCESS_KEY. S3_ENDPOINT is optional for AWS S3.",
     );
   }
 
   cachedConfig = {
-    endpoint: endpoint!,
+    endpoint: endpoint || undefined,
     region,
     bucket: bucket!,
     accessKeyId: accessKeyId!,
     secretAccessKey: secretAccessKey!,
-    forcePathStyle: parseBoolean(process.env.S3_FORCE_PATH_STYLE, true),
+    forcePathStyle: parseBoolean(process.env.S3_FORCE_PATH_STYLE, Boolean(endpoint)),
   };
 
   return cachedConfig;
@@ -186,7 +211,34 @@ export function publicPathForStorageKey(key: string): string {
   return `${PUBLIC_UPLOAD_PREFIX}${sanitizeStorageKey(key)}`;
 }
 
+export function publicDeliveryUrlForStorageKey(key: string): string {
+  const safeKey = sanitizeStorageKey(key);
+  const publicBaseUrl = configuredPublicBaseUrl();
+  if (!publicBaseUrl) {
+    return publicPathForStorageKey(safeKey);
+  }
+  return `${publicBaseUrl}/${safeKey}`;
+}
+
+export function publicDeliveryUrlForPublicPath(filePath: string): string {
+  return publicDeliveryUrlForStorageKey(storageKeyFromPublicPath(filePath));
+}
+
 export function storageKeyFromPublicPath(filePath: string): string {
+  const publicBaseUrl = configuredPublicBaseUrl();
+  if (publicBaseUrl && filePath.startsWith(`${publicBaseUrl}/`)) {
+    return sanitizeStorageKey(filePath.slice(publicBaseUrl.length + 1));
+  }
+
+  try {
+    const url = new URL(filePath);
+    if (url.pathname.startsWith(PUBLIC_UPLOAD_PREFIX)) {
+      return sanitizeStorageKey(url.pathname.slice(PUBLIC_UPLOAD_PREFIX.length));
+    }
+  } catch {
+    // not an absolute URL
+  }
+
   if (!filePath.startsWith(PUBLIC_UPLOAD_PREFIX)) {
     throw new Error("Invalid public upload path");
   }
@@ -194,20 +246,49 @@ export function storageKeyFromPublicPath(filePath: string): string {
   return sanitizeStorageKey(filePath.slice(PUBLIC_UPLOAD_PREFIX.length));
 }
 
+export function scopedMediaStorageKey(input: {
+  ownerUserId: string;
+  boardId: string;
+  mediaId: string;
+  extension: string;
+}): string {
+  const extension = input.extension.startsWith(".") ? input.extension : `.${input.extension}`;
+  return sanitizeStorageKey(
+    [
+      "owners",
+      sanitizeKeySegment(input.ownerUserId),
+      "boards",
+      sanitizeKeySegment(input.boardId),
+      "media",
+      `${sanitizeKeySegment(input.mediaId)}${extension.toLowerCase()}`,
+    ].join("/"),
+  );
+}
+
 export function thumbnailStorageKeyFromFilename(filename: string): string {
-  const safeName = path.basename(filename);
-  const ext = path.extname(safeName).toLowerCase();
+  return thumbnailStorageKeyFromStorageKey(filename);
+}
+
+export function thumbnailStorageKeyFromStorageKey(key: string): string {
+  const safeKey = sanitizeStorageKey(key);
+  const directory = path.posix.dirname(safeKey);
+  const safeName = path.posix.basename(safeKey);
+  const ext = path.posix.extname(safeName).toLowerCase();
   const thumbExt = [".gif", ".mp4", ".webm"].includes(ext) ? ".jpg" : ext;
-  const base = path.basename(safeName, ext);
-  return `${THUMB_PREFIX}${base}${thumbExt}`;
+  const base = path.posix.basename(safeName, ext);
+  if (directory === ".") {
+    return `${THUMB_PREFIX}${base}${thumbExt}`;
+  }
+  return `${directory}/${THUMB_PREFIX}${base}${thumbExt}`;
 }
 
 export function thumbnailStorageKeyFromPublicPath(filePath: string): string {
-  return thumbnailStorageKeyFromFilename(path.basename(storageKeyFromPublicPath(filePath)));
+  return thumbnailStorageKeyFromStorageKey(storageKeyFromPublicPath(filePath));
 }
 
 export function isThumbnailStorageKey(key: string): boolean {
-  return sanitizeStorageKey(key).startsWith(THUMB_PREFIX);
+  const safeKey = sanitizeStorageKey(key);
+  return safeKey.startsWith(THUMB_PREFIX) || safeKey.includes(`/${THUMB_PREFIX}`);
 }
 
 export function isMediaStorageKey(key: string): boolean {
@@ -251,7 +332,7 @@ export async function writeStoredObject(
       Key: safeKey,
       Body: body,
       ContentType: contentType,
-      CacheControl: "public, max-age=31536000, immutable",
+      CacheControl: cacheControlForStorageKey(safeKey),
     }),
   );
 }

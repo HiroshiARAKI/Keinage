@@ -6,6 +6,7 @@ import { boards, mediaItems, messages } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { getEffectivePlanForOwner } from "@/lib/billing";
+import { publicDeliveryUrlForPublicPath } from "@/lib/media-storage";
 import { isInOwnerScope } from "@/lib/ownership";
 import { normalizeConfig } from "@/lib/utils";
 
@@ -44,6 +45,13 @@ export async function GET(
     .from(messages)
     .where(eq(messages.boardId, id));
   const effectivePlan = await getEffectivePlanForOwner(board.ownerUserId);
+  const responseMedia =
+    board.visibility === "public"
+      ? media.map((item) => ({
+          ...item,
+          filePath: publicDeliveryUrlForPublicPath(item.filePath),
+        }))
+      : media;
 
   return NextResponse.json({
     ...normalizeConfig(board),
@@ -52,7 +60,7 @@ export async function GET(
       scheduling: effectivePlan.plan.limits.scheduling,
       menuItemImages: effectivePlan.plan.limits.menuItemImages,
     },
-    mediaItems: media,
+    mediaItems: responseMedia,
     messages: boardMessages,
   });
 }

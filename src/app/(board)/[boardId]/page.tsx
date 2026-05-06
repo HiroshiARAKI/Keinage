@@ -6,6 +6,7 @@ import { boards, mediaItems, messages } from "@/db/schema";
 import { eq, asc, and, or, isNull, gt } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { getEffectivePlanForOwner } from "@/lib/billing";
+import { publicDeliveryUrlForPublicPath } from "@/lib/media-storage";
 import { isInOwnerScope } from "@/lib/ownership";
 import { getTemplate } from "@/lib/templates";
 import { normalizeConfig } from "@/lib/utils";
@@ -73,11 +74,18 @@ export default async function BoardPage({
       )
     );
   const effectivePlan = await getEffectivePlanForOwner(board.ownerUserId);
+  const responseMedia =
+    board.visibility === "public"
+      ? media.map((item) => ({
+          ...item,
+          filePath: publicDeliveryUrlForPublicPath(item.filePath),
+        }))
+      : media;
 
   return (
     <LiveBoard
       board={normalizedBoard}
-      mediaItems={media}
+      mediaItems={responseMedia}
       messages={activeMessages}
       boardPlan={{
         watermark: effectivePlan.plan.limits.watermark,

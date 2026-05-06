@@ -13,10 +13,10 @@ import {
   listStoredObjects,
   mediaTypeFromStorageKey,
   publicPathForStorageKey,
-  thumbnailStorageKeyFromFilename,
+  storageKeyFromPublicPath,
+  thumbnailStorageKeyFromStorageKey,
 } from "@/lib/media-storage";
 import { resolveOwnerUserId } from "@/lib/ownership";
-import path from "path";
 
 /**
  * GET /api/media/files — list actual stored media objects.
@@ -49,37 +49,36 @@ export async function GET() {
     .innerJoin(boards, eq(mediaItems.boardId, boards.id))
     .where(eq(boards.ownerUserId, resolveOwnerUserId(session.user)));
 
-  // Build a map: filename -> board references
+  // Build a map: storage key -> board references
   const fileToBoards = new Map<
     string,
     { boardId: string; boardName: string | null }[]
   >();
   for (const item of dbItems) {
-    const basename = path.basename(item.filePath);
-    const existing = fileToBoards.get(basename) ?? [];
+    const storageKey = storageKeyFromPublicPath(item.filePath);
+    const existing = fileToBoards.get(storageKey) ?? [];
     existing.push({ boardId: item.boardId, boardName: item.boardName });
-    fileToBoards.set(basename, existing);
+    fileToBoards.set(storageKey, existing);
   }
 
   const result = files
-    .filter((file) => fileToBoards.has(path.basename(file.key)))
+    .filter((file) => fileToBoards.has(file.key))
     .map((file) => {
-    const filename = path.basename(file.key);
-    const type = mediaTypeFromStorageKey(file.key) ?? "image";
-    const thumbKey = thumbnailStorageKeyFromFilename(filename);
-    const thumbPath = thumbnails.has(thumbKey)
-      ? publicPathForStorageKey(thumbKey)
-      : null;
+      const type = mediaTypeFromStorageKey(file.key) ?? "image";
+      const thumbKey = thumbnailStorageKeyFromStorageKey(file.key);
+      const thumbPath = thumbnails.has(thumbKey)
+        ? publicPathForStorageKey(thumbKey)
+        : null;
 
-    return {
-      filename,
-      filePath: publicPathForStorageKey(file.key),
-      thumbPath,
-      type,
-      size: file.size,
-      modifiedAt: file.modifiedAt,
-      boards: fileToBoards.get(filename) ?? [],
-    };
+      return {
+        filename: file.key,
+        filePath: publicPathForStorageKey(file.key),
+        thumbPath,
+        type,
+        size: file.size,
+        modifiedAt: file.modifiedAt,
+        boards: fileToBoards.get(file.key) ?? [],
+      };
     });
 
   return NextResponse.json(result);
@@ -111,9 +110,16 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  const sanitized = path.basename(filename);
+  let storageKey: string;
+  try {
+    storageKey = storageKeyFromPublicPath(
+      filename.startsWith("/uploads/") ? filename : publicPathForStorageKey(filename),
+    );
+  } catch {
+    return NextResponse.json({ error: "Invalid filename" }, { status: 400 });
+  }
 
-  const dbPath = publicPathForStorageKey(sanitized);
+  const dbPath = publicPathForStorageKey(storageKey);
   const refs = await db
     .select({
       id: mediaItems.id,
@@ -133,8 +139,8 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    await deleteStoredObject(sanitized);
-    await deleteStoredObject(thumbnailStorageKeyFromFilename(sanitized));
+    await deleteStoredObject(storageKey);
+    await deleteStoredObject(thumbnailStorageKeyFromStorageKey(storageKey));
   } catch {
     return NextResponse.json(
       { error: "Failed to delete file" },
