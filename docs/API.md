@@ -37,6 +37,7 @@ flowchart TB
 | `/boards/<boardId>` | ボード編集 | 必要 |
 | `/media` | アップロード済みメディア管理 | `admin` |
 | `/billing` | プランとお支払い管理 | `admin` / Billing 有効時 |
+| `/status` | 使用量、表示端末状態、バージョン情報 | `admin` |
 | `/settings` | ユーザー設定・管理設定 | 必要 |
 | `/users` | Shared user 管理 | `admin` |
 | `/delete-account` | Owner アカウント削除リクエスト | Owner / `admin` |

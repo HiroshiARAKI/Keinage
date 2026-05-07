@@ -35,14 +35,6 @@ interface UploadedFile {
   boards: { boardId: string; boardName: string | null }[];
 }
 
-interface VersionInfo {
-  current: string;
-  releaseUrl: string;
-  latest: string | null;
-  latestUrl: string | null;
-  hasUpdate: boolean;
-}
-
 export function SettingsClient({
   role,
   currentUserId,
@@ -71,7 +63,6 @@ export function SettingsClient({
   const [imageSaving, setImageSaving] = useState(false);
   const [imageSaved, setImageSaved] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
-  const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const { theme, setTheme } = useTheme();
   const { locale, setLocale, t, formatDate } = useLocale();
   const [dashboardUrl, setDashboardUrl] = useState<string | null>(null);
@@ -176,10 +167,6 @@ export function SettingsClient({
       }
     })();
     fetchMedia();
-    fetch("/api/version")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) setVersionInfo(data); })
-      .catch(() => {});
     // Resolve dashboard URL for QR code
     (async () => {
       const origin = window.location.origin;
@@ -583,39 +570,6 @@ export function SettingsClient({
 
   return (
     <div className="space-y-6">
-      {/* Version Info */}
-      {versionInfo && (
-        <div className="rounded-lg border p-6">
-          <h2 className="mb-4 text-lg font-semibold">{t("settings.versionTitle")}</h2>
-          <div className="space-y-2">
-            <p className="text-sm">
-              {t("settings.currentVersion")}{" "}
-              <a
-                href={versionInfo.releaseUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono font-semibold text-blue-600 hover:underline"
-              >
-                v{versionInfo.current}
-              </a>
-            </p>
-            {versionInfo.hasUpdate && versionInfo.latest && (
-              <p className="text-sm text-amber-600">
-                {t("settings.updateAvailable")}{" "}
-                <a
-                  href={versionInfo.latestUrl ?? versionInfo.releaseUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono font-semibold hover:underline"
-                >
-                  v{versionInfo.latest}
-                </a>
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Dashboard QR Code */}
       {dashboardUrl && (
         <div className="rounded-lg border p-6">
