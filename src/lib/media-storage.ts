@@ -34,8 +34,10 @@ type S3Config = {
   endpoint?: string;
   region: string;
   bucket: string;
-  accessKeyId: string;
-  secretAccessKey: string;
+  credentials?: {
+    accessKeyId: string;
+    secretAccessKey: string;
+  };
   forcePathStyle: boolean;
 };
 
@@ -80,8 +82,9 @@ function sanitizeKeySegment(value: string): string {
 
 function configuredPublicBaseUrl(): string | null {
   const raw =
-    process.env.CLOUDFRONT_BASE_URL?.trim()
-    || process.env.S3_PUBLIC_BASE_URL?.trim();
+    process.env.S3_PUBLIC_BASE_URL?.trim()
+    || process.env.STORAGE_PUBLIC_BASE_URL?.trim()
+    || process.env.CLOUDFRONT_BASE_URL?.trim();
   if (!raw) return null;
   return raw.replace(/\/+$/, "");
 }
@@ -112,32 +115,52 @@ function getS3Config(): S3Config | null {
     return cachedConfig;
   }
 
-  const endpoint = process.env.S3_ENDPOINT?.trim();
+  const endpoint =
+    process.env.S3_INTERNAL_ENDPOINT?.trim()
+    || process.env.S3_ENDPOINT?.trim();
   const bucket = process.env.S3_BUCKET?.trim();
   const accessKeyId = process.env.S3_ACCESS_KEY_ID?.trim();
   const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY?.trim();
-  const region = process.env.S3_REGION?.trim() || "us-east-1";
+  const region = process.env.S3_REGION?.trim();
 
-  const values = [bucket, accessKeyId, secretAccessKey];
-  const provided = values.filter(Boolean).length;
+  const hasAnyConnectionSetting = Boolean(
+    endpoint
+      || region
+      || bucket
+      || accessKeyId
+      || secretAccessKey
+      || process.env.S3_FORCE_PATH_STYLE?.trim(),
+  );
 
-  if (provided === 0 && !endpoint) {
+  if (!hasAnyConnectionSetting) {
     cachedConfig = null;
     return cachedConfig;
   }
 
-  if (provided !== values.length) {
+  if (!region || !bucket) {
     throw new Error(
-      "Incomplete S3 storage configuration. Set S3_BUCKET, S3_ACCESS_KEY_ID, and S3_SECRET_ACCESS_KEY. S3_ENDPOINT is optional for AWS S3.",
+      "Incomplete S3 storage configuration. Set S3_REGION and S3_BUCKET. S3_ENDPOINT and static credentials are optional.",
+    );
+  }
+
+  const hasAccessKey = Boolean(accessKeyId);
+  const hasSecretKey = Boolean(secretAccessKey);
+  if (hasAccessKey !== hasSecretKey) {
+    throw new Error(
+      "Incomplete S3 static credentials. Set both S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY, or leave both empty to use the AWS default credential provider chain.",
     );
   }
 
   cachedConfig = {
     endpoint: endpoint || undefined,
     region,
-    bucket: bucket!,
-    accessKeyId: accessKeyId!,
-    secretAccessKey: secretAccessKey!,
+    bucket,
+    credentials: hasAccessKey && hasSecretKey
+      ? {
+          accessKeyId: accessKeyId!,
+          secretAccessKey: secretAccessKey!,
+        }
+      : undefined,
     forcePathStyle: parseBoolean(process.env.S3_FORCE_PATH_STYLE, Boolean(endpoint)),
   };
 
@@ -159,10 +182,7 @@ function getS3Client(): { client: S3Client; config: S3Config } {
       region: config.region,
       endpoint: config.endpoint,
       forcePathStyle: config.forcePathStyle,
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      },
+      credentials: config.credentials,
     });
   }
 

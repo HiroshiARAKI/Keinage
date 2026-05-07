@@ -306,8 +306,8 @@ flowchart TB
 
 - DB には `/uploads/<filename>` の公開パスを保存します。
 - 新規アップロードの object key は `owners/<owner>/boards/<board>/media/<mediaId>.<ext>` とし、Owner / board scope を key に含めます。サムネイルは同じ scope の `media/thumbs/` に保存します。既存の flat key も引き続き読み出せます。
-- S3 未設定時は `uploads/` に保存します。S3 設定時は `S3_INTERNAL_ENDPOINT` を優先し、なければ `S3_ENDPOINT` を使います。AWS S3 では `S3_ENDPOINT` を省略できます。
-- `CLOUDFRONT_BASE_URL` または `S3_PUBLIC_BASE_URL` を設定すると、public board の media URL は CDN base URL を使います。private board は `/uploads/[...path]` route を維持し、認可と `private, no-store` cache-control を適用します。
+- S3 未設定時は `uploads/` に保存します。S3 利用時は `S3_REGION` と `S3_BUCKET` が必須です。`S3_INTERNAL_ENDPOINT` / `S3_ENDPOINT` は任意で、AWS S3 では省略できます。`S3_ACCESS_KEY_ID` と `S3_SECRET_ACCESS_KEY` は両方ある場合のみ明示 credentials として使い、空の場合は AWS SDK の default credential provider chain に任せます。
+- `S3_PUBLIC_BASE_URL`、`STORAGE_PUBLIC_BASE_URL`、`CLOUDFRONT_BASE_URL` の順で公開 base URL を参照し、設定されている場合は public board の media URL に使います。private board は `/uploads/[...path]` route を維持し、認可と `private, no-store` cache-control を適用します。
 - 画像は `src/lib/image.ts` でリサイズとサムネイル生成を行います。
 - standalone build 後の動的ファイル配信に対応するため、`/uploads/[...path]` route で保存先から読み出します。
 

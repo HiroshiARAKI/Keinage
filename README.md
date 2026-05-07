@@ -90,7 +90,24 @@ docker compose up -d
 `docker compose up -d` でアプリ本体と PostgreSQL コンテナが同時に起動します。
 
 Docker Compose の既定構成では、メディア保存先はローカル `uploads/` ディレクトリです。
-必要に応じて、S3 互換のあるストレージサービスを利用できます。
+必要に応じて、AWS S3 または S3 互換ストレージサービスを利用できます。
+
+AWS S3 + CloudFront + IAM Role で運用する場合は、`S3_REGION` と `S3_BUCKET` を設定し、`S3_ENDPOINT` と静的 Access Key / Secret は空のままにします。アプリは AWS SDK の default credential provider chain に任せます。公開ボードのメディアURLを CloudFront 経由にする場合は `S3_PUBLIC_BASE_URL` または `STORAGE_PUBLIC_BASE_URL` を設定してください。
+
+```yaml
+environment:
+  - S3_REGION=ap-northeast-1
+  - S3_BUCKET=keinage-storage-prod
+  - S3_ENDPOINT=
+  - S3_FORCE_PATH_STYLE=false
+  - S3_ACCESS_KEY_ID=
+  - S3_SECRET_ACCESS_KEY=
+  - S3_PUBLIC_BASE_URL=https://storage.keinage.com
+```
+
+ローカルPCから AWS S3 を検証する場合は、`S3_ACCESS_KEY_ID` と `S3_SECRET_ACCESS_KEY` を両方設定します。片方だけの設定はエラーになります。
+
+RustFS / MinIO などのS3互換ストレージでは、endpoint、path-style、静的credentialsを設定します。
 
 ```yaml
 environment:
@@ -100,6 +117,7 @@ environment:
   - S3_ACCESS_KEY_ID=rustfsadmin
   - S3_SECRET_ACCESS_KEY=rustfsadmin
   - S3_FORCE_PATH_STYLE=true
+  - S3_PUBLIC_BASE_URL=http://localhost:9000/keinage-media
 ```
 
 `docker-compose.yml` には rustfs のコメント例を残していますが、alpha 版のため既定では起動しません。
@@ -117,7 +135,7 @@ environment:
 3. `docker compose up -d db rustfs app` を実行する
 4. RustFS の Web UI (`http://127.0.0.1:9001/`) で `keinage-media` バケットを作成する
 
-この状態で app は自動的にローカル `uploads/` ではなく RustFS に保存します。Docker Compose 内の app は `S3_INTERNAL_ENDPOINT` を優先して使うため、`127.0.0.1` ではなく `rustfs:9000` へ接続されます。`S3_ACCESS_KEY_ID` と `S3_SECRET_ACCESS_KEY` は、rustfs 側の `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` と同じ値を使ってください。
+この状態で app は自動的にローカル `uploads/` ではなく RustFS に保存します。Docker Compose 内の app は `S3_INTERNAL_ENDPOINT` を優先して使うため、`127.0.0.1` ではなく `rustfs:9000` へ接続されます。`S3_ACCESS_KEY_ID` と `S3_SECRET_ACCESS_KEY` は、rustfs 側の `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` と同じ値を使ってください。ブラウザから RustFS へ直接配信する場合は `S3_PUBLIC_BASE_URL=http://localhost:9000/keinage-media` のように、ブラウザから到達できるURLを設定します。アプリ経由で配信する場合は空でも構いません。
 
 ブラウザで http://localhost:3000 にアクセスし、初回は Owner 管理者アカウントを登録してください。
 メールアドレス + パスワード、または Google アカウントで登録できます。登録後はそのまま 6 桁 PIN を設定します。
