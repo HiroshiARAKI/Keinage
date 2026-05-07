@@ -11,6 +11,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1036.0
         version: 3.1036.0
+      '@aws-sdk/cloudfront-signer':
+        specifier: ^3.1036.0
+        version: 3.1036.0
       '@base-ui/react':
         specifier: ^1.3.0
         version: 1.3.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -131,6 +134,10 @@ packages:
 
   '@aws-sdk/client-s3@3.1036.0':
     resolution: {integrity: sha512-QGjLHw1xklwWX+MWt/7X66lMxjNQLOb0tjcwAU3PaBrYZ51kphDlfvc2sInNEsIU03+I158Y4WSMhl8l71SAsw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/cloudfront-signer@3.1036.0':
+    resolution: {integrity: sha512-AXEl7lGvlbWbN0Xi0dd0XVfzVnA39dUyMILPcTk6Q5DkwmPgp6M/K6A6Ejbjajhoe8C1AUF4O1+hDc7DPxnBxg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/core@3.974.5':
@@ -4302,6 +4309,12 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
+
+  '@aws-sdk/cloudfront-signer@3.1036.0':
+    dependencies:
+      '@smithy/core': 3.23.17
+      '@smithy/url-parser': 4.2.14
+      tslib: 2.8.1
 
   '@aws-sdk/core@3.974.5':
     dependencies:

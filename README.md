@@ -92,7 +92,7 @@ docker compose up -d
 Docker Compose の既定構成では、メディア保存先はローカル `uploads/` ディレクトリです。
 必要に応じて、AWS S3 または S3 互換ストレージサービスを利用できます。
 
-AWS S3 + CloudFront + IAM Role で運用する場合は、`S3_REGION` と `S3_BUCKET` を設定し、`S3_ENDPOINT` と静的 Access Key / Secret は空のままにします。アプリは AWS SDK の default credential provider chain に任せます。公開ボードのメディアURLを CloudFront 経由にする場合は `S3_PUBLIC_BASE_URL` または `STORAGE_PUBLIC_BASE_URL` を設定してください。
+AWS S3 + CloudFront + IAM Role で運用する場合は、`S3_REGION` と `S3_BUCKET` を設定し、`S3_ENDPOINT` と静的 Access Key / Secret は空のままにします。アプリは AWS SDK の default credential provider chain に任せます。CloudFront / S3 を private にしたまま配信する場合は `STORAGE_DELIVERY_MODE=cloudfront-signed-url` を使います。ブラウザには `/uploads/<mediaId>` 形式だけを返し、Keinage 側で Owner / Board の公開設定を確認してから短時間有効な CloudFront Signed URL へ 302 redirect します。
 
 ```yaml
 environment:
@@ -102,7 +102,12 @@ environment:
   - S3_FORCE_PATH_STYLE=false
   - S3_ACCESS_KEY_ID=
   - S3_SECRET_ACCESS_KEY=
-  - S3_PUBLIC_BASE_URL=https://storage.keinage.com
+  - STORAGE_DELIVERY_MODE=cloudfront-signed-url
+  - STORAGE_PUBLIC_BASE_URL=https://app.keinage.com/uploads
+  - STORAGE_CDN_BASE_URL=https://storage.keinage.com
+  - CLOUDFRONT_KEY_PAIR_ID=Kxxxxxxxxxxxx
+  - CLOUDFRONT_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----
+  - CLOUDFRONT_SIGNED_URL_EXPIRES_SECONDS=300
 ```
 
 ローカルPCから AWS S3 を検証する場合は、`S3_ACCESS_KEY_ID` と `S3_SECRET_ACCESS_KEY` を両方設定します。片方だけの設定はエラーになります。

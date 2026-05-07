@@ -307,7 +307,8 @@ flowchart TB
 - DB には `/uploads/<filename>` の公開パスを保存します。
 - 新規アップロードの object key は `owners/<owner>/boards/<board>/media/<mediaId>.<ext>` とし、Owner / board scope を key に含めます。サムネイルは同じ scope の `media/thumbs/` に保存します。既存の flat key も引き続き読み出せます。
 - S3 未設定時は `uploads/` に保存します。S3 利用時は `S3_REGION` と `S3_BUCKET` が必須です。`S3_INTERNAL_ENDPOINT` / `S3_ENDPOINT` は任意で、AWS S3 では省略できます。`S3_ACCESS_KEY_ID` と `S3_SECRET_ACCESS_KEY` は両方ある場合のみ明示 credentials として使い、空の場合は AWS SDK の default credential provider chain に任せます。
-- `S3_PUBLIC_BASE_URL`、`STORAGE_PUBLIC_BASE_URL`、`CLOUDFRONT_BASE_URL` の順で公開 base URL を参照し、設定されている場合は public board の media URL に使います。private board は `/uploads/[...path]` route を維持し、認可と `private, no-store` cache-control を適用します。
+- `STORAGE_DELIVERY_MODE=cloudfront-signed-url` の場合、board に返す media URL は `/uploads/<mediaId>` 形式にし、`/uploads/[...path]` route で board の公開設定と Owner scope を確認してから CloudFront Signed URL へ 302 redirect します。署名生成には `STORAGE_CDN_BASE_URL`、`CLOUDFRONT_KEY_PAIR_ID`、`CLOUDFRONT_PRIVATE_KEY` を使い、有効期限は `CLOUDFRONT_SIGNED_URL_EXPIRES_SECONDS` で調整できます。
+- 署名付き配信を使わない場合は、`S3_PUBLIC_BASE_URL`、`STORAGE_PUBLIC_BASE_URL`、`CLOUDFRONT_BASE_URL` の順で公開 base URL を参照し、設定されている場合は public board の media URL に使います。private board は `/uploads/[...path]` route を維持し、認可と `private, no-store` cache-control を適用します。
 - 画像は `src/lib/image.ts` でリサイズとサムネイル生成を行います。
 - standalone build 後の動的ファイル配信に対応するため、`/uploads/[...path]` route で保存先から読み出します。
 
