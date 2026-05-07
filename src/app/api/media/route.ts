@@ -10,6 +10,7 @@ import { emitSSE } from "@/lib/sse";
 import {
   resizeImage,
   generateThumbnail,
+  getImageDimensions,
   getImageLongEdge,
   DEFAULT_IMAGE_MAX_LONG_EDGE,
 } from "@/lib/image";
@@ -82,6 +83,8 @@ export async function GET() {
       boardId: mediaItems.boardId,
       type: mediaItems.type,
       filePath: mediaItems.filePath,
+      width: mediaItems.width,
+      height: mediaItems.height,
       displayOrder: mediaItems.displayOrder,
       duration: mediaItems.duration,
       createdAt: mediaItems.createdAt,
@@ -177,6 +180,8 @@ export async function POST(request: NextRequest) {
   });
 
   let buffer: Buffer = Buffer.from(await file.arrayBuffer());
+  let mediaWidth: number | null = null;
+  let mediaHeight: number | null = null;
 
   if (mediaType === "image") {
     // Read the max long edge setting
@@ -202,6 +207,9 @@ export async function POST(request: NextRequest) {
       }
     }
     buffer = Buffer.from(await resizeImage(buffer, sanitizedExt, maxLongEdge));
+    const dimensions = await getImageDimensions(buffer);
+    mediaWidth = dimensions.width;
+    mediaHeight = dimensions.height;
   }
 
   if (mediaType === "video") {
@@ -223,6 +231,8 @@ export async function POST(request: NextRequest) {
       if (response) return response;
       throw error;
     }
+    mediaWidth = metadata.width;
+    mediaHeight = metadata.height;
   }
 
   let thumbnail =
@@ -288,6 +298,8 @@ export async function POST(request: NextRequest) {
       filePath: publicPathForStorageKey(storageKey),
       fileSizeBytes: buffer.length,
       thumbnailSizeBytes: thumbnail?.buffer.length ?? 0,
+      width: mediaWidth,
+      height: mediaHeight,
       displayOrder: maxOrder + 1,
       duration: durationValue,
     })

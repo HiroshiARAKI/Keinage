@@ -8,6 +8,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getEffectivePlanForOwner } from "@/lib/billing";
 import { isBoardDisplayable } from "@/lib/board-status";
 import { recordBoardViewed } from "@/lib/board-view-tracking";
+import { applyMediaPlanRestrictions } from "@/lib/media-plan";
 import { publicDeliveryUrlForPublicPath } from "@/lib/media-storage";
 import { isInOwnerScope } from "@/lib/ownership";
 import { normalizeConfig } from "@/lib/utils";
@@ -49,13 +50,14 @@ export async function GET(
     .from(messages)
     .where(eq(messages.boardId, id));
   const effectivePlan = await getEffectivePlanForOwner(board.ownerUserId);
+  const planRestrictedMedia = applyMediaPlanRestrictions(media, effectivePlan.plan);
   const responseMedia =
     board.visibility === "public"
-      ? media.map((item) => ({
+      ? planRestrictedMedia.map((item) => ({
           ...item,
           filePath: publicDeliveryUrlForPublicPath(item.filePath),
         }))
-      : media;
+      : planRestrictedMedia;
 
   return NextResponse.json({
     ...normalizeConfig(board),
