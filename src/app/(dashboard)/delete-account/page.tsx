@@ -6,6 +6,7 @@ import {
   getOwnerAccountDeletionSummary,
   type AccountDeletionSummary,
 } from "@/lib/account-deletion";
+import { getEffectivePlanForOwner } from "@/lib/billing";
 import { isOwnerUser } from "@/lib/ownership";
 import DeleteAccountRequestClient from "./DeleteAccountRequestClient";
 
@@ -19,14 +20,24 @@ export default async function DeleteAccountPage() {
     redirect("/settings");
   }
 
-  const summary: AccountDeletionSummary = await getOwnerAccountDeletionSummary(
-    session.user.id,
-  );
+  const [summary, effectivePlan]: [AccountDeletionSummary, Awaited<ReturnType<typeof getEffectivePlanForOwner>>] =
+    await Promise.all([
+      getOwnerAccountDeletionSummary(session.user.id),
+      getEffectivePlanForOwner(session.user.id),
+    ]);
+  const hasPaidSubscription =
+    effectivePlan.billingMode === "stripe"
+    && effectivePlan.subscription?.billingMode === "stripe"
+    && effectivePlan.subscription.planCode !== "free"
+    && effectivePlan.subscription.status !== "canceled"
+    && effectivePlan.subscription.status !== "none";
 
   return (
     <DeleteAccountRequestClient
       email={session.user.email}
       summary={summary}
+      planName={effectivePlan.plan.name}
+      hasPaidSubscription={hasPaidSubscription}
     />
   );
 }

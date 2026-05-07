@@ -105,7 +105,7 @@ flowchart TB
 | `POST` | `/api/auth/pin/forgot` | PIN リセット URL を送信 | 不要 |
 | `POST` | `/api/auth/pin/reset` | PIN リセット token で PIN を更新 | リセット token |
 | `POST` | `/api/auth/account-deletion/request` | Owner アカウント削除 URL を送信 | Owner / `admin` |
-| `POST` | `/api/auth/account-deletion/complete` | Owner アカウント削除を確定 | 削除 token |
+| `POST` | `/api/auth/account-deletion/complete` | Owner アカウント削除を確定。Stripe有効時はサブスクリプションを即時キャンセルしてから削除 | 削除 token |
 | `PATCH` | `/api/users/me` | 自分の表示テーマ・locale を更新 | 必要 |
 | `POST` | `/api/contact` | 問い合わせメール送信 | 必要 |
 
@@ -123,6 +123,8 @@ flowchart TB
 | `GET` | `/api/public/boards/<id>` | 公開ボード詳細 | 不要 |
 
 `GET /api/public/boards/<id>` はボード表示に必要な `boardPlan.watermark` を返します。この値は Owner の effective plan からサーバー側で算出され、plan code や subscription 詳細は公開しません。ブラウザ表示上のウォーターマークであり、完全な削除・改ざん防止は保証しません。
+
+Owner退会時、`BILLING_MODE=stripe` かつキャンセル可能な Stripe subscription がある場合は Stripe の即時キャンセルに成功してからOwner削除へ進みます。キャンセルに失敗した場合、アカウントとデータは削除されません。退会済みOwnerのStripe IDは最小限のtombstoneとして保持し、遅延Webhookで有料プランが復活しないようにします。
 
 ボード更新・削除後は対象ボードへ SSE イベントが発行されます。
 

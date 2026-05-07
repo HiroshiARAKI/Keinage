@@ -6,11 +6,16 @@ import { db } from "@/db";
 import {
   accountDeletionRequests,
   boards,
+  deletedOwnerBillingRecords,
   mediaItems,
   messages,
+  ownerSubscriptions,
   settings,
+  type users as usersTable,
   users,
 } from "@/db/schema";
+import { getBillingConfig } from "@/lib/plans";
+import { cancelStripeSubscriptionImmediately } from "@/lib/stripe-billing";
 import {
   deleteStoredObject,
   storageKeyFromPublicPath,
@@ -35,6 +40,17 @@ type OwnerDeletionData = {
   mediaFilePaths: string[];
   summary: AccountDeletionSummary;
 };
+
+type OwnerUserForDeletion = Pick<typeof usersTable.$inferSelect, "id" | "email">;
+
+const STRIPE_CANCELABLE_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+  "paused",
+  "incomplete",
+]);
 
 export function generateAccountDeletionToken(): string {
   return randomUUID();
@@ -103,13 +119,68 @@ export async function getOwnerAccountDeletionSummary(
 export async function deleteOwnerAccount(params: {
   ownerUserId: string;
   deletionRequestId: string;
+  ownerUser: OwnerUserForDeletion;
 }) {
-  const deletionData = await collectOwnerDeletionData(params.ownerUserId);
+  const [deletionData, subscription] = await Promise.all([
+    collectOwnerDeletionData(params.ownerUserId),
+    db.query.ownerSubscriptions.findFirst({
+      where: eq(ownerSubscriptions.ownerUserId, params.ownerUserId),
+    }),
+  ]);
+  const now = new Date().toISOString();
+  let canceledAt = subscription?.canceledAt ?? null;
+  const { billingMode } = getBillingConfig();
+  const shouldCancelStripe =
+    billingMode === "stripe"
+    && subscription?.billingMode === "stripe"
+    && subscription.stripeSubscriptionId
+    && STRIPE_CANCELABLE_SUBSCRIPTION_STATUSES.has(subscription.status);
+
+  if (shouldCancelStripe && subscription?.stripeSubscriptionId) {
+    const canceled = await cancelStripeSubscriptionImmediately({
+      ownerUserId: params.ownerUserId,
+      stripeSubscriptionId: subscription.stripeSubscriptionId,
+    });
+    canceledAt = canceled.canceledAt;
+  }
 
   await db.transaction(async (tx) => {
     await tx
       .delete(accountDeletionRequests)
       .where(eq(accountDeletionRequests.id, params.deletionRequestId));
+
+    if (subscription) {
+      await tx
+        .update(ownerSubscriptions)
+        .set({
+          planCode: "free",
+          billingInterval: null,
+          status: "canceled",
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: false,
+          canceledAt: canceledAt ?? now,
+          deletedOwnerAt: now,
+          pendingPlanCode: null,
+          pendingBillingInterval: null,
+          pendingPlanEffectiveAt: null,
+          pendingActiveBoardIds: null,
+          updatedAt: now,
+        })
+        .where(eq(ownerSubscriptions.ownerUserId, params.ownerUserId));
+
+      await tx.insert(deletedOwnerBillingRecords).values({
+        ownerUserId: params.ownerUserId,
+        email: params.ownerUser.email,
+        billingMode: subscription.billingMode,
+        planCode: subscription.planCode,
+        billingInterval: subscription.billingInterval,
+        status: "canceled",
+        stripeCustomerId: subscription.stripeCustomerId,
+        stripeSubscriptionId: subscription.stripeSubscriptionId,
+        canceledAt: canceledAt ?? now,
+        deletedOwnerAt: now,
+      });
+    }
 
     if (deletionData.sharedUserIds.length > 0) {
       await tx

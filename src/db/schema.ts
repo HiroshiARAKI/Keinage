@@ -117,6 +117,8 @@ export const ownerSubscriptions = pgTable(
     stripeSubscriptionId: text("stripe_subscription_id"),
     currentPeriodEnd: text("current_period_end"),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    canceledAt: text("canceled_at"),
+    deletedOwnerAt: text("deleted_owner_at"),
     pendingPlanCode: text("pending_plan_code"),
     pendingBillingInterval: text("pending_billing_interval"),
     pendingPlanEffectiveAt: text("pending_plan_effective_at"),
@@ -135,6 +137,40 @@ export const ownerSubscriptions = pgTable(
     stripeCustomerIdx: index("owner_subscriptions_stripe_customer_id_idx")
       .on(table.stripeCustomerId),
     stripeSubscriptionIdx: index("owner_subscriptions_stripe_subscription_id_idx")
+      .on(table.stripeSubscriptionId),
+  }),
+);
+
+export const deletedOwnerBillingRecords = pgTable(
+  "deleted_owner_billing_records",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    ownerUserId: text("owner_user_id").notNull(),
+    email: text("email"),
+    billingMode: text("billing_mode").notNull().default("disabled"),
+    planCode: text("plan_code").notNull().default("free"),
+    billingInterval: text("billing_interval"),
+    status: text("status").notNull().default("canceled"),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    canceledAt: text("canceled_at"),
+    deletedOwnerAt: text("deleted_owner_at").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(isoNow)
+      .$onUpdate(() => new Date().toISOString()),
+  },
+  (table) => ({
+    ownerIdx: index("deleted_owner_billing_records_owner_user_id_idx")
+      .on(table.ownerUserId),
+    stripeCustomerIdx: index("deleted_owner_billing_records_stripe_customer_id_idx")
+      .on(table.stripeCustomerId),
+    stripeSubscriptionIdx: index("deleted_owner_billing_records_stripe_subscription_id_idx")
       .on(table.stripeSubscriptionId),
   }),
 );

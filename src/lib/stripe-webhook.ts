@@ -3,7 +3,12 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { eq, or } from "drizzle-orm";
 import { db } from "@/db";
-import { ownerSubscriptions, stripeEvents } from "@/db/schema";
+import {
+  deletedOwnerBillingRecords,
+  ownerSubscriptions,
+  stripeEvents,
+  users,
+} from "@/db/schema";
 import {
   applyPendingPlanBoardSelection,
   buildDefaultPendingActiveBoardIds,
@@ -299,6 +304,29 @@ async function findOwnerByStripeIds(input: {
   });
 }
 
+async function findDeletedOwnerBillingRecord(input: {
+  ownerUserId?: string | null;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+}) {
+  const conditions = [
+    input.ownerUserId
+      ? eq(deletedOwnerBillingRecords.ownerUserId, input.ownerUserId)
+      : null,
+    input.stripeCustomerId
+      ? eq(deletedOwnerBillingRecords.stripeCustomerId, input.stripeCustomerId)
+      : null,
+    input.stripeSubscriptionId
+      ? eq(deletedOwnerBillingRecords.stripeSubscriptionId, input.stripeSubscriptionId)
+      : null,
+  ].filter((condition): condition is NonNullable<typeof condition> => !!condition);
+
+  if (conditions.length === 0) return null;
+  return db.query.deletedOwnerBillingRecords.findFirst({
+    where: or(...conditions),
+  });
+}
+
 async function pendingBoardIdsForPlan(input: {
   ownerUserId: string;
   planCode: PlanCode;
@@ -347,6 +375,9 @@ async function upsertOwnerSubscription(state: ResolvedSubscriptionState) {
   const existing = await db.query.ownerSubscriptions.findFirst({
     where: eq(ownerSubscriptions.ownerUserId, state.ownerUserId),
   });
+  if (existing?.deletedOwnerAt) {
+    return;
+  }
   const now = new Date().toISOString();
   const storedPlanCode = normalizeStoredPlanCode(existing?.planCode);
   const storedBillingInterval = normalizeStoredBillingInterval(existing?.billingInterval);
@@ -468,9 +499,27 @@ async function resolveOwnerUserIdFromObject(object: StripeObject, ids: {
 }) {
   const ownerFromMetadata = metadataOwnerUserId(object)
     ?? asString(object.client_reference_id);
-  if (ownerFromMetadata) return ownerFromMetadata;
+  if (ownerFromMetadata) {
+    const [owner, deletedRecord] = await Promise.all([
+      db.query.users.findFirst({
+        where: eq(users.id, ownerFromMetadata),
+      }),
+      findDeletedOwnerBillingRecord({
+        ownerUserId: ownerFromMetadata,
+        stripeCustomerId: ids.stripeCustomerId,
+        stripeSubscriptionId: ids.stripeSubscriptionId,
+      }),
+    ]);
+    if (deletedRecord) return null;
+    return owner?.id ?? null;
+  }
 
   const existing = await findOwnerByStripeIds(ids);
+  if (existing?.deletedOwnerAt) return null;
+  if (!existing) {
+    const deletedRecord = await findDeletedOwnerBillingRecord(ids);
+    if (deletedRecord) return null;
+  }
   return existing?.ownerUserId ?? null;
 }
 
@@ -559,7 +608,7 @@ async function handleSubscriptionEvent(eventType: string, object: StripeObject) 
         stripeCustomerId: stripeId(object.customer),
         stripeSubscriptionId: stripeId(object.id),
       });
-      if (!existing) return "ignored" as const;
+      if (!existing || existing.deletedOwnerAt) return "ignored" as const;
 
       await applyFreePlanSelection(existing);
 
@@ -584,6 +633,7 @@ async function handleSubscriptionEvent(eventType: string, object: StripeObject) 
     const existing = await db.query.ownerSubscriptions.findFirst({
       where: eq(ownerSubscriptions.ownerUserId, state.ownerUserId),
     });
+    if (existing?.deletedOwnerAt) return "ignored" as const;
     await applyFreePlanSelection(existing ?? null);
 
     await upsertOwnerSubscription({
@@ -617,7 +667,18 @@ async function handleInvoiceEvent(eventType: string, object: StripeObject) {
   const stripeCustomerId = stripeId(object.customer);
   const stripeSubscriptionId = stripeId(object.subscription);
   const existing = await findOwnerByStripeIds({ stripeCustomerId, stripeSubscriptionId });
+  if (existing?.deletedOwnerAt) {
+    return "ignored" as const;
+  }
   if (!existing) {
+    const deletedRecord = await findDeletedOwnerBillingRecord({
+      stripeCustomerId,
+      stripeSubscriptionId,
+    });
+    if (deletedRecord) {
+      return "ignored" as const;
+    }
+
     console.error("[billing/webhook] Existing subscription not found for invoice event", {
       stripeCustomerId,
       stripeSubscriptionId,

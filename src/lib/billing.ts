@@ -42,6 +42,8 @@ export interface OwnerSubscriptionState {
   stripeSubscriptionId: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  canceledAt: string | null;
+  deletedOwnerAt: string | null;
   pendingPlanCode: PlanCode | null;
   pendingBillingInterval: BillingInterval | null;
   pendingPlanEffectiveAt: string | null;
@@ -70,6 +72,8 @@ function normalizeSubscription(
     stripeSubscriptionId: row.stripeSubscriptionId,
     currentPeriodEnd: row.currentPeriodEnd,
     cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+    canceledAt: row.canceledAt,
+    deletedOwnerAt: row.deletedOwnerAt,
     pendingPlanCode: isPlanCode(row.pendingPlanCode) ? row.pendingPlanCode : null,
     pendingBillingInterval: isBillingInterval(row.pendingBillingInterval)
       ? row.pendingBillingInterval

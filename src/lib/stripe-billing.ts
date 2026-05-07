@@ -13,6 +13,12 @@ interface StripeSession {
   url: string | null;
 }
 
+interface StripeSubscription {
+  id: string;
+  status?: string;
+  canceled_at?: number | null;
+}
+
 export class StripeBillingError extends Error {
   constructor(
     message: string,
@@ -44,6 +50,29 @@ async function postStripeForm<T>(
       ...(options?.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
     },
     body: params,
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = typeof data?.error?.message === "string"
+      ? data.error.message
+      : "Stripe request failed";
+    throw new StripeBillingError(message, response.status);
+  }
+
+  return data as T;
+}
+
+async function deleteStripeForm<T>(
+  path: string,
+  options?: { idempotencyKey?: string },
+): Promise<T> {
+  const response = await fetch(`${STRIPE_API_BASE}${path}`, {
+    method: "DELETE",
+    headers: {
+      "Authorization": `Bearer ${getStripeSecretKey()}`,
+      ...(options?.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
+    },
   });
 
   const data = await response.json().catch(() => null);
@@ -114,4 +143,18 @@ export async function createStripePortalSession(input: {
     throw new StripeBillingError("Stripe portal session URL was not returned");
   }
   return session.url;
+}
+
+export async function cancelStripeSubscriptionImmediately(input: {
+  stripeSubscriptionId: string;
+  ownerUserId: string;
+}): Promise<{ canceledAt: string }> {
+  const subscription = await deleteStripeForm<StripeSubscription>(
+    `/subscriptions/${encodeURIComponent(input.stripeSubscriptionId)}`,
+    { idempotencyKey: `keinage-owner-delete-${input.ownerUserId}-${input.stripeSubscriptionId}` },
+  );
+  const canceledAt = typeof subscription.canceled_at === "number"
+    ? new Date(subscription.canceled_at * 1000).toISOString()
+    : new Date().toISOString();
+  return { canceledAt };
 }
