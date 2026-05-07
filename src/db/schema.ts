@@ -50,6 +50,8 @@ export const mediaItems = pgTable("media_items", {
   filePath: text("file_path").notNull(),
   fileSizeBytes: bigint("file_size_bytes", { mode: "number" }).notNull().default(0),
   thumbnailSizeBytes: bigint("thumbnail_size_bytes", { mode: "number" }).notNull().default(0),
+  width: integer("width"),
+  height: integer("height"),
   displayOrder: integer("display_order").notNull().default(0),
   duration: integer("duration").notNull().default(5), // seconds
   createdAt: text("created_at")

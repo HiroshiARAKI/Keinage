@@ -60,6 +60,17 @@ export async function getImageLongEdge(buffer: Buffer): Promise<number> {
   return Math.max(metadata.width ?? 0, metadata.height ?? 0);
 }
 
+export async function getImageDimensions(buffer: Buffer): Promise<{
+  width: number | null;
+  height: number | null;
+}> {
+  const metadata = await sharp(buffer).metadata();
+  return {
+    width: metadata.width ?? null,
+    height: metadata.height ?? null,
+  };
+}
+
 /**
  * Generate a thumbnail (600px long edge) buffer for later storage.
  *

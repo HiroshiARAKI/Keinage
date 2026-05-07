@@ -146,6 +146,8 @@ flowchart TB
 
 動画は正式保存前に一時ファイルへ書き出し、`ffprobe` で width / height / rotation を取得して plan の解像度制限を判定します。一時ファイルは判定後に削除され、制限超過時は正式保存されません。Lite は FHD 以下、Standard / Standard+ は 4K 以下を許可します。S3 direct upload / multipart upload と未完了 multipart cleanup は大容量アップロード最適化の後続課題です。
 
+アップロード時に画像・動画の `width` / `height` を `media_items` に保存します。既存メディアはダウングレード時に削除・変換しませんが、現在プランで動画が許可されない場合や保存済み寸法が解像度上限を超える場合、公開ボード API は対象メディアに `playbackStatus` を付与し、表示側は動画再生の代わりに案内 UI を表示します。ストレージ使用量や画像数が現在プランの上限を超えている場合、新規アップロードは Plan limit error として拒否されます。
+
 ## 8. メッセージ API
 
 | Method | Path | 内容 | 認証 |

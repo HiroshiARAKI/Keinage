@@ -25,6 +25,23 @@ interface DeferredVideoSlideProps {
   onEnded: () => void;
 }
 
+function DisabledVideoSlide({ item }: { item: MediaItem }) {
+  const { t } = useLocale();
+  const messageKey =
+    item.playbackStatus === "plan_resolution_exceeded"
+      ? "board.videoUnavailableResolution"
+      : "board.videoUnavailablePlan";
+
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-black px-6 text-center text-white">
+      <div className="max-w-lg rounded-lg border border-white/15 bg-white/10 px-5 py-4 backdrop-blur">
+        <p className="text-lg font-semibold">{t("board.videoUnavailableTitle")}</p>
+        <p className="mt-2 text-sm text-white/75">{t(messageKey)}</p>
+      </div>
+    </div>
+  );
+}
+
 function DeferredVideoSlide({ item, fitClass, onEnded }: DeferredVideoSlideProps) {
   const { t } = useLocale();
   const [shouldLoad, setShouldLoad] = useState(false);
@@ -194,11 +211,15 @@ export function MediaSlider({ mediaItems, interval = 5, objectFit = "contain" }:
           className="absolute inset-0"
         >
           {current.type === "video" ? (
-            <DeferredVideoSlide
-              item={current}
-              fitClass={fitClass}
-              onEnded={advance}
-            />
+            current.playbackStatus && current.playbackStatus !== "available" ? (
+              <DisabledVideoSlide item={current} />
+            ) : (
+              <DeferredVideoSlide
+                item={current}
+                fitClass={fitClass}
+                onEnded={advance}
+              />
+            )
           ) : (
             <img
               ref={currentImageRef}
