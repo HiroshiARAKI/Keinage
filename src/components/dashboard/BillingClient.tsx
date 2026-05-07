@@ -46,6 +46,7 @@ interface PlanDisplay {
   videoKey: MessageKey;
   maxUpload: string;
   watermarkKey: MessageKey;
+  deviceStatusKey: MessageKey;
 }
 
 const PLAN_DISPLAYS: PlanDisplay[] = [
@@ -61,6 +62,7 @@ const PLAN_DISPLAYS: PlanDisplay[] = [
     videoKey: "billing.value.unsupported",
     maxUpload: "5MB",
     watermarkKey: "billing.value.included",
+    deviceStatusKey: "billing.value.unsupported",
   },
   {
     code: "lite",
@@ -74,6 +76,7 @@ const PLAN_DISPLAYS: PlanDisplay[] = [
     videoKey: "billing.value.fhd",
     maxUpload: "20MB",
     watermarkKey: "billing.value.none",
+    deviceStatusKey: "billing.value.included",
   },
   {
     code: "standard",
@@ -87,6 +90,7 @@ const PLAN_DISPLAYS: PlanDisplay[] = [
     videoKey: "billing.value.fourK",
     maxUpload: "500MB",
     watermarkKey: "billing.value.none",
+    deviceStatusKey: "billing.value.included",
   },
   {
     code: "standard_plus",
@@ -100,6 +104,7 @@ const PLAN_DISPLAYS: PlanDisplay[] = [
     videoKey: "billing.value.fourK",
     maxUpload: "2GB",
     watermarkKey: "billing.value.none",
+    deviceStatusKey: "billing.value.included",
   },
 ];
 
@@ -783,6 +788,10 @@ export function BillingClient({
                   <div>
                     <dt className="text-muted-foreground">{t("billing.feature.watermark")}</dt>
                     <dd className="font-medium">{t(plan.watermarkKey)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t("billing.feature.deviceStatus")}</dt>
+                    <dd className="font-medium">{t(plan.deviceStatusKey)}</dd>
                   </div>
                 </dl>
 

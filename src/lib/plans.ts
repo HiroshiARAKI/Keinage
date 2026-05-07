@@ -46,6 +46,7 @@ export interface PlanLimits {
   scheduling: "none" | "time_weekday" | "full";
   extendedTemplates: boolean;
   menuItemImages: boolean;
+  deviceStatusMonitoring: boolean;
 }
 
 export interface PlanDefinition {
@@ -72,6 +73,7 @@ export const PLAN_DEFINITIONS = {
       scheduling: "full",
       extendedTemplates: true,
       menuItemImages: true,
+      deviceStatusMonitoring: true,
     },
   },
   free: {
@@ -88,6 +90,7 @@ export const PLAN_DEFINITIONS = {
       scheduling: "none",
       extendedTemplates: false,
       menuItemImages: false,
+      deviceStatusMonitoring: false,
     },
   },
   lite: {
@@ -104,6 +107,7 @@ export const PLAN_DEFINITIONS = {
       scheduling: "time_weekday",
       extendedTemplates: true,
       menuItemImages: false,
+      deviceStatusMonitoring: true,
     },
   },
   standard: {
@@ -120,6 +124,7 @@ export const PLAN_DEFINITIONS = {
       scheduling: "full",
       extendedTemplates: true,
       menuItemImages: true,
+      deviceStatusMonitoring: true,
     },
   },
   standard_plus: {
@@ -136,6 +141,7 @@ export const PLAN_DEFINITIONS = {
       scheduling: "full",
       extendedTemplates: true,
       menuItemImages: true,
+      deviceStatusMonitoring: true,
     },
   },
   unlimited: {
@@ -152,6 +158,7 @@ export const PLAN_DEFINITIONS = {
       scheduling: "full",
       extendedTemplates: true,
       menuItemImages: true,
+      deviceStatusMonitoring: true,
     },
   },
 } as const satisfies Record<PlanCode, PlanDefinition>;

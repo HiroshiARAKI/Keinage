@@ -121,8 +121,11 @@ flowchart TB
 | `PATCH` | `/api/boards/<id>` | ボード設定更新 | 必要 |
 | `DELETE` | `/api/boards/<id>` | ボード削除 | 必要 |
 | `GET` | `/api/public/boards/<id>` | 公開ボード詳細 | 不要 |
+| `POST` | `/api/public/boards/<id>/heartbeat` | 表示端末の最終アクセス heartbeat | 表示権限 |
 
 `GET /api/public/boards/<id>` はボード表示に必要な `boardPlan.watermark` を返します。この値は Owner の effective plan からサーバー側で算出され、plan code や subscription 詳細は公開しません。ブラウザ表示上のウォーターマークであり、完全な削除・改ざん防止は保証しません。
+
+`POST /api/public/boards/<id>/heartbeat` は表示画面から約5分間隔で送られ、Self-hosted / unlimited または Lite 以上の Owner について、匿名 device key、表示中ボード、User-Agent、最終アクセス日時を保存します。IPアドレスは保存しません。Private board では通常の表示権限確認を行います。
 
 Owner退会時、`BILLING_MODE=stripe` かつキャンセル可能な Stripe subscription がある場合は Stripe の即時キャンセルに成功してからOwner削除へ進みます。キャンセルに失敗した場合、アカウントとデータは削除されません。退会済みOwnerのStripe IDは最小限のtombstoneとして保持し、遅延Webhookで有料プランが復活しないようにします。
 
@@ -205,6 +208,7 @@ Plan 制限に到達した場合、ボード作成・更新やメディア追加
 | --- | --- | --- | --- |
 | `GET` | `/api/settings` | Owner 設定取得 | `admin` |
 | `PATCH` | `/api/settings` | Owner 設定更新 | `admin` |
+| `GET` | `/api/board-devices` | 表示端末の最終アクセス状態を取得 | `admin` |
 | `GET` | `/api/weather` | 天気情報取得 | 不要 |
 | `GET` | `/api/version` | 現在バージョンと最新リリース情報 | 不要 |
 | `GET` | `/api/network` | ネットワーク情報取得 | 不要 |

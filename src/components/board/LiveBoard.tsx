@@ -16,6 +16,8 @@ import type {
 } from "@/types";
 
 const CURSOR_HIDE_DELAY = 3000;
+const DEVICE_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+const DEVICE_KEY_STORAGE_KEY = "keinage-display-device-key";
 
 interface LiveBoardProps {
   board: Board;
@@ -46,6 +48,25 @@ function parsePublicBoardPlan(raw: unknown): PublicBoardPlan {
         : DEFAULT_PUBLIC_BOARD_PLAN.scheduling,
     menuItemImages: (raw as Partial<PublicBoardPlan>).menuItemImages !== false,
   };
+}
+
+function createDeviceKey() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID().replaceAll("-", "");
+  }
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+}
+
+function getOrCreateDeviceKey() {
+  try {
+    const existing = window.localStorage.getItem(DEVICE_KEY_STORAGE_KEY);
+    if (existing) return existing;
+    const created = createDeviceKey();
+    window.localStorage.setItem(DEVICE_KEY_STORAGE_KEY, created);
+    return created;
+  } catch {
+    return createDeviceKey();
+  }
 }
 
 /**
@@ -146,6 +167,33 @@ export default function LiveBoard({
     boardId: initialBoard.id,
     onEvent: handleSSEEvent,
   });
+
+  useEffect(() => {
+    const deviceKey = getOrCreateDeviceKey();
+    let stopped = false;
+
+    const sendHeartbeat = async () => {
+      if (stopped) return;
+      try {
+        await fetch(`/api/public/boards/${initialBoard.id}/heartbeat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deviceKey }),
+          keepalive: true,
+        });
+      } catch {
+        // Heartbeat will retry on the next interval.
+      }
+    };
+
+    sendHeartbeat();
+    const interval = window.setInterval(sendHeartbeat, DEVICE_HEARTBEAT_INTERVAL_MS);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+    };
+  }, [initialBoard.id]);
 
   return (
     <div

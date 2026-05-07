@@ -116,9 +116,11 @@ erDiagram
   users ||--o{ device_auth_grants : has
   users ||--o{ pin_reset_tokens : has
   users ||--o{ settings : owns
+  users ||--o{ board_display_devices : monitors
   users ||--o{ shared_signup_requests : invites
   boards ||--o{ media_items : has
   boards ||--o{ messages : has
+  boards ||--o{ board_display_devices : displayed_on
 
   users {
     text id PK
@@ -177,6 +179,15 @@ erDiagram
     text key PK
     text value
   }
+
+  board_display_devices {
+    text id PK
+    text owner_user_id FK
+    text board_id FK
+    text device_key
+    text user_agent
+    text last_seen_at
+  }
 ```
 
 ### 5.2 主要テーブル
@@ -193,6 +204,7 @@ erDiagram
 | `pin_reset_tokens` | PIN リセット用トークン |
 | `account_deletion_requests` | Owner アカウント削除用トークン |
 | `boards` | ボード本体。テンプレート ID と JSON config を保持 |
+| `board_display_devices` | 表示端末 heartbeat。匿名 device key、表示中ボード、User-Agent、最終アクセス時刻を保持 |
 | `media_items` | ボードに紐づく画像・動画 |
 | `messages` | ボードに紐づくメッセージ |
 | `settings` | Owner 単位の KV 設定 |

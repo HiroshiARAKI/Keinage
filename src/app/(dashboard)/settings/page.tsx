@@ -9,6 +9,7 @@ import { AUTH_SESSION_COOKIE } from "@/lib/auth";
 import { getEffectivePlanForUser } from "@/lib/billing";
 import { SettingsClient } from "@/components/dashboard/SettingsClient";
 import { UsageDashboard } from "@/components/dashboard/UsageDashboard";
+import { BoardDeviceStatusPanel } from "@/components/dashboard/BoardDeviceStatusPanel";
 import { getRequestI18n } from "@/lib/i18n-server";
 import { isOwnerUser } from "@/lib/ownership";
 import { getOwnerUsage } from "@/lib/owner-usage";
@@ -43,6 +44,7 @@ export default async function SettingsPage() {
           showUpgradeAction
         />
       )}
+      {effectivePlan && <BoardDeviceStatusPanel />}
       <SettingsClient
         role={session.user.role as "admin" | "general"}
         currentUserId={session.user.userId}
