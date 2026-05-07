@@ -9,6 +9,10 @@ import {
 } from "@aws-sdk/client-s3";
 import fs from "fs";
 import path from "path";
+import {
+  isCloudFrontSignedDeliveryMode,
+  mediaRouteUrlForMediaId,
+} from "@/lib/cloudfront-signed-url";
 
 const LOCAL_UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 const PUBLIC_UPLOAD_PREFIX = "/uploads/";
@@ -242,6 +246,14 @@ export function publicDeliveryUrlForStorageKey(key: string): string {
 
 export function publicDeliveryUrlForPublicPath(filePath: string): string {
   return publicDeliveryUrlForStorageKey(storageKeyFromPublicPath(filePath));
+}
+
+export function deliveryUrlForMediaItem(input: { id: string; filePath: string }): string {
+  if (isCloudFrontSignedDeliveryMode()) {
+    return mediaRouteUrlForMediaId(input.id);
+  }
+
+  return publicDeliveryUrlForPublicPath(input.filePath);
 }
 
 export function storageKeyFromPublicPath(filePath: string): string {

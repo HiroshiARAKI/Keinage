@@ -8,8 +8,9 @@ import { getSessionUser } from "@/lib/auth";
 import { getEffectivePlanForOwner } from "@/lib/billing";
 import { isBoardDisplayable } from "@/lib/board-status";
 import { recordBoardViewed } from "@/lib/board-view-tracking";
+import { isCloudFrontSignedDeliveryMode } from "@/lib/cloudfront-signed-url";
 import { applyMediaPlanRestrictions } from "@/lib/media-plan";
-import { publicDeliveryUrlForPublicPath } from "@/lib/media-storage";
+import { deliveryUrlForMediaItem } from "@/lib/media-storage";
 import { isInOwnerScope } from "@/lib/ownership";
 import { normalizeConfig } from "@/lib/utils";
 
@@ -52,10 +53,10 @@ export async function GET(
   const effectivePlan = await getEffectivePlanForOwner(board.ownerUserId);
   const planRestrictedMedia = applyMediaPlanRestrictions(media, effectivePlan.plan);
   const responseMedia =
-    board.visibility === "public"
+    board.visibility === "public" || isCloudFrontSignedDeliveryMode()
       ? planRestrictedMedia.map((item) => ({
           ...item,
-          filePath: publicDeliveryUrlForPublicPath(item.filePath),
+          filePath: deliveryUrlForMediaItem(item),
         }))
       : planRestrictedMedia;
 

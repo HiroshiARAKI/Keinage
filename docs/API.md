@@ -142,7 +142,7 @@ flowchart TB
 
 アップロード対応形式は画像 JPEG/PNG/WebP/GIF、動画 MP4/WebM です。1 ファイルごとの最大サイズは effective plan の `maxUploadBytes` を優先して判定します。Self-hosted / unlimited では既定で無制限、`UPLOAD_MAX_BYTES` に正の整数を設定した場合は安全上限として適用します。`UPLOAD_MAX_BYTES=0` は無制限です。
 
-新規アップロードの storage key は Owner / board scope を含みます。public board のメディアは `S3_PUBLIC_BASE_URL`、`STORAGE_PUBLIC_BASE_URL`、`CLOUDFRONT_BASE_URL` のいずれかが設定されている場合に CDN URL として返されます。private board のメディアは `/uploads/<path>` route 経由の認可配信を維持します。
+新規アップロードの storage key は Owner / board scope を含みます。`STORAGE_DELIVERY_MODE=cloudfront-signed-url` の場合、board API のメディアURLは `/uploads/<mediaId>` 形式になり、`/uploads/<mediaId>` が認可後に CloudFront Signed URL へ 302 redirect します。署名付き配信を使わない public board のメディアは `S3_PUBLIC_BASE_URL`、`STORAGE_PUBLIC_BASE_URL`、`CLOUDFRONT_BASE_URL` のいずれかが設定されている場合に CDN URL として返されます。private board のメディアは `/uploads/<path>` route 経由の認可配信を維持します。
 
 動画は正式保存前に一時ファイルへ書き出し、`ffprobe` で width / height / rotation を取得して plan の解像度制限を判定します。一時ファイルは判定後に削除され、制限超過時は正式保存されません。Lite は FHD 以下、Standard / Standard+ は 4K 以下を許可します。S3 direct upload / multipart upload と未完了 multipart cleanup は大容量アップロード最適化の後続課題です。
 
