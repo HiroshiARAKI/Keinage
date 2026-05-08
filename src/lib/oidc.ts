@@ -166,7 +166,9 @@ export async function discoverOidcProvider(
 
   const response = await fetch(`${issuer}/.well-known/openid-configuration`);
   if (!response.ok) {
-    console.error(`[oidc:${provider.id}] discovery failed`, await response.text());
+    console.error(`[oidc:${provider.id}] discovery failed`, {
+      status: response.status,
+    });
     return cached?.metadata ?? null;
   }
 
@@ -233,7 +235,9 @@ async function fetchOidcJwks(input: {
 
   const response = await fetch(input.jwksUri);
   if (!response.ok) {
-    console.error(`[oidc:${input.providerId}] jwks fetch failed`, await response.text());
+    console.error(`[oidc:${input.providerId}] jwks fetch failed`, {
+      status: response.status,
+    });
     return cached?.keys ?? null;
   }
 
@@ -346,7 +350,9 @@ export async function fetchOidcUserInfo(input: {
   });
 
   if (!tokenResponse.ok) {
-    console.error(`[oidc:${input.provider.id}] token exchange failed`, await tokenResponse.text());
+    console.error(`[oidc:${input.provider.id}] token exchange failed`, {
+      status: tokenResponse.status,
+    });
     return null;
   }
 

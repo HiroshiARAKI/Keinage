@@ -55,11 +55,12 @@ export async function POST(request: NextRequest) {
   const deviceAuthGrant = await getDeviceAuthGrantByToken(deviceToken);
   const adminUser = deviceAuthGrant?.user ?? null;
 
-  console.log("[pin/verify] Device auth lookup", {
-    hasDeviceAuthGrant: !!deviceAuthGrant,
-    userId: adminUser?.userId ?? null,
-    hasPIN: !!adminUser?.pinHash,
-  });
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[pin/verify] Device auth lookup", {
+      hasDeviceAuthGrant: !!deviceAuthGrant,
+      hasPIN: !!adminUser?.pinHash,
+    });
+  }
 
   const rateLimitKey = buildRateLimitKey({
     flow: "pin",
@@ -126,7 +127,9 @@ export async function POST(request: NextRequest) {
     await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
 
     const remaining = MAX_PIN_ATTEMPTS - (recentAttempts.length + 1);
-    console.log("[pin/verify] PIN incorrect for", adminUser.userId, { remaining });
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[pin/verify] PIN incorrect", { remaining });
+    }
     return NextResponse.json(
       {
         error: `PINが正しくありません${remaining > 0 ? `（残り${remaining}回）` : ""}`,
@@ -146,7 +149,9 @@ export async function POST(request: NextRequest) {
   // Success — clear attempts for the verified subject bucket.
   await db.delete(pinAttempts).where(eq(pinAttempts.ipAddress, rateLimitKey));
 
-  console.log("[pin/verify] PIN verified OK for", adminUser.userId);
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[pin/verify] PIN verified OK");
+  }
 
   // Create session in authSessions table
   const sessionToken = generateSessionToken();

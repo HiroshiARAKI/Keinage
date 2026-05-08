@@ -18,7 +18,7 @@ import {
   ALLOWED_TYPES,
   ALLOWED_VIDEO_POSTER_TYPES,
   mediaTypeFromContentType,
-  uploadExtensionFromFilename,
+  validateUploadFilename,
 } from "@/lib/media-upload";
 import {
   deleteStoredObject,
@@ -41,8 +41,16 @@ import {
 } from "@/lib/plan-enforcement";
 import { parseJsonObject } from "@/lib/utils";
 import { probeVideoMetadataFromBuffer } from "@/lib/video-metadata";
+import {
+  buildRateLimitKey,
+  consumeRateLimit,
+  resolveRateLimitClientIp,
+} from "@/lib/rate-limit";
 import { randomUUID } from "crypto";
 import path from "path";
+
+const UPLOAD_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const UPLOAD_RATE_LIMIT_MAX = 120;
 
 function planLimitResponse(error: unknown) {
   if (isPlanLimitError(error)) {
@@ -100,6 +108,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
   }
 
+  const ownerUserId = resolveOwnerUserId(session.user);
+  const uploadRateLimit = await consumeRateLimit({
+    rateLimitKey: buildRateLimitKey({
+      flow: "upload",
+      clientIp: resolveRateLimitClientIp(request),
+      subject: ownerUserId,
+    }),
+    windowMs: UPLOAD_RATE_LIMIT_WINDOW_MS,
+    maxAttempts: UPLOAD_RATE_LIMIT_MAX,
+  });
+  if (uploadRateLimit.limited) {
+    return NextResponse.json(
+      { error: "アップロード回数の上限に達しました", code: "upload_rate_limited" },
+      { status: 429 },
+    );
+  }
+
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -145,6 +170,16 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+  const fileNameValidation = validateUploadFilename({
+    fileName: file.name,
+    contentType: file.type,
+  });
+  if (!fileNameValidation.ok) {
+    return NextResponse.json(
+      { error: fileNameValidation.error, code: "invalid_file_extension" },
+      { status: 400 },
+    );
+  }
 
   // Determine media type
   const mediaType = mediaTypeFromContentType(file.type);
@@ -154,8 +189,6 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const ownerUserId = resolveOwnerUserId(session.user);
-
   try {
     await assertCanUploadMedia({
       ownerUserId,
@@ -169,7 +202,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Generate owner/board scoped storage key.
-  const sanitizedExt = uploadExtensionFromFilename(file.name, file.type);
+  const sanitizedExt = fileNameValidation.extension;
   const mediaId = randomUUID();
   const storageKey = scopedMediaStorageKey({
     ownerUserId: board.ownerUserId,
@@ -241,6 +274,16 @@ export async function POST(request: NextRequest) {
     if (!(ALLOWED_VIDEO_POSTER_TYPES as readonly string[]).includes(poster.type)) {
       return NextResponse.json(
         { error: "Unsupported poster image type" },
+        { status: 400 },
+      );
+    }
+    const posterNameValidation = validateUploadFilename({
+      fileName: poster.name,
+      contentType: poster.type,
+    });
+    if (!posterNameValidation.ok) {
+      return NextResponse.json(
+        { error: posterNameValidation.error, code: "invalid_poster_extension" },
         { status: 400 },
       );
     }

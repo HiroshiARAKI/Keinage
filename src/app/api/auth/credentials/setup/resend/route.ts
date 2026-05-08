@@ -15,9 +15,17 @@ import {
   computeSignupExpiry,
   generateSignupToken,
 } from "@/lib/signup";
+import {
+  buildRateLimitKey,
+  consumeRateLimit,
+  resolveRateLimitClientIp,
+} from "@/lib/rate-limit";
+
+const SIGNUP_RESEND_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const SIGNUP_RESEND_RATE_LIMIT_MAX = 5;
 
 /** POST /api/auth/credentials/setup/resend — resend owner signup email */
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
   const signupRequestId = cookieStore.get(SIGNUP_REQUEST_COOKIE)?.value;
 
@@ -34,6 +42,24 @@ export async function POST(_request: NextRequest) {
 
   if (!signupRequest) {
     return NextResponse.json({ error: "仮登録情報が見つかりません" }, { status: 404 });
+  }
+  const resendRateLimit = await consumeRateLimit({
+    rateLimitKey: buildRateLimitKey({
+      flow: "signup",
+      clientIp: resolveRateLimitClientIp(request),
+      subject: signupRequest.email,
+    }),
+    windowMs: SIGNUP_RESEND_RATE_LIMIT_WINDOW_MS,
+    maxAttempts: SIGNUP_RESEND_RATE_LIMIT_MAX,
+  });
+  if (resendRateLimit.limited) {
+    return NextResponse.json(
+      {
+        error: "登録メール再送の上限に達しました。しばらくしてから再度お試しください。",
+        code: "signup_resend_rate_limited",
+      },
+      { status: 429 },
+    );
   }
 
   const existingUser = await db.query.users.findFirst({

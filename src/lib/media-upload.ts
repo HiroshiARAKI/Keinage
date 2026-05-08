@@ -13,13 +13,13 @@ export const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm"] as const;
 export const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES] as const;
 export const ALLOWED_VIDEO_POSTER_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
-const CONTENT_TYPE_EXTENSIONS: Record<string, string> = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
-  "image/gif": ".gif",
-  "video/mp4": ".mp4",
-  "video/webm": ".webm",
+const CONTENT_TYPE_EXTENSIONS: Record<string, readonly string[]> = {
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
+  "image/webp": [".webp"],
+  "image/gif": [".gif"],
+  "video/mp4": [".mp4"],
+  "video/webm": [".webm"],
 };
 
 export function mediaTypeFromContentType(contentType: string): "image" | "video" | null {
@@ -28,13 +28,41 @@ export function mediaTypeFromContentType(contentType: string): "image" | "video"
   return null;
 }
 
+export function validateUploadFilename(input: {
+  fileName: string;
+  contentType: string;
+}): { ok: true; extension: string } | { ok: false; error: string } {
+  const allowedExtensions = CONTENT_TYPE_EXTENSIONS[input.contentType];
+  if (!allowedExtensions) {
+    return { ok: false, error: "Unsupported file type" };
+  }
+
+  const extension = path.extname(input.fileName).toLowerCase();
+  if (!extension) {
+    return { ok: false, error: "File extension is required" };
+  }
+
+  if (!allowedExtensions.includes(extension)) {
+    return { ok: false, error: "File extension does not match content type" };
+  }
+
+  return {
+    ok: true,
+    extension: extension === ".jpeg" ? ".jpg" : extension,
+  };
+}
+
 export function uploadExtensionFromFilename(fileName: string, contentType: string): string {
-  const extension = path.extname(fileName) || CONTENT_TYPE_EXTENSIONS[contentType] || "";
+  const validation = validateUploadFilename({ fileName, contentType });
+  if (validation.ok) {
+    return validation.extension;
+  }
+
+  const extension = path.extname(fileName) || CONTENT_TYPE_EXTENSIONS[contentType]?.[0] || "";
   const sanitized = extension.replace(/[^a-zA-Z0-9.]/g, "").toLowerCase();
-  return sanitized || CONTENT_TYPE_EXTENSIONS[contentType] || "";
+  return sanitized || CONTENT_TYPE_EXTENSIONS[contentType]?.[0] || "";
 }
 
 export function extensionForContentType(contentType: string): string {
-  return CONTENT_TYPE_EXTENSIONS[contentType] ?? "";
+  return CONTENT_TYPE_EXTENSIONS[contentType]?.[0] ?? "";
 }
-

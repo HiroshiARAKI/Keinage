@@ -253,7 +253,7 @@ erDiagram
 | `media_items` | ボードに紐づく画像・動画 |
 | `messages` | ボードに紐づくメッセージ |
 | `settings` | Owner 単位の KV 設定 |
-| `pin_attempts` | 認証失敗回数の記録 |
+| `pin_attempts` | 認証失敗回数と各種 rate limit bucket の記録 |
 
 ## 6. 認証設計
 

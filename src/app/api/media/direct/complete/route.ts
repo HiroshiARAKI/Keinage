@@ -16,7 +16,7 @@ import {
 import {
   ALLOWED_VIDEO_POSTER_TYPES,
   mediaTypeFromContentType,
-  uploadExtensionFromFilename,
+  validateUploadFilename,
 } from "@/lib/media-upload";
 import { resolveOwnerUserId } from "@/lib/ownership";
 import {
@@ -27,6 +27,14 @@ import {
   planLimitErrorBody,
 } from "@/lib/plan-enforcement";
 import { parseJsonObject } from "@/lib/utils";
+import {
+  buildRateLimitKey,
+  consumeRateLimit,
+  resolveRateLimitClientIp,
+} from "@/lib/rate-limit";
+
+const DIRECT_UPLOAD_COMPLETE_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const DIRECT_UPLOAD_COMPLETE_RATE_LIMIT_MAX = 120;
 
 const directUploadCompleteSchema = z.object({
   boardId: z.string().min(1),
@@ -109,6 +117,13 @@ async function handlePost(request: NextRequest) {
       { status: 400 },
     );
   }
+  const fileNameValidation = validateUploadFilename({ fileName, contentType });
+  if (!fileNameValidation.ok) {
+    return NextResponse.json(
+      { error: fileNameValidation.error, code: "invalid_file_extension" },
+      { status: 400 },
+    );
+  }
 
   const board = await db.query.boards.findFirst({
     where: eq(boards.id, boardId),
@@ -117,12 +132,27 @@ async function handlePost(request: NextRequest) {
   if (!board || board.ownerUserId !== ownerUserId) {
     return NextResponse.json({ error: "Board not found" }, { status: 404 });
   }
+  const uploadRateLimit = await consumeRateLimit({
+    rateLimitKey: buildRateLimitKey({
+      flow: "upload",
+      clientIp: resolveRateLimitClientIp(request),
+      subject: ownerUserId,
+    }),
+    windowMs: DIRECT_UPLOAD_COMPLETE_RATE_LIMIT_WINDOW_MS,
+    maxAttempts: DIRECT_UPLOAD_COMPLETE_RATE_LIMIT_MAX,
+  });
+  if (uploadRateLimit.limited) {
+    return NextResponse.json(
+      { error: "アップロード回数の上限に達しました", code: "upload_rate_limited" },
+      { status: 429 },
+    );
+  }
 
   const expectedObjectKey = scopedMediaStorageKey({
     ownerUserId: board.ownerUserId,
     boardId,
     mediaId,
-    extension: uploadExtensionFromFilename(fileName, contentType),
+    extension: fileNameValidation.extension,
   });
   if (objectKey !== expectedObjectKey) {
     return NextResponse.json({ error: "Invalid object key" }, { status: 400 });
