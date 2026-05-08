@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator";
 import { LogoutButton } from "@/components/dashboard/LogoutButton";
 import { KeinageLogo } from "@/components/KeinageLogo";
 import { AnnouncementBanner } from "@/components/dashboard/AnnouncementBanner";
+import { OwnerOnboardingDialog } from "@/components/dashboard/OwnerOnboardingDialog";
 
 function getThemeBootstrapScript(initialTheme: "system" | "light" | "dark") {
   return `(() => {
@@ -63,6 +64,7 @@ export function DashboardShell({
   isSuperOwner,
   billingEnabled,
   initialTheme,
+  showOwnerOnboarding,
   children,
 }: {
   userId: string;
@@ -70,6 +72,7 @@ export function DashboardShell({
   isSuperOwner: boolean;
   billingEnabled: boolean;
   initialTheme: "system" | "light" | "dark";
+  showOwnerOnboarding: boolean;
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -185,6 +188,10 @@ export function DashboardShell({
         <AnnouncementBanner />
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">{children}</div>
       </main>
+      <OwnerOnboardingDialog
+        initialOpen={showOwnerOnboarding}
+        billingEnabled={billingEnabled}
+      />
     </div>
   );
 }
