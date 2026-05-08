@@ -24,6 +24,10 @@ import {
   type PlanCode,
   type SubscriptionStatus,
 } from "@/lib/plans";
+import {
+  retrieveStripeSubscription,
+  retrieveStripeSubscriptionSchedule,
+} from "@/lib/stripe-billing";
 
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 const SUPPORTED_EVENTS = new Set([
@@ -31,6 +35,11 @@ const SUPPORTED_EVENTS = new Set([
   "customer.subscription.created",
   "customer.subscription.updated",
   "customer.subscription.deleted",
+  "subscription_schedule.created",
+  "subscription_schedule.updated",
+  "subscription_schedule.canceled",
+  "subscription_schedule.completed",
+  "subscription_schedule.released",
   "invoice.payment_failed",
   "invoice.payment_succeeded",
 ]);
@@ -59,11 +68,21 @@ interface ResolvedSubscriptionState {
   ownerUserId: string;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
+  stripeScheduleId: string | null;
   planCode: PaidPlanCode | "free";
   billingInterval: BillingInterval | null;
+  currentPriceId: string | null;
   status: SubscriptionStatus;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  cancelAt: string | null;
+  canceledAt: string | null;
+  endedAt: string | null;
+  pendingPlanCode: PlanCode | null;
+  pendingPriceId: string | null;
+  pendingBillingInterval: BillingInterval | null;
+  pendingPlanEffectiveAt: string | null;
+  lastSyncedAt: string;
 }
 
 const PLAN_RANK: Record<PlanCode, number> = {
@@ -159,6 +178,70 @@ function priceIdFromSubscription(subscription: StripeObject): string | null {
   const firstItem = asObject(data[0]);
   const price = asObject(firstItem?.price);
   return asString(price?.id);
+}
+
+function currentPeriodEndFromSubscription(subscription: StripeObject): string | null {
+  const items = asObject(subscription.items);
+  const data = Array.isArray(items?.data) ? items.data : [];
+  const firstItem = asObject(data[0]);
+  return toIsoFromStripeSeconds(firstItem?.current_period_end)
+    ?? toIsoFromStripeSeconds(subscription.current_period_end);
+}
+
+function priceIdFromSchedulePhase(phase: StripeObject | null): string | null {
+  const items = Array.isArray(phase?.items) ? phase.items : [];
+  const firstItem = asObject(items[0]);
+  const price = firstItem?.price;
+  if (typeof price === "string") return price;
+  return asString(asObject(price)?.id);
+}
+
+function scheduleStatusAllowsPending(schedule: StripeObject): boolean {
+  const status = asString(schedule.status);
+  return status === "active" || status === "not_started";
+}
+
+function pendingPlanFromSchedule(input: {
+  schedule: StripeObject | null;
+  currentPlanCode: PlanCode;
+}): Pick<
+  ResolvedSubscriptionState,
+  "pendingPlanCode" | "pendingPriceId" | "pendingBillingInterval" | "pendingPlanEffectiveAt"
+> {
+  const empty = {
+    pendingPlanCode: null,
+    pendingPriceId: null,
+    pendingBillingInterval: null,
+    pendingPlanEffectiveAt: null,
+  };
+  if (!input.schedule || !scheduleStatusAllowsPending(input.schedule)) return empty;
+
+  const currentPhase = asObject(input.schedule.current_phase);
+  const effectiveAtSeconds = currentPhase?.end_date;
+  if (typeof effectiveAtSeconds !== "number" || !Number.isFinite(effectiveAtSeconds)) return empty;
+
+  const phases = Array.isArray(input.schedule.phases)
+    ? input.schedule.phases
+      .map((phase) => asObject(phase))
+      .filter((phase): phase is StripeObject => !!phase)
+      .sort((left, right) => Number(left.start_date ?? 0) - Number(right.start_date ?? 0))
+    : [];
+  const nextPhase = phases.find((phase) => {
+    const startDate = phase.start_date;
+    return typeof startDate === "number" && startDate >= effectiveAtSeconds;
+  });
+  const pendingPriceId = priceIdFromSchedulePhase(nextPhase ?? null);
+  const resolvedPending = resolveStripePriceId(pendingPriceId);
+  if (!resolvedPending || !isPlanDowngrade(input.currentPlanCode, resolvedPending.planCode)) {
+    return empty;
+  }
+
+  return {
+    pendingPlanCode: resolvedPending.planCode,
+    pendingPriceId,
+    pendingBillingInterval: resolvedPending.interval,
+    pendingPlanEffectiveAt: toIsoFromStripeSeconds(effectiveAtSeconds),
+  };
 }
 
 function parseStripeEvent(rawBody: string): StripeEvent {
@@ -389,6 +472,58 @@ async function upsertOwnerSubscription(state: ResolvedSubscriptionState) {
   }
 
   if (
+    state.pendingPlanCode
+    && isFutureIso(state.pendingPlanEffectiveAt)
+    && isSubscriptionUsable(state.status)
+  ) {
+    const pendingIds = await pendingBoardIdsForPlan({
+      ownerUserId: state.ownerUserId,
+      planCode: state.pendingPlanCode,
+      previousPendingPlanCode: existing?.pendingPlanCode,
+      previousPendingEffectiveAt: existing?.pendingPlanEffectiveAt,
+      previousPendingActiveBoardIds: existing?.pendingActiveBoardIds,
+      nextEffectiveAt: state.pendingPlanEffectiveAt,
+    });
+
+    const values = {
+      billingMode: "stripe",
+      planCode: state.planCode,
+      billingInterval: state.billingInterval,
+      status: state.status,
+      stripeCustomerId: state.stripeCustomerId,
+      stripeSubscriptionId: state.stripeSubscriptionId,
+      stripeScheduleId: state.stripeScheduleId,
+      currentPriceId: state.currentPriceId,
+      currentPeriodEnd: state.currentPeriodEnd,
+      cancelAtPeriodEnd: state.cancelAtPeriodEnd,
+      cancelAt: state.cancelAt,
+      canceledAt: state.canceledAt,
+      endedAt: state.endedAt,
+      pendingPlanCode: state.pendingPlanCode,
+      pendingPriceId: state.pendingPriceId,
+      pendingBillingInterval: state.pendingBillingInterval,
+      pendingPlanEffectiveAt: state.pendingPlanEffectiveAt,
+      pendingActiveBoardIds: JSON.stringify(pendingIds),
+      lastSyncedAt: state.lastSyncedAt,
+      updatedAt: now,
+    };
+
+    if (existing) {
+      await db
+        .update(ownerSubscriptions)
+        .set(values)
+        .where(eq(ownerSubscriptions.ownerUserId, state.ownerUserId));
+      return;
+    }
+
+    await db.insert(ownerSubscriptions).values({
+      ownerUserId: state.ownerUserId,
+      ...values,
+    });
+    return;
+  }
+
+  if (
     existing
     && !shouldApplyPending
     && state.cancelAtPeriodEnd
@@ -414,12 +549,19 @@ async function upsertOwnerSubscription(state: ResolvedSubscriptionState) {
         status: state.status,
         stripeCustomerId: state.stripeCustomerId,
         stripeSubscriptionId: state.stripeSubscriptionId,
+        stripeScheduleId: state.stripeScheduleId,
+        currentPriceId: state.currentPriceId,
         currentPeriodEnd: state.currentPeriodEnd,
         cancelAtPeriodEnd: true,
+        cancelAt: state.cancelAt,
+        canceledAt: state.canceledAt,
+        endedAt: state.endedAt,
         pendingPlanCode: "free",
+        pendingPriceId: null,
         pendingBillingInterval: null,
         pendingPlanEffectiveAt: state.currentPeriodEnd,
         pendingActiveBoardIds: JSON.stringify(pendingIds),
+        lastSyncedAt: state.lastSyncedAt,
         updatedAt: now,
       })
       .where(eq(ownerSubscriptions.ownerUserId, state.ownerUserId));
@@ -451,12 +593,19 @@ async function upsertOwnerSubscription(state: ResolvedSubscriptionState) {
         status: state.status,
         stripeCustomerId: state.stripeCustomerId,
         stripeSubscriptionId: state.stripeSubscriptionId,
+        stripeScheduleId: state.stripeScheduleId,
+        currentPriceId: state.currentPriceId,
         currentPeriodEnd: state.currentPeriodEnd,
         cancelAtPeriodEnd: state.cancelAtPeriodEnd,
+        cancelAt: state.cancelAt,
+        canceledAt: state.canceledAt,
+        endedAt: state.endedAt,
         pendingPlanCode: state.planCode,
+        pendingPriceId: state.currentPriceId,
         pendingBillingInterval: state.billingInterval,
         pendingPlanEffectiveAt: state.currentPeriodEnd,
         pendingActiveBoardIds: JSON.stringify(pendingIds),
+        lastSyncedAt: state.lastSyncedAt,
         updatedAt: now,
       })
       .where(eq(ownerSubscriptions.ownerUserId, state.ownerUserId));
@@ -470,12 +619,19 @@ async function upsertOwnerSubscription(state: ResolvedSubscriptionState) {
     status: state.status,
     stripeCustomerId: state.stripeCustomerId,
     stripeSubscriptionId: state.stripeSubscriptionId,
+    stripeScheduleId: state.stripeScheduleId,
+    currentPriceId: state.currentPriceId,
     currentPeriodEnd: state.currentPeriodEnd,
     cancelAtPeriodEnd: state.cancelAtPeriodEnd,
+    cancelAt: state.cancelAt,
+    canceledAt: state.canceledAt,
+    endedAt: state.endedAt,
     pendingPlanCode: null,
+    pendingPriceId: null,
     pendingBillingInterval: null,
     pendingPlanEffectiveAt: null,
     pendingActiveBoardIds: null,
+    lastSyncedAt: state.lastSyncedAt,
     updatedAt: now,
   };
 
@@ -545,6 +701,7 @@ async function handleCheckoutSessionCompleted(object: StripeObject) {
     ownerUserId,
     stripeCustomerId,
     stripeSubscriptionId,
+    stripeScheduleId: existing?.stripeScheduleId ?? null,
     planCode: existing?.planCode === "lite"
       || existing?.planCode === "standard"
       || existing?.planCode === "standard_plus"
@@ -554,15 +711,29 @@ async function handleCheckoutSessionCompleted(object: StripeObject) {
       || existing?.billingInterval === "yearly"
       ? existing.billingInterval
       : null,
+    currentPriceId: existing?.currentPriceId ?? null,
     status: existing?.status === "trialing" ? "trialing" : "active",
     currentPeriodEnd: existing?.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: existing?.cancelAtPeriodEnd ?? false,
+    cancelAt: existing?.cancelAt ?? null,
+    canceledAt: existing?.canceledAt ?? null,
+    endedAt: existing?.endedAt ?? null,
+    pendingPlanCode: existing?.pendingPlanCode && isPlanCode(existing.pendingPlanCode)
+      ? existing.pendingPlanCode
+      : null,
+    pendingPriceId: existing?.pendingPriceId ?? null,
+    pendingBillingInterval: normalizeStoredBillingInterval(existing?.pendingBillingInterval),
+    pendingPlanEffectiveAt: existing?.pendingPlanEffectiveAt ?? null,
+    lastSyncedAt: new Date().toISOString(),
   });
 
   return "processed" as const;
 }
 
-async function resolveSubscriptionState(subscription: StripeObject): Promise<ResolvedSubscriptionState | null> {
+async function resolveSubscriptionState(
+  subscription: StripeObject,
+  scheduleOverride?: StripeObject | null,
+): Promise<ResolvedSubscriptionState | null> {
   const stripeCustomerId = stripeId(subscription.customer);
   const stripeSubscriptionId = stripeId(subscription.id);
   const ownerUserId = await resolveOwnerUserIdFromObject(subscription, {
@@ -577,7 +748,8 @@ async function resolveSubscriptionState(subscription: StripeObject): Promise<Res
     return null;
   }
 
-  const resolvedPrice = resolveStripePriceId(priceIdFromSubscription(subscription));
+  const currentPriceId = priceIdFromSubscription(subscription);
+  const resolvedPrice = resolveStripePriceId(currentPriceId);
   if (!resolvedPrice) {
     console.error("[billing/webhook] Unknown subscription price id", {
       stripeCustomerId,
@@ -586,21 +758,60 @@ async function resolveSubscriptionState(subscription: StripeObject): Promise<Res
     });
     return null;
   }
+  const stripeScheduleId = stripeId(subscription.schedule);
+  const schedule = scheduleOverride
+    ?? (stripeScheduleId ? await retrieveStripeSubscriptionSchedule(stripeScheduleId) : null);
+  const currentPeriodEnd = currentPeriodEndFromSubscription(subscription);
+  const cancelAt = toIsoFromStripeSeconds(subscription.cancel_at);
+  const cancelAtPeriodEnd = asBoolean(subscription.cancel_at_period_end);
+  const pendingFromSchedule = pendingPlanFromSchedule({
+    schedule,
+    currentPlanCode: resolvedPrice.planCode,
+  });
+  const cancelEffectiveAt = cancelAt ?? currentPeriodEnd;
+  const isCancelScheduled =
+    (cancelAtPeriodEnd || isFutureIso(cancelAt))
+    && isSubscriptionUsable(subscriptionStatus(subscription.status))
+    && isFutureIso(cancelEffectiveAt);
+  const pendingForCancel =
+    isCancelScheduled
+      ? {
+          pendingPlanCode: "free" as const,
+          pendingPriceId: null,
+          pendingBillingInterval: null,
+          pendingPlanEffectiveAt: cancelEffectiveAt,
+        }
+      : null;
+  const pending = pendingForCancel ?? pendingFromSchedule;
 
   return {
     ownerUserId,
     stripeCustomerId,
     stripeSubscriptionId,
+    stripeScheduleId,
     planCode: resolvedPrice.planCode,
     billingInterval: resolvedPrice.interval,
+    currentPriceId,
     status: subscriptionStatus(subscription.status),
-    currentPeriodEnd: toIsoFromStripeSeconds(subscription.current_period_end),
-    cancelAtPeriodEnd: asBoolean(subscription.cancel_at_period_end),
+    currentPeriodEnd,
+    cancelAtPeriodEnd,
+    cancelAt,
+    canceledAt: toIsoFromStripeSeconds(subscription.canceled_at),
+    endedAt: toIsoFromStripeSeconds(subscription.ended_at),
+    pendingPlanCode: pending.pendingPlanCode,
+    pendingPriceId: pending.pendingPriceId,
+    pendingBillingInterval: pending.pendingBillingInterval,
+    pendingPlanEffectiveAt: pending.pendingPlanEffectiveAt,
+    lastSyncedAt: new Date().toISOString(),
   };
 }
 
 async function handleSubscriptionEvent(eventType: string, object: StripeObject) {
-  const state = await resolveSubscriptionState(object);
+  const latestSubscriptionId = stripeId(object.id);
+  const subscription = latestSubscriptionId
+    ? await retrieveStripeSubscription(latestSubscriptionId)
+    : object;
+  const state = await resolveSubscriptionState(subscription);
 
   if (eventType === "customer.subscription.deleted") {
     if (!state) {
@@ -618,12 +829,17 @@ async function handleSubscriptionEvent(eventType: string, object: StripeObject) 
           planCode: "free",
           billingInterval: null,
           status: "canceled",
-          currentPeriodEnd: toIsoFromStripeSeconds(object.current_period_end),
+          currentPeriodEnd: currentPeriodEndFromSubscription(object),
           cancelAtPeriodEnd: false,
+          cancelAt: toIsoFromStripeSeconds(object.cancel_at),
+          canceledAt: toIsoFromStripeSeconds(object.canceled_at),
+          endedAt: toIsoFromStripeSeconds(object.ended_at),
           pendingPlanCode: null,
+          pendingPriceId: null,
           pendingBillingInterval: null,
           pendingPlanEffectiveAt: null,
           pendingActiveBoardIds: null,
+          lastSyncedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         })
         .where(eq(ownerSubscriptions.ownerUserId, existing.ownerUserId));
@@ -642,6 +858,10 @@ async function handleSubscriptionEvent(eventType: string, object: StripeObject) 
       billingInterval: null,
       status: "canceled",
       cancelAtPeriodEnd: false,
+      pendingPlanCode: null,
+      pendingPriceId: null,
+      pendingBillingInterval: null,
+      pendingPlanEffectiveAt: null,
     });
     return "processed" as const;
   }
@@ -666,6 +886,18 @@ async function handleInvoiceEvent(eventType: string, object: StripeObject) {
 
   const stripeCustomerId = stripeId(object.customer);
   const stripeSubscriptionId = stripeId(object.subscription);
+  if (stripeSubscriptionId) {
+    const latestSubscription = await retrieveStripeSubscription(stripeSubscriptionId);
+    const state = await resolveSubscriptionState(latestSubscription);
+    if (state) {
+      await upsertOwnerSubscription({
+        ...state,
+        status: eventType === "invoice.payment_failed" ? "past_due" : state.status,
+      });
+      return "processed" as const;
+    }
+  }
+
   const existing = await findOwnerByStripeIds({ stripeCustomerId, stripeSubscriptionId });
   if (existing?.deletedOwnerAt) {
     return "ignored" as const;
@@ -699,10 +931,12 @@ async function handleInvoiceEvent(eventType: string, object: StripeObject) {
           stripeCustomerId: stripeCustomerId ?? existing.stripeCustomerId,
           stripeSubscriptionId: stripeSubscriptionId ?? existing.stripeSubscriptionId,
           cancelAtPeriodEnd: false,
+          pendingPriceId: null,
           pendingPlanCode: null,
           pendingBillingInterval: null,
           pendingPlanEffectiveAt: null,
           pendingActiveBoardIds: null,
+          lastSyncedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         })
         .where(eq(ownerSubscriptions.ownerUserId, existing.ownerUserId));
@@ -716,10 +950,29 @@ async function handleInvoiceEvent(eventType: string, object: StripeObject) {
       status: eventType === "invoice.payment_failed" ? "past_due" : "active",
       stripeCustomerId: stripeCustomerId ?? existing.stripeCustomerId,
       stripeSubscriptionId: stripeSubscriptionId ?? existing.stripeSubscriptionId,
+      lastSyncedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
     .where(eq(ownerSubscriptions.ownerUserId, existing.ownerUserId));
 
+  return "processed" as const;
+}
+
+async function handleSubscriptionScheduleEvent(object: StripeObject) {
+  const stripeScheduleId = stripeId(object.id);
+  if (!stripeScheduleId) return "ignored" as const;
+
+  const schedule = await retrieveStripeSubscriptionSchedule(stripeScheduleId);
+  const stripeSubscriptionId = stripeId(schedule.subscription);
+  if (!stripeSubscriptionId) {
+    return "ignored" as const;
+  }
+
+  const subscription = await retrieveStripeSubscription(stripeSubscriptionId);
+  const state = await resolveSubscriptionState(subscription, schedule);
+  if (!state) return "ignored" as const;
+
+  await upsertOwnerSubscription(state);
   return "processed" as const;
 }
 
@@ -738,6 +991,9 @@ async function processStripeEvent(event: StripeEvent) {
   }
   if (event.type.startsWith("customer.subscription.")) {
     return handleSubscriptionEvent(event.type, object);
+  }
+  if (event.type.startsWith("subscription_schedule.")) {
+    return handleSubscriptionScheduleEvent(object);
   }
   if (event.type.startsWith("invoice.payment_")) {
     return handleInvoiceEvent(event.type, object);

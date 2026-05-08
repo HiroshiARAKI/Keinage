@@ -19,6 +19,8 @@ interface StripeSubscription {
   canceled_at?: number | null;
 }
 
+export type StripeApiObject = Record<string, unknown>;
+
 export class StripeBillingError extends Error {
   constructor(
     message: string,
@@ -72,6 +74,29 @@ async function deleteStripeForm<T>(
     headers: {
       "Authorization": `Bearer ${getStripeSecretKey()}`,
       ...(options?.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
+    },
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = typeof data?.error?.message === "string"
+      ? data.error.message
+      : "Stripe request failed";
+    throw new StripeBillingError(message, response.status);
+  }
+
+  return data as T;
+}
+
+async function getStripeJson<T>(
+  path: string,
+  params?: URLSearchParams,
+): Promise<T> {
+  const query = params?.toString();
+  const response = await fetch(`${STRIPE_API_BASE}${path}${query ? `?${query}` : ""}`, {
+    method: "GET",
+    headers: {
+      "Authorization": `Bearer ${getStripeSecretKey()}`,
     },
   });
 
@@ -157,4 +182,27 @@ export async function cancelStripeSubscriptionImmediately(input: {
     ? new Date(subscription.canceled_at * 1000).toISOString()
     : new Date().toISOString();
   return { canceledAt };
+}
+
+export async function retrieveStripeSubscription(
+  stripeSubscriptionId: string,
+): Promise<StripeApiObject> {
+  const params = new URLSearchParams();
+  params.append("expand[]", "items.data.price");
+  params.append("expand[]", "schedule");
+  return getStripeJson<StripeApiObject>(
+    `/subscriptions/${encodeURIComponent(stripeSubscriptionId)}`,
+    params,
+  );
+}
+
+export async function retrieveStripeSubscriptionSchedule(
+  stripeScheduleId: string,
+): Promise<StripeApiObject> {
+  const params = new URLSearchParams();
+  params.append("expand[]", "phases.items.price");
+  return getStripeJson<StripeApiObject>(
+    `/subscription_schedules/${encodeURIComponent(stripeScheduleId)}`,
+    params,
+  );
 }

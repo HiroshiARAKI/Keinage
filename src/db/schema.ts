@@ -150,14 +150,20 @@ export const ownerSubscriptions = pgTable(
     status: text("status").notNull().default("none"),
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),
+    stripeScheduleId: text("stripe_schedule_id"),
+    currentPriceId: text("current_price_id"),
     currentPeriodEnd: text("current_period_end"),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    cancelAt: text("cancel_at"),
     canceledAt: text("canceled_at"),
+    endedAt: text("ended_at"),
     deletedOwnerAt: text("deleted_owner_at"),
     pendingPlanCode: text("pending_plan_code"),
+    pendingPriceId: text("pending_price_id"),
     pendingBillingInterval: text("pending_billing_interval"),
     pendingPlanEffectiveAt: text("pending_plan_effective_at"),
     pendingActiveBoardIds: text("pending_active_board_ids"),
+    lastSyncedAt: text("last_synced_at"),
     createdAt: text("created_at")
       .notNull()
       .default(isoNow),
@@ -173,6 +179,8 @@ export const ownerSubscriptions = pgTable(
       .on(table.stripeCustomerId),
     stripeSubscriptionIdx: index("owner_subscriptions_stripe_subscription_id_idx")
       .on(table.stripeSubscriptionId),
+    stripeScheduleIdx: index("owner_subscriptions_stripe_schedule_id_idx")
+      .on(table.stripeScheduleId),
   }),
 );
 

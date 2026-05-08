@@ -19,6 +19,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getRequestI18n } from "@/lib/i18n-server";
 import { resolveOwnerUserId } from "@/lib/ownership";
 import { getPlanBoardSelectionState } from "@/lib/plan-board-selection";
+import { getEffectivePlanForOwner } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -30,17 +31,31 @@ export default async function BoardsPage() {
   const { t, formatDate, getTemplateCopy } = await getRequestI18n();
 
   const ownerUserId = resolveOwnerUserId(session.user);
-  const [allBoards, boardSelection] = await Promise.all([
+  const [allBoards, boardSelection, effectivePlan] = await Promise.all([
     db
       .select()
       .from(boards)
       .where(eq(boards.ownerUserId, ownerUserId))
       .orderBy(desc(boards.createdAt)),
     getPlanBoardSelectionState(ownerUserId),
+    getEffectivePlanForOwner(ownerUserId),
   ]);
   const showPendingPlanNotice =
     boardSelection.selectionMode === "pending"
     && boardSelection.pendingPlanEffectiveAt !== null;
+  const pendingEffectiveDate = boardSelection.pendingPlanEffectiveAt
+    ?? effectivePlan.subscription?.pendingPlanEffectiveAt
+    ?? (effectivePlan.subscription?.cancelAtPeriodEnd
+      ? effectivePlan.subscription.cancelAt ?? effectivePlan.subscription.currentPeriodEnd
+      : null);
+  const formattedPendingEffectiveDate = pendingEffectiveDate
+    ? formatDate(pendingEffectiveDate, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        timeZone: "Asia/Tokyo",
+      })
+    : null;
 
   return (
     <div>
@@ -74,6 +89,15 @@ export default async function BoardsPage() {
                     count: boardSelection.selectedBoardIds.length,
                   })}
                 </div>
+                {formattedPendingEffectiveDate && (
+                  <div className="mt-1">
+                    {t("boards.pendingPlanAvailability", {
+                      currentPlan: effectivePlan.plan.name,
+                      nextPlan: boardSelection.selectionPlanName,
+                      date: formattedPendingEffectiveDate,
+                    })}
+                  </div>
+                )}
               </div>
             </div>
             <Link
