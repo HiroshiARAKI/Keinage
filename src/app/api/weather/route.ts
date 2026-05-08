@@ -6,6 +6,7 @@ import { boards } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { DEFAULT_CITY_ID } from "@/lib/weather-areas";
 import { getSessionUser } from "@/lib/auth";
+import { isBoardDisplayable } from "@/lib/board-status";
 import { getOwnerSetting } from "@/lib/owner-settings";
 import { isInOwnerScope, resolveOwnerUserId } from "@/lib/ownership";
 
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     const board = await db.query.boards.findFirst({
       where: eq(boards.id, boardId),
     });
-    if (!board || !board.isActive) {
+    if (!board || !isBoardDisplayable(board)) {
       return NextResponse.json({ error: "Board not found" }, { status: 404 });
     }
 

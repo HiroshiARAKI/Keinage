@@ -10,35 +10,61 @@ import { emitSSE } from "@/lib/sse";
 import {
   resizeImage,
   generateThumbnail,
+  getImageDimensions,
+  getImageLongEdge,
   DEFAULT_IMAGE_MAX_LONG_EDGE,
 } from "@/lib/image";
 import {
+  ALLOWED_TYPES,
+  ALLOWED_VIDEO_POSTER_TYPES,
+  mediaTypeFromContentType,
+  uploadExtensionFromFilename,
+} from "@/lib/media-upload";
+import {
   deleteStoredObject,
   publicPathForStorageKey,
+  scopedMediaStorageKey,
   storageKeyFromPublicPath,
-  thumbnailStorageKeyFromFilename,
+  thumbnailStorageKeyFromStorageKey,
   thumbnailStorageKeyFromPublicPath,
   writeStoredObject,
 } from "@/lib/media-storage";
 import { getOwnerSetting } from "@/lib/owner-settings";
 import { resolveOwnerUserId } from "@/lib/ownership";
+import {
+  assertCanUploadMedia,
+  assertImageResolutionAllowed,
+  assertVideoResolutionAllowed,
+  getEffectiveImageMaxLongEdge,
+  isPlanLimitError,
+  planLimitErrorBody,
+} from "@/lib/plan-enforcement";
 import { parseJsonObject } from "@/lib/utils";
-import path from "path";
+import { probeVideoMetadataFromBuffer } from "@/lib/video-metadata";
 import { randomUUID } from "crypto";
+import path from "path";
 
-const ALLOWED_IMAGE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-];
-const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm"];
-const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+function planLimitResponse(error: unknown) {
+  if (isPlanLimitError(error)) {
+    return NextResponse.json(planLimitErrorBody(error), { status: 403 });
+  }
+  return null;
+}
 
 function readSlideInterval(config: unknown): number | undefined {
   const raw = parseJsonObject(config).slideInterval;
   return typeof raw === "number" && Number.isFinite(raw) && raw >= 1 ? raw : undefined;
+}
+
+function videoMetadataResponse(error: unknown) {
+  console.error("[media] Failed to read video metadata", error);
+  return NextResponse.json(
+    {
+      error: "動画メタデータを取得できませんでした",
+      code: "video_metadata_unavailable",
+    },
+    { status: 400 },
+  );
 }
 
 export async function GET() {
@@ -53,6 +79,8 @@ export async function GET() {
       boardId: mediaItems.boardId,
       type: mediaItems.type,
       filePath: mediaItems.filePath,
+      width: mediaItems.width,
+      height: mediaItems.height,
       displayOrder: mediaItems.displayOrder,
       duration: mediaItems.duration,
       createdAt: mediaItems.createdAt,
@@ -83,6 +111,7 @@ export async function POST(request: NextRequest) {
   }
 
   const file = formData.get("file");
+  const poster = formData.get("poster");
   const boardId = formData.get("boardId");
   const duration = formData.get("duration");
 
@@ -108,7 +137,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Validate file type
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  if (!(ALLOWED_TYPES as readonly string[]).includes(file.type)) {
     return NextResponse.json(
       {
         error: `Unsupported file type: ${file.type}. Allowed: JPEG, PNG, WebP, GIF, MP4, WebM`,
@@ -117,43 +146,126 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Validate file size
-  if (file.size > MAX_FILE_SIZE) {
+  // Determine media type
+  const mediaType = mediaTypeFromContentType(file.type);
+  if (!mediaType) {
     return NextResponse.json(
-      { error: `File too large. Max size: ${MAX_FILE_SIZE / 1024 / 1024}MB` },
+      { error: `Unsupported file type: ${file.type}` },
       { status: 400 },
     );
   }
+  const ownerUserId = resolveOwnerUserId(session.user);
 
-  // Determine media type
-  const mediaType = ALLOWED_IMAGE_TYPES.includes(file.type)
-    ? "image"
-    : "video";
+  try {
+    await assertCanUploadMedia({
+      ownerUserId,
+      mediaType,
+      fileSize: file.size,
+    });
+  } catch (error) {
+    const response = planLimitResponse(error);
+    if (response) return response;
+    throw error;
+  }
 
-  // Generate unique filename
-  const ext = path.extname(file.name) || `.${file.type.split("/")[1]}`;
-  const sanitizedExt = ext.replace(/[^a-zA-Z0-9.]/g, "");
-  const filename = `${randomUUID()}${sanitizedExt}`;
+  // Generate owner/board scoped storage key.
+  const sanitizedExt = uploadExtensionFromFilename(file.name, file.type);
+  const mediaId = randomUUID();
+  const storageKey = scopedMediaStorageKey({
+    ownerUserId: board.ownerUserId,
+    boardId,
+    mediaId,
+    extension: sanitizedExt,
+  });
 
   let buffer: Buffer = Buffer.from(await file.arrayBuffer());
+  let mediaWidth: number | null = null;
+  let mediaHeight: number | null = null;
 
   if (mediaType === "image") {
     // Read the max long edge setting
     const maxSetting = await getOwnerSetting(board.ownerUserId, "imageMaxLongEdge");
-    const maxLongEdge = maxSetting
+    const ownerMaxLongEdge = maxSetting
       ? parseInt(maxSetting, 10)
       : DEFAULT_IMAGE_MAX_LONG_EDGE;
+    const maxLongEdge = await getEffectiveImageMaxLongEdge(
+      board.ownerUserId,
+      ownerMaxLongEdge,
+    );
 
+    if (sanitizedExt.toLowerCase() === ".gif") {
+      try {
+        await assertImageResolutionAllowed({
+          ownerUserId: board.ownerUserId,
+          longEdge: await getImageLongEdge(buffer),
+        });
+      } catch (error) {
+        const response = planLimitResponse(error);
+        if (response) return response;
+        throw error;
+      }
+    }
     buffer = Buffer.from(await resizeImage(buffer, sanitizedExt, maxLongEdge));
+    const dimensions = await getImageDimensions(buffer);
+    mediaWidth = dimensions.width;
+    mediaHeight = dimensions.height;
   }
 
-  const thumbnail =
-    mediaType === "image" ? await generateThumbnail(buffer, filename) : null;
+  if (mediaType === "video") {
+    let metadata;
+    try {
+      metadata = await probeVideoMetadataFromBuffer(buffer, sanitizedExt);
+    } catch (error) {
+      return videoMetadataResponse(error);
+    }
 
-  await writeStoredObject(filename, buffer, file.type);
+    try {
+      await assertVideoResolutionAllowed({
+        ownerUserId: board.ownerUserId,
+        width: metadata.width,
+        height: metadata.height,
+      });
+    } catch (error) {
+      const response = planLimitResponse(error);
+      if (response) return response;
+      throw error;
+    }
+    mediaWidth = metadata.width;
+    mediaHeight = metadata.height;
+  }
+
+  let thumbnail =
+    mediaType === "image" ? await generateThumbnail(buffer, path.basename(storageKey)) : null;
+
+  if (mediaType === "video" && poster instanceof File && poster.size > 0) {
+    if (!(ALLOWED_VIDEO_POSTER_TYPES as readonly string[]).includes(poster.type)) {
+      return NextResponse.json(
+        { error: "Unsupported poster image type" },
+        { status: 400 },
+      );
+    }
+
+    const posterBuffer = Buffer.from(await poster.arrayBuffer());
+    thumbnail = await generateThumbnail(posterBuffer, "poster.jpg");
+  }
+
+  try {
+    await assertCanUploadMedia({
+      ownerUserId,
+      mediaType,
+      fileSize: file.size,
+      additionalStorageBytes: buffer.length + (thumbnail?.buffer.length ?? 0),
+    });
+  } catch (error) {
+    const response = planLimitResponse(error);
+    if (response) return response;
+    throw error;
+  }
+
+  await writeStoredObject(storageKey, buffer, file.type);
   if (thumbnail) {
     await writeStoredObject(
-      thumbnailStorageKeyFromFilename(filename),
+      thumbnailStorageKeyFromStorageKey(storageKey),
       thumbnail.buffer,
       thumbnail.contentType,
     );
@@ -182,7 +294,11 @@ export async function POST(request: NextRequest) {
     .values({
       boardId,
       type: mediaType,
-      filePath: publicPathForStorageKey(filename),
+      filePath: publicPathForStorageKey(storageKey),
+      fileSizeBytes: buffer.length,
+      thumbnailSizeBytes: thumbnail?.buffer.length ?? 0,
+      width: mediaWidth,
+      height: mediaHeight,
       displayOrder: maxOrder + 1,
       duration: durationValue,
     })

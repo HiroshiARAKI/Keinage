@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/db";
 import { boards, messages } from "@/db/schema";
 import { eq, and, or, isNull, gt } from "drizzle-orm";
+import { isBoardDisplayable } from "@/lib/board-status";
 import { parseJsonObject } from "@/lib/utils";
 import { getRequestI18n } from "@/lib/i18n-server";
 import CallScreenClient from "./CallScreenClient";
@@ -26,7 +27,7 @@ export default async function CallPage({
     where: eq(boards.id, boardId),
   });
 
-  if (!board || !board.isActive) {
+  if (!board || !isBoardDisplayable(board)) {
     notFound();
   }
 

@@ -90,7 +90,32 @@ docker compose up -d
 `docker compose up -d` でアプリ本体と PostgreSQL コンテナが同時に起動します。
 
 Docker Compose の既定構成では、メディア保存先はローカル `uploads/` ディレクトリです。
-必要に応じて、S3 互換のあるストレージサービスを利用できます。
+必要に応じて、AWS S3 または S3 互換ストレージサービスを利用できます。
+
+AWS S3 + CloudFront + IAM Role で運用する場合は、`S3_REGION` と `S3_BUCKET` を設定し、`S3_ENDPOINT` と静的 Access Key / Secret は空のままにします。アプリは AWS SDK の default credential provider chain に任せます。CloudFront / S3 を private にしたまま配信する場合は `STORAGE_DELIVERY_MODE=cloudfront-signed-url` を使います。ブラウザには `/uploads/<mediaId>` 形式だけを返し、Keinage 側で Owner / Board の公開設定を確認してから短時間有効な CloudFront Signed URL へ 302 redirect します。
+
+```yaml
+environment:
+  - S3_REGION=ap-northeast-1
+  - S3_BUCKET=keinage-storage-prod
+  - S3_ENDPOINT=
+  - S3_FORCE_PATH_STYLE=false
+  - S3_ACCESS_KEY_ID=
+  - S3_SECRET_ACCESS_KEY=
+  - S3_PRESIGNED_UPLOAD_EXPIRES_SECONDS=900
+  - STORAGE_DELIVERY_MODE=cloudfront-signed-url
+  - STORAGE_PUBLIC_BASE_URL=https://app.keinage.com/uploads
+  - STORAGE_CDN_BASE_URL=https://storage.keinage.com
+  - CLOUDFRONT_KEY_PAIR_ID=Kxxxxxxxxxxxx
+  - CLOUDFRONT_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----
+  - CLOUDFRONT_SIGNED_URL_EXPIRES_SECONDS=300
+```
+
+S3 storage 利用時、動画アップロードはブラウザからS3へ直接PUTします。S3 bucket のCORSには、Keinageを開く origin からの `PUT` と `HEAD`、`Content-Type` header、`ETag` exposure を許可してください。
+
+ローカルPCから AWS S3 を検証する場合は、`S3_ACCESS_KEY_ID` と `S3_SECRET_ACCESS_KEY` を両方設定します。片方だけの設定はエラーになります。
+
+RustFS / MinIO などのS3互換ストレージでは、endpoint、path-style、静的credentialsを設定します。
 
 ```yaml
 environment:
@@ -100,6 +125,7 @@ environment:
   - S3_ACCESS_KEY_ID=rustfsadmin
   - S3_SECRET_ACCESS_KEY=rustfsadmin
   - S3_FORCE_PATH_STYLE=true
+  - S3_PUBLIC_BASE_URL=http://localhost:9000/keinage-media
 ```
 
 `docker-compose.yml` には rustfs のコメント例を残していますが、alpha 版のため既定では起動しません。
@@ -117,7 +143,7 @@ environment:
 3. `docker compose up -d db rustfs app` を実行する
 4. RustFS の Web UI (`http://127.0.0.1:9001/`) で `keinage-media` バケットを作成する
 
-この状態で app は自動的にローカル `uploads/` ではなく RustFS に保存します。Docker Compose 内の app は `S3_INTERNAL_ENDPOINT` を優先して使うため、`127.0.0.1` ではなく `rustfs:9000` へ接続されます。`S3_ACCESS_KEY_ID` と `S3_SECRET_ACCESS_KEY` は、rustfs 側の `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` と同じ値を使ってください。
+この状態で app は自動的にローカル `uploads/` ではなく RustFS に保存します。Docker Compose 内の app は `S3_INTERNAL_ENDPOINT` を優先して使うため、`127.0.0.1` ではなく `rustfs:9000` へ接続されます。`S3_ACCESS_KEY_ID` と `S3_SECRET_ACCESS_KEY` は、rustfs 側の `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` と同じ値を使ってください。ブラウザから RustFS へ直接配信する場合は `S3_PUBLIC_BASE_URL=http://localhost:9000/keinage-media` のように、ブラウザから到達できるURLを設定します。アプリ経由で配信する場合は空でも構いません。
 
 ブラウザで http://localhost:3000 にアクセスし、初回は Owner 管理者アカウントを登録してください。
 メールアドレス + パスワード、または Google アカウントで登録できます。登録後はそのまま 6 桁 PIN を設定します。
@@ -161,6 +187,20 @@ GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 
 Google 認証で作成したユーザーは Google 認証専用、メールアドレス + パスワードで作成したユーザーはパスワード認証専用です。作成後に認証方式は変更できません。
 
+#### Super Owner 設定 (任意)
+
+公式SaaSや公開インスタンスで運営者向けの高権限ユーザーを用意する場合は、初回ログイン前に `.env` で Super Owner bootstrap を設定します。デフォルト管理者アカウントや初期パスワードはありません。Super Owner は1人のみで、作成後に UI/API から任意ユーザーを昇格する機能はありません。
+
+```bash
+SUPER_OWNER_EMAIL=admin@example.com
+SUPER_OWNER_BOOTSTRAP_ENABLED=true
+SUPER_OWNER_REQUIRE_GOOGLE=false
+```
+
+Self-hosted では必要に応じて `SUPER_OWNER_REQUIRE_GOOGLE=false` を利用できます。公開インスタンスや公式SaaSでは、Google OAuth/OIDC を有効化したうえで `SUPER_OWNER_REQUIRE_GOOGLE=true` にすることを推奨します。Super Owner 作成後は `SUPER_OWNER_BOOTSTRAP_ENABLED=false` に戻しても構いません。
+
+Super Owner が存在する環境では、管理画面の「お知らせ」から運営通知を作成できます。重要通知は管理画面上部に表示され、確認必須通知はユーザーごとに確認状態を保存します。メール送信付き通知を使う場合は、既存の `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` を設定してください。
+
 ```bash
 # 停止
 docker compose down
@@ -193,5 +233,10 @@ Issue や Pull Request は歓迎します。
 ## ライセンス
 
 このプロジェクトは [Apache License 2.0](LICENSE) の下でライセンスされています。
+個人利用、社内利用、商用利用、オンプレミス環境でのセルフホスト利用は、
+Apache License 2.0 の条件に従って自由に行えます。
 
-詳しくは [LICENSE](LICENSE) ファイルおよび [NOTICE](NOTICE) ファイルをご参照ください。
+ただし、Keinage の名称、ロゴ、公式サービスと誤認されるブランド表現は
+Apache License 2.0 の許諾対象ではありません。
+
+詳しくは [LICENSE](LICENSE), [NOTICE](NOTICE) および [TRADEMARK.md](docs/TRADEMARK.md)ファイルをご参照ください。

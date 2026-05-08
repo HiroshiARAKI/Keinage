@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
+  CreditCard,
+  Activity,
+  Bell,
+  MessageCircle,
   LayoutDashboard,
   Settings,
   Users,
@@ -16,6 +19,7 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Separator } from "@/components/ui/separator";
 import { LogoutButton } from "@/components/dashboard/LogoutButton";
 import { KeinageLogo } from "@/components/KeinageLogo";
+import { AnnouncementBanner } from "@/components/dashboard/AnnouncementBanner";
 
 function getThemeBootstrapScript(initialTheme: "system" | "light" | "dark") {
   return `(() => {
@@ -56,23 +60,21 @@ function SidebarLink({
 export function DashboardShell({
   userId,
   role,
+  isSuperOwner,
+  billingEnabled,
   initialTheme,
   children,
 }: {
   userId: string;
   role: string;
+  isSuperOwner: boolean;
+  billingEnabled: boolean;
   initialTheme: "system" | "light" | "dark";
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const pathname = usePathname();
   const initialResolvedTheme = initialTheme === "system" ? undefined : initialTheme;
   const { t } = useLocale();
-
-  // Close sidebar on route change
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname]);
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
@@ -114,6 +116,22 @@ export function DashboardShell({
             {t("dashboard.navUsers")}
           </SidebarLink>
         )}
+        {role === "admin" && billingEnabled && (
+          <SidebarLink href="/billing" icon={CreditCard} onClick={closeSidebar}>
+            {t("dashboard.navBilling")}
+          </SidebarLink>
+        )}
+        {role === "admin" && (
+          <SidebarLink href="/status" icon={Activity} onClick={closeSidebar}>
+            {t("dashboard.navStatus")}
+          </SidebarLink>
+        )}
+        <SidebarLink href="/contact" icon={MessageCircle} onClick={closeSidebar}>
+          {t("dashboard.navContact")}
+        </SidebarLink>
+        <SidebarLink href="/announcements" icon={Bell} onClick={closeSidebar}>
+          {isSuperOwner ? t("dashboard.navAnnouncementAdmin") : t("dashboard.navAnnouncements")}
+        </SidebarLink>
         <SidebarLink href="/settings" icon={Settings} onClick={closeSidebar}>
           {t("dashboard.navSettings")}
         </SidebarLink>
@@ -164,6 +182,7 @@ export function DashboardShell({
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
+        <AnnouncementBanner />
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">{children}</div>
       </main>
     </div>

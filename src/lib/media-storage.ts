@@ -3,12 +3,18 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs";
 import path from "path";
+import {
+  isCloudFrontSignedDeliveryMode,
+  mediaRouteUrlForMediaId,
+} from "@/lib/cloudfront-signed-url";
 
 const LOCAL_UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 const PUBLIC_UPLOAD_PREFIX = "/uploads/";
@@ -31,11 +37,13 @@ const MEDIA_EXTS = new Set([...IMAGE_EXTS, ...VIDEO_EXTS]);
 type StorageDriver = "local" | "s3";
 
 type S3Config = {
-  endpoint: string;
+  endpoint?: string;
   region: string;
   bucket: string;
-  accessKeyId: string;
-  secretAccessKey: string;
+  credentials?: {
+    accessKeyId: string;
+    secretAccessKey: string;
+  };
   forcePathStyle: boolean;
 };
 
@@ -47,6 +55,11 @@ export type StoredObject = {
 
 export type StoredObjectBody = {
   body: Buffer;
+  contentLength: number;
+  contentType: string;
+};
+
+export type StoredObjectMetadata = {
   contentLength: number;
   contentType: string;
 };
@@ -74,6 +87,32 @@ function sanitizeStorageKey(key: string): string {
   return normalized;
 }
 
+function sanitizeKeySegment(value: string): string {
+  return value.trim().replace(/[^a-zA-Z0-9._=-]/g, "_").slice(0, 120);
+}
+
+function configuredPublicBaseUrl(): string | null {
+  const raw =
+    process.env.S3_PUBLIC_BASE_URL?.trim()
+    || process.env.STORAGE_PUBLIC_BASE_URL?.trim()
+    || process.env.CLOUDFRONT_BASE_URL?.trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, "");
+}
+
+function cacheControlForStorageKey(key: string): string {
+  const safeKey = sanitizeStorageKey(key);
+  if (isThumbnailStorageKey(safeKey)) {
+    return "public, max-age=31536000, immutable";
+  }
+
+  if (mediaTypeFromStorageKey(safeKey) === "video") {
+    return "public, max-age=31536000, immutable";
+  }
+
+  return "public, max-age=31536000, immutable";
+}
+
 function resolveLocalPath(key: string): string {
   const resolved = path.resolve(LOCAL_UPLOAD_DIR, key);
   if (!resolved.startsWith(LOCAL_UPLOAD_DIR)) {
@@ -87,33 +126,53 @@ function getS3Config(): S3Config | null {
     return cachedConfig;
   }
 
-  const endpoint = process.env.S3_ENDPOINT?.trim();
+  const endpoint =
+    process.env.S3_INTERNAL_ENDPOINT?.trim()
+    || process.env.S3_ENDPOINT?.trim();
   const bucket = process.env.S3_BUCKET?.trim();
   const accessKeyId = process.env.S3_ACCESS_KEY_ID?.trim();
   const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY?.trim();
-  const region = process.env.S3_REGION?.trim() || "us-east-1";
+  const region = process.env.S3_REGION?.trim();
 
-  const values = [endpoint, bucket, accessKeyId, secretAccessKey];
-  const provided = values.filter(Boolean).length;
+  const hasAnyConnectionSetting = Boolean(
+    endpoint
+      || region
+      || bucket
+      || accessKeyId
+      || secretAccessKey
+      || process.env.S3_FORCE_PATH_STYLE?.trim(),
+  );
 
-  if (provided === 0) {
+  if (!hasAnyConnectionSetting) {
     cachedConfig = null;
     return cachedConfig;
   }
 
-  if (provided !== values.length) {
+  if (!region || !bucket) {
     throw new Error(
-      "Incomplete S3 storage configuration. Set S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, and S3_SECRET_ACCESS_KEY.",
+      "Incomplete S3 storage configuration. Set S3_REGION and S3_BUCKET. S3_ENDPOINT and static credentials are optional.",
+    );
+  }
+
+  const hasAccessKey = Boolean(accessKeyId);
+  const hasSecretKey = Boolean(secretAccessKey);
+  if (hasAccessKey !== hasSecretKey) {
+    throw new Error(
+      "Incomplete S3 static credentials. Set both S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY, or leave both empty to use the AWS default credential provider chain.",
     );
   }
 
   cachedConfig = {
-    endpoint: endpoint!,
+    endpoint: endpoint || undefined,
     region,
-    bucket: bucket!,
-    accessKeyId: accessKeyId!,
-    secretAccessKey: secretAccessKey!,
-    forcePathStyle: parseBoolean(process.env.S3_FORCE_PATH_STYLE, true),
+    bucket,
+    credentials: hasAccessKey && hasSecretKey
+      ? {
+          accessKeyId: accessKeyId!,
+          secretAccessKey: secretAccessKey!,
+        }
+      : undefined,
+    forcePathStyle: parseBoolean(process.env.S3_FORCE_PATH_STYLE, Boolean(endpoint)),
   };
 
   return cachedConfig;
@@ -134,10 +193,7 @@ function getS3Client(): { client: S3Client; config: S3Config } {
       region: config.region,
       endpoint: config.endpoint,
       forcePathStyle: config.forcePathStyle,
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      },
+      credentials: config.credentials,
     });
   }
 
@@ -186,7 +242,42 @@ export function publicPathForStorageKey(key: string): string {
   return `${PUBLIC_UPLOAD_PREFIX}${sanitizeStorageKey(key)}`;
 }
 
+export function publicDeliveryUrlForStorageKey(key: string): string {
+  const safeKey = sanitizeStorageKey(key);
+  const publicBaseUrl = configuredPublicBaseUrl();
+  if (!publicBaseUrl) {
+    return publicPathForStorageKey(safeKey);
+  }
+  return `${publicBaseUrl}/${safeKey}`;
+}
+
+export function publicDeliveryUrlForPublicPath(filePath: string): string {
+  return publicDeliveryUrlForStorageKey(storageKeyFromPublicPath(filePath));
+}
+
+export function deliveryUrlForMediaItem(input: { id: string; filePath: string }): string {
+  if (isCloudFrontSignedDeliveryMode()) {
+    return mediaRouteUrlForMediaId(input.id);
+  }
+
+  return publicDeliveryUrlForPublicPath(input.filePath);
+}
+
 export function storageKeyFromPublicPath(filePath: string): string {
+  const publicBaseUrl = configuredPublicBaseUrl();
+  if (publicBaseUrl && filePath.startsWith(`${publicBaseUrl}/`)) {
+    return sanitizeStorageKey(filePath.slice(publicBaseUrl.length + 1));
+  }
+
+  try {
+    const url = new URL(filePath);
+    if (url.pathname.startsWith(PUBLIC_UPLOAD_PREFIX)) {
+      return sanitizeStorageKey(url.pathname.slice(PUBLIC_UPLOAD_PREFIX.length));
+    }
+  } catch {
+    // not an absolute URL
+  }
+
   if (!filePath.startsWith(PUBLIC_UPLOAD_PREFIX)) {
     throw new Error("Invalid public upload path");
   }
@@ -194,20 +285,49 @@ export function storageKeyFromPublicPath(filePath: string): string {
   return sanitizeStorageKey(filePath.slice(PUBLIC_UPLOAD_PREFIX.length));
 }
 
+export function scopedMediaStorageKey(input: {
+  ownerUserId: string;
+  boardId: string;
+  mediaId: string;
+  extension: string;
+}): string {
+  const extension = input.extension.startsWith(".") ? input.extension : `.${input.extension}`;
+  return sanitizeStorageKey(
+    [
+      "owners",
+      sanitizeKeySegment(input.ownerUserId),
+      "boards",
+      sanitizeKeySegment(input.boardId),
+      "media",
+      `${sanitizeKeySegment(input.mediaId)}${extension.toLowerCase()}`,
+    ].join("/"),
+  );
+}
+
 export function thumbnailStorageKeyFromFilename(filename: string): string {
-  const safeName = path.basename(filename);
-  const ext = path.extname(safeName).toLowerCase();
-  const thumbExt = ext === ".gif" ? ".jpg" : ext;
-  const base = path.basename(safeName, ext);
-  return `${THUMB_PREFIX}${base}${thumbExt}`;
+  return thumbnailStorageKeyFromStorageKey(filename);
+}
+
+export function thumbnailStorageKeyFromStorageKey(key: string): string {
+  const safeKey = sanitizeStorageKey(key);
+  const directory = path.posix.dirname(safeKey);
+  const safeName = path.posix.basename(safeKey);
+  const ext = path.posix.extname(safeName).toLowerCase();
+  const thumbExt = [".gif", ".mp4", ".webm"].includes(ext) ? ".jpg" : ext;
+  const base = path.posix.basename(safeName, ext);
+  if (directory === ".") {
+    return `${THUMB_PREFIX}${base}${thumbExt}`;
+  }
+  return `${directory}/${THUMB_PREFIX}${base}${thumbExt}`;
 }
 
 export function thumbnailStorageKeyFromPublicPath(filePath: string): string {
-  return thumbnailStorageKeyFromFilename(path.basename(storageKeyFromPublicPath(filePath)));
+  return thumbnailStorageKeyFromStorageKey(storageKeyFromPublicPath(filePath));
 }
 
 export function isThumbnailStorageKey(key: string): boolean {
-  return sanitizeStorageKey(key).startsWith(THUMB_PREFIX);
+  const safeKey = sanitizeStorageKey(key);
+  return safeKey.startsWith(THUMB_PREFIX) || safeKey.includes(`/${THUMB_PREFIX}`);
 }
 
 export function isMediaStorageKey(key: string): boolean {
@@ -228,6 +348,38 @@ export function mediaTypeFromStorageKey(key: string): "image" | "video" | null {
 
 export function mediaStorageDriver(): StorageDriver {
   return getStorageDriver();
+}
+
+export function presignedUploadExpiresAt(): Date {
+  const configured = Number(process.env.S3_PRESIGNED_UPLOAD_EXPIRES_SECONDS ?? "");
+  const expiresInSeconds = Number.isFinite(configured) && configured > 0
+    ? Math.floor(configured)
+    : 900;
+  return new Date(Date.now() + expiresInSeconds * 1000);
+}
+
+export async function createPresignedPutObjectUrl(
+  key: string,
+  contentType: string,
+): Promise<{ uploadUrl: string; expiresAt: string }> {
+  const safeKey = sanitizeStorageKey(key);
+  if (getStorageDriver() !== "s3") {
+    throw new Error("S3 storage is not configured");
+  }
+
+  const expiresAt = presignedUploadExpiresAt();
+  const expiresIn = Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+  const { client, config } = getS3Client();
+  const command = new PutObjectCommand({
+    Bucket: config.bucket,
+    Key: safeKey,
+    ContentType: contentType,
+  });
+
+  return {
+    uploadUrl: await getSignedUrl(client, command, { expiresIn }),
+    expiresAt: expiresAt.toISOString(),
+  };
 }
 
 export async function writeStoredObject(
@@ -251,7 +403,7 @@ export async function writeStoredObject(
       Key: safeKey,
       Body: body,
       ContentType: contentType,
-      CacheControl: "public, max-age=31536000, immutable",
+      CacheControl: cacheControlForStorageKey(safeKey),
     }),
   );
 }
@@ -292,6 +444,43 @@ export async function readStoredObject(key: string): Promise<StoredObjectBody | 
     return {
       body,
       contentLength: Number(response.ContentLength ?? body.length),
+      contentType: response.ContentType ?? mimeTypeFromKey(safeKey),
+    };
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function headStoredObject(key: string): Promise<StoredObjectMetadata | null> {
+  const safeKey = sanitizeStorageKey(key);
+
+  if (getStorageDriver() === "local") {
+    const targetPath = resolveLocalPath(safeKey);
+    if (!fs.existsSync(targetPath)) {
+      return null;
+    }
+
+    const stat = fs.statSync(targetPath);
+    return {
+      contentLength: stat.size,
+      contentType: mimeTypeFromKey(safeKey),
+    };
+  }
+
+  const { client, config } = getS3Client();
+  try {
+    const response = await client.send(
+      new HeadObjectCommand({
+        Bucket: config.bucket,
+        Key: safeKey,
+      }),
+    );
+
+    return {
+      contentLength: Number(response.ContentLength ?? 0),
       contentType: response.ContentType ?? mimeTypeFromKey(safeKey),
     };
   } catch (error) {

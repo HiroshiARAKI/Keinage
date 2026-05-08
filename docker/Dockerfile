@@ -31,6 +31,12 @@ RUN pnpm build
 FROM base AS runner
 ENV NODE_ENV=production
 
+# ffprobe is used at upload time to enforce video resolution limits.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg ca-certificates openssl && \
+    update-ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs

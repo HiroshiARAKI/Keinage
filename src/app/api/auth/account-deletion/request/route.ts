@@ -30,6 +30,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
   }
 
+  const body = await request.json().catch(() => null) as { confirmation?: string } | null;
+  if (body?.confirmation !== "DELETE") {
+    return NextResponse.json(
+      { error: "確認入力が一致しません" },
+      { status: 400 },
+    );
+  }
+
   if (!isOwnerUser(session.user)) {
     return NextResponse.json(
       { error: "Ownerアカウントのみ退会できます" },

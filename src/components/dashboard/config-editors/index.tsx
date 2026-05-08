@@ -8,10 +8,16 @@ import { PhotoClockConfigEditor } from "./PhotoClockConfigEditor";
 import { RetroBoardConfigEditor } from "./RetroBoardConfigEditor";
 import { MessageBoardConfigEditor } from "./MessageBoardConfigEditor";
 import { CallNumberConfigEditor } from "./CallNumberConfigEditor";
+import { ClinicHoursConfigEditor } from "./ClinicHoursConfigEditor";
+import { RestaurantMenuConfigEditor } from "./RestaurantMenuConfigEditor";
+import { QrInfoConfigEditor } from "./QrInfoConfigEditor";
+import type { MediaItem, PublicBoardPlan } from "@/types";
 
-interface ConfigEditorProps {
+export interface ConfigEditorProps {
   config: Record<string, unknown>;
   onChange: (config: Record<string, unknown>) => void;
+  mediaItems?: MediaItem[];
+  boardPlan?: PublicBoardPlan;
 }
 
 const editors: Record<string, React.ComponentType<ConfigEditorProps>> = {
@@ -20,12 +26,17 @@ const editors: Record<string, React.ComponentType<ConfigEditorProps>> = {
   retro: RetroBoardConfigEditor,
   message: MessageBoardConfigEditor,
   "call-number": CallNumberConfigEditor,
+  "clinic-hours": ClinicHoursConfigEditor,
+  "restaurant-menu": RestaurantMenuConfigEditor,
+  "qr-info": QrInfoConfigEditor,
 };
 
 export function TemplateConfigEditor({
   templateId,
   config,
   onChange,
+  mediaItems,
+  boardPlan,
 }: {
   templateId: string;
 } & ConfigEditorProps) {
@@ -38,5 +49,12 @@ export function TemplateConfigEditor({
       </p>
     );
   }
-  return <Editor config={config} onChange={onChange} />;
+  return (
+    <Editor
+      config={config}
+      onChange={onChange}
+      mediaItems={mediaItems}
+      boardPlan={boardPlan}
+    />
+  );
 }

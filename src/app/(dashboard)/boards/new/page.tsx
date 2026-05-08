@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Globe, Lock } from "lucide-react";
+import { AlertCircle, ArrowLeft, Globe, Lock } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/components/i18n/LocaleProvider";
+import { planLimitMessageKey } from "@/lib/plan-limit";
 import { templates } from "@/lib/templates";
 import type { TemplateId } from "@/types";
 
@@ -46,7 +47,8 @@ export default function NewBoardPage() {
 
     if (!res.ok) {
       const data = await res.json();
-      setError(data.error ?? t("error.createFailed"));
+      const messageKey = planLimitMessageKey(data.code, data.messageKey);
+      setError(messageKey ? t(messageKey) : data.error ?? t("error.createFailed"));
       setSubmitting(false);
       return;
     }
@@ -154,7 +156,12 @@ export default function NewBoardPage() {
               </div>
             </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && (
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <Button type="submit" disabled={submitting || !name.trim()}>

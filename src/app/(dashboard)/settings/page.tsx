@@ -26,8 +26,8 @@ export default async function SettingsPage() {
   if (!session) redirect("/pin");
 
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold">{t("settings.title")}</h1>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">{t("settings.title")}</h1>
       <SettingsClient
         role={session.user.role as "admin" | "general"}
         currentUserId={session.user.userId}

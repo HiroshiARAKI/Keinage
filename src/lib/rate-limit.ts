@@ -39,7 +39,7 @@ export function resolveRateLimitClientIp(request: NextRequest): string {
 }
 
 export function buildRateLimitKey(params: {
-  flow: "credentials" | "pin";
+  flow: "contact" | "credentials" | "pin";
   clientIp: string;
   subject: string;
 }): string {

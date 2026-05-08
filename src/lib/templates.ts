@@ -16,6 +16,15 @@ import MessageBoard, {
 import CallNumberBoard, {
   callNumberDefaultConfig,
 } from "@/components/board/templates/CallNumberBoard";
+import ClinicHoursBoard, {
+  clinicHoursDefaultConfig,
+} from "@/components/board/templates/ClinicHoursBoard";
+import RestaurantMenuBoard, {
+  restaurantMenuDefaultConfig,
+} from "@/components/board/templates/RestaurantMenuBoard";
+import QrInfoBoard, {
+  qrInfoDefaultConfig,
+} from "@/components/board/templates/QrInfoBoard";
 
 /** Registry of all available board templates */
 export const templates: Record<TemplateId, BoardTemplate> = {
@@ -57,6 +66,30 @@ export const templates: Record<TemplateId, BoardTemplate> = {
       "病院や飲食店の呼び出し番号を表示するテンプレート",
     defaultConfig: callNumberDefaultConfig,
     component: CallNumberBoard,
+  },
+  "clinic-hours": {
+    id: "clinic-hours",
+    name: "診療時間案内",
+    description:
+      "診療日と休診日をカレンダー形式で案内するテンプレート",
+    defaultConfig: clinicHoursDefaultConfig as unknown as Record<string, unknown>,
+    component: ClinicHoursBoard,
+  },
+  "restaurant-menu": {
+    id: "restaurant-menu",
+    name: "飲食店メニュー",
+    description:
+      "商品名・価格・写真を列レイアウトで表示するメニューテンプレート",
+    defaultConfig: restaurantMenuDefaultConfig as unknown as Record<string, unknown>,
+    component: RestaurantMenuBoard,
+  },
+  "qr-info": {
+    id: "qr-info",
+    name: "QRコード付き案内",
+    description:
+      "QRコードと説明文を大きく表示する案内テンプレート",
+    defaultConfig: qrInfoDefaultConfig as unknown as Record<string, unknown>,
+    component: QrInfoBoard,
   },
 };
 

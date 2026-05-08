@@ -34,9 +34,12 @@ export function DateTimeClock({
   const { locale, formatDate } = useLocale();
 
   useEffect(() => {
-    setNow(new Date());
+    const initialTimer = setTimeout(() => setNow(new Date()), 0);
     const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(timer);
+    };
   }, []);
 
   if (!now) return null;

@@ -5,6 +5,12 @@ import { db } from "@/db";
 import { boards, mediaItems, messages } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
+import { getEffectivePlanForOwner } from "@/lib/billing";
+import { isBoardDisplayable } from "@/lib/board-status";
+import { recordBoardViewed } from "@/lib/board-view-tracking";
+import { isCloudFrontSignedDeliveryMode } from "@/lib/cloudfront-signed-url";
+import { applyMediaPlanRestrictions } from "@/lib/media-plan";
+import { deliveryUrlForMediaItem } from "@/lib/media-storage";
 import { isInOwnerScope } from "@/lib/ownership";
 import { normalizeConfig } from "@/lib/utils";
 
@@ -17,7 +23,7 @@ export async function GET(
   const board = await db.query.boards.findFirst({
     where: eq(boards.id, id),
   });
-  if (!board || !board.isActive) {
+  if (!board || !isBoardDisplayable(board)) {
     return NextResponse.json({ error: "Board not found" }, { status: 404 });
   }
 
@@ -32,6 +38,8 @@ export async function GET(
     }
   }
 
+  await recordBoardViewed(board);
+
   const media = await db
     .select()
     .from(mediaItems)
@@ -42,10 +50,24 @@ export async function GET(
     .select()
     .from(messages)
     .where(eq(messages.boardId, id));
+  const effectivePlan = await getEffectivePlanForOwner(board.ownerUserId);
+  const planRestrictedMedia = applyMediaPlanRestrictions(media, effectivePlan.plan);
+  const responseMedia =
+    board.visibility === "public" || isCloudFrontSignedDeliveryMode()
+      ? planRestrictedMedia.map((item) => ({
+          ...item,
+          filePath: deliveryUrlForMediaItem(item),
+        }))
+      : planRestrictedMedia;
 
   return NextResponse.json({
     ...normalizeConfig(board),
-    mediaItems: media,
+    boardPlan: {
+      watermark: effectivePlan.plan.limits.watermark,
+      scheduling: effectivePlan.plan.limits.scheduling,
+      menuItemImages: effectivePlan.plan.limits.menuItemImages,
+    },
+    mediaItems: responseMedia,
     messages: boardMessages,
   });
 }

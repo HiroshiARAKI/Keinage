@@ -57,6 +57,14 @@ async function sendTextMail(options: {
   }
 }
 
+export async function sendPlainTextEmail(options: {
+  to: string;
+  subject: string;
+  lines: string[];
+}): Promise<boolean> {
+  return sendTextMail(options);
+}
+
 /** Send a PIN reset email */
 export async function sendPinResetEmail(
   to: string,

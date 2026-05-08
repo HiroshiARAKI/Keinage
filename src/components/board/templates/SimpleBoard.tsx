@@ -7,6 +7,13 @@ import { TickerText } from "@/components/board/TickerText";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
 import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { WeatherDisplay } from "@/components/board/WeatherDisplay";
+import { ScheduledMediaFallback } from "@/components/board/ScheduledMediaFallback";
+import { useScheduleNow } from "@/hooks/useScheduleNow";
+import {
+  filterActiveMediaItems,
+  filterActiveMessages,
+  findFallbackImage,
+} from "@/lib/scheduling";
 import type { BoardTemplateProps } from "@/types";
 
 /** Default config for the Simple Board template */
@@ -22,6 +29,9 @@ export const simpleBoardDefaultConfig = {
   showClock: false,
   showWeather: false,
   objectFit: "contain" as "contain" | "cover",
+  fallbackMediaId: "",
+  mediaSchedules: {},
+  messageSchedules: {},
 };
 
 type SimpleBoardConfig = typeof simpleBoardDefaultConfig;
@@ -35,14 +45,29 @@ export default function SimpleBoard({
   board,
   mediaItems,
   messages,
+  boardPlan,
 }: BoardTemplateProps) {
   const config = parseConfig(board.config);
+  const now = useScheduleNow();
+  const scheduling = boardPlan?.scheduling ?? "full";
 
   const sorted = [...mediaItems].sort(
     (a, b) => a.displayOrder - b.displayOrder
   );
+  const activeMedia = filterActiveMediaItems(
+    sorted,
+    config,
+    scheduling,
+    now,
+  );
+  const fallbackImage = findFallbackImage(sorted, config);
 
-  const tickerMessages = messages.map((m) => m.content);
+  const tickerMessages = filterActiveMessages(
+    messages,
+    config,
+    scheduling,
+    now,
+  ).map((m) => m.content);
 
   // Dynamic ticker height based on font size + padding
   const tickerHeight = config.tickerFontSize + 24;
@@ -81,7 +106,18 @@ export default function SimpleBoard({
 
       {/* Main area — slideshow */}
       <div className="relative flex-1 min-h-0">
-        <MediaSlider mediaItems={sorted} interval={config.slideInterval} objectFit={config.objectFit} />
+        {activeMedia.length > 0 ? (
+          <MediaSlider
+            mediaItems={activeMedia}
+            interval={config.slideInterval}
+            objectFit={config.objectFit}
+          />
+        ) : (
+          <ScheduledMediaFallback
+            item={fallbackImage}
+            objectFit={config.objectFit}
+          />
+        )}
 
         {/* Clock & Weather overlay */}
         {(config.showClock || config.showWeather) && (

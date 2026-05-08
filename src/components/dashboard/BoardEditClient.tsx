@@ -45,12 +45,20 @@ import { templates } from "@/lib/templates";
 import { TemplateConfigEditor } from "@/components/dashboard/config-editors";
 import MediaUploadZone from "@/components/dashboard/MediaUploadZone";
 import CallScreenAdmin from "@/components/dashboard/CallScreenAdmin";
-import type { Board, MediaItem, Message } from "@/types";
+import { BoardSchedulePanel } from "@/components/dashboard/BoardSchedulePanel";
+import type { Board, MediaItem, Message, PublicBoardPlan } from "@/types";
 
 interface BoardDetail extends Board {
   mediaItems: MediaItem[];
   messages: Message[];
+  boardPlan?: PublicBoardPlan;
 }
+
+const DEFAULT_BOARD_PLAN: PublicBoardPlan = {
+  watermark: false,
+  scheduling: "full",
+  menuItemImages: true,
+};
 
 export default function BoardEditClient({ boardId }: { boardId: string }) {
   const router = useRouter();
@@ -91,10 +99,14 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
       typeof data.config === "string" ? JSON.parse(data.config) : data.config;
     setConfig(parsed && typeof parsed === "object" ? parsed : {});
     setLoading(false);
-  }, [boardId]);
+  }, [boardId, t]);
 
   useEffect(() => {
-    fetchBoard();
+    const timer = setTimeout(() => {
+      void fetchBoard();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [fetchBoard]);
 
   async function handleSave() {
@@ -197,6 +209,16 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
 
   const template = templates[board.templateId as keyof typeof templates];
   const templateCopy = getTemplateCopy(board.templateId);
+  const supportsScheduleTemplate =
+    board.templateId === "simple" || board.templateId === "photo-clock";
+  const boardPlan = board.boardPlan ?? DEFAULT_BOARD_PLAN;
+  const supportsMessages =
+    board.templateId === "simple" ||
+    board.templateId === "message";
+  const supportsMedia =
+    board.templateId === "simple" ||
+    board.templateId === "photo-clock" ||
+    board.templateId === "restaurant-menu";
 
   return (
     <div>
@@ -315,6 +337,8 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                 templateId={board.templateId}
                 config={config}
                 onChange={setConfig}
+                mediaItems={board.mediaItems}
+                boardPlan={boardPlan}
               />
             </CardContent>
           </Card>
@@ -328,8 +352,8 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
             />
           )}
 
-          {/* Messages (not used by photo-clock or call-number template) */}
-          {board.templateId !== "photo-clock" && board.templateId !== "call-number" && (
+          {/* Messages */}
+          {supportsMessages && (
           <Card>
             <CardHeader>
               <CardTitle>{t("boardEdit.messagesTitle")}</CardTitle>
@@ -456,8 +480,8 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
           </Card>
           )}
 
-          {/* Media items (not used by call-number template) */}
-          {board.templateId !== "call-number" && (
+          {/* Media items */}
+          {supportsMedia && (
           <Card>
             <CardHeader>
               <CardTitle>{t("boardEdit.mediaTitle")}</CardTitle>
@@ -465,12 +489,28 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                 {t("boardEdit.mediaCount", { count: board.mediaItems.length })}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
               <MediaUploadZone
                 boardId={boardId}
                 mediaItems={board.mediaItems}
                 onUpdate={fetchBoard}
+                scheduleConfig={supportsScheduleTemplate ? config : undefined}
+                scheduling={boardPlan.scheduling}
+                onScheduleConfigChange={supportsScheduleTemplate ? setConfig : undefined}
               />
+              {supportsScheduleTemplate && (
+                <>
+                  <Separator />
+                  <BoardSchedulePanel
+                    templateId={board.templateId}
+                    config={config}
+                    mediaItems={board.mediaItems}
+                    messages={board.messages}
+                    scheduling={boardPlan.scheduling}
+                    onChange={setConfig}
+                  />
+                </>
+              )}
             </CardContent>
           </Card>
           )}

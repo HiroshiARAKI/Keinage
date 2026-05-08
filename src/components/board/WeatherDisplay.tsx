@@ -54,10 +54,15 @@ export function WeatherDisplay({
   }, [boardId]);
 
   useEffect(() => {
-    fetchWeather();
+    const initialTimer = setTimeout(() => {
+      void fetchWeather();
+    }, 0);
     // Refresh every 30 minutes
     const interval = setInterval(fetchWeather, 30 * 60 * 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
   }, [fetchWeather]);
 
   if (!weather) return null;

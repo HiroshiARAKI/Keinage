@@ -29,6 +29,7 @@ import {
   resolveAuthenticatedLocale,
   setLocaleCookie,
 } from "@/lib/locale-cookie";
+import { maybeBootstrapSuperOwner } from "@/lib/super-owner";
 
 /** POST /api/auth/credentials/login — email/userId + password login */
 export async function POST(request: NextRequest) {
@@ -138,6 +139,13 @@ export async function POST(request: NextRequest) {
     .update(users)
     .set({ lastFullAuthAt: now })
     .where(eq(users.id, user.id));
+
+  await maybeBootstrapSuperOwner({
+    user,
+    emailVerified: true,
+    authenticatedProvider: "credentials",
+    request,
+  });
 
   const { deviceToken } = await storeDeviceFullAuth({
     deviceToken: request.cookies.get(DEVICE_AUTH_COOKIE)?.value,

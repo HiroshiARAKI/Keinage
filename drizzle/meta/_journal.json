@@ -64,6 +64,83 @@
       "when": 1777450480097,
       "tag": "0008_loud_dorian_gray",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777532241597,
+      "tag": "0009_woozy_champions",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777559410988,
+      "tag": "0010_pink_ulik",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1777697897389,
+      "tag": "0011_square_ronan",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778071708806,
+      "tag": "0012_legal_rawhide_kid",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1778113817661,
+      "tag": "0013_parched_azazel",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778117400000,
+      "tag": "0014_safe_account_deletion_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1778121000000,
+      "tag": "0015_board_display_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1778202000000,
+      "tag": "0016_board_display_devices_per_board",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1778288400000,
+      "tag": "0017_subscription_availability_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1778292000000,
+      "tag": "0018_super_owner_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1778295600000,
+      "tag": "0019_admin_announcements",
+      "breakpoints": true
     }
   ]
 }

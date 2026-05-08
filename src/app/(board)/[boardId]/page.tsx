@@ -5,6 +5,12 @@ import { db } from "@/db";
 import { boards, mediaItems, messages } from "@/db/schema";
 import { eq, asc, and, or, isNull, gt } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
+import { getEffectivePlanForOwner } from "@/lib/billing";
+import { isBoardDisplayable } from "@/lib/board-status";
+import { recordBoardViewed } from "@/lib/board-view-tracking";
+import { applyMediaPlanRestrictions } from "@/lib/media-plan";
+import { isCloudFrontSignedDeliveryMode } from "@/lib/cloudfront-signed-url";
+import { deliveryUrlForMediaItem } from "@/lib/media-storage";
 import { isInOwnerScope } from "@/lib/ownership";
 import { getTemplate } from "@/lib/templates";
 import { normalizeConfig } from "@/lib/utils";
@@ -23,7 +29,7 @@ export default async function BoardPage({
     where: eq(boards.id, boardId),
   });
 
-  if (!board || !board.isActive) {
+  if (!board || !isBoardDisplayable(board)) {
     notFound();
   }
 
@@ -48,6 +54,8 @@ export default async function BoardPage({
     }
   }
 
+  await recordBoardViewed(board);
+
   const normalizedBoard = normalizeConfig(board);
 
   const template = getTemplate(normalizedBoard.templateId);
@@ -71,12 +79,26 @@ export default async function BoardPage({
         or(isNull(messages.expiresAt), gt(messages.expiresAt, now))
       )
     );
+  const effectivePlan = await getEffectivePlanForOwner(board.ownerUserId);
+  const planRestrictedMedia = applyMediaPlanRestrictions(media, effectivePlan.plan);
+  const responseMedia =
+    board.visibility === "public" || isCloudFrontSignedDeliveryMode()
+      ? planRestrictedMedia.map((item) => ({
+          ...item,
+          filePath: deliveryUrlForMediaItem(item),
+        }))
+      : planRestrictedMedia;
 
   return (
     <LiveBoard
       board={normalizedBoard}
-      mediaItems={media}
+      mediaItems={responseMedia}
       messages={activeMessages}
+      boardPlan={{
+        watermark: effectivePlan.plan.limits.watermark,
+        scheduling: effectivePlan.plan.limits.scheduling,
+        menuItemImages: effectivePlan.plan.limits.menuItemImages,
+      }}
       TemplateComponent={template.component}
     />
   );

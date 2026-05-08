@@ -1,0 +1,241 @@
+// Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
+// SPDX-License-Identifier: Apache-2.0
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { boards, mediaItems } from "@/db/schema";
+import { getSessionUser } from "@/lib/auth";
+import { emitSSE } from "@/lib/sse";
+import {
+  headStoredObject,
+  publicPathForStorageKey,
+  scopedMediaStorageKey,
+  thumbnailStorageKeyFromStorageKey,
+} from "@/lib/media-storage";
+import {
+  ALLOWED_VIDEO_POSTER_TYPES,
+  mediaTypeFromContentType,
+  uploadExtensionFromFilename,
+} from "@/lib/media-upload";
+import { resolveOwnerUserId } from "@/lib/ownership";
+import {
+  assertCanUploadMedia,
+  assertImageResolutionAllowed,
+  assertVideoResolutionAllowed,
+  isPlanLimitError,
+  planLimitErrorBody,
+} from "@/lib/plan-enforcement";
+import { parseJsonObject } from "@/lib/utils";
+
+const directUploadCompleteSchema = z.object({
+  boardId: z.string().min(1),
+  mediaId: z.string().min(1),
+  fileName: z.string().min(1).max(255),
+  objectKey: z.string().min(1),
+  contentType: z.string().min(1),
+  sizeBytes: z.number().int().positive(),
+  width: z.number().int().positive().nullable().optional(),
+  height: z.number().int().positive().nullable().optional(),
+  duration: z.number().int().positive().optional(),
+  poster: z.object({
+    objectKey: z.string().min(1),
+    contentType: z.string().min(1),
+    sizeBytes: z.number().int().positive(),
+  }).optional(),
+});
+
+function planLimitResponse(error: unknown) {
+  if (isPlanLimitError(error)) {
+    return NextResponse.json(planLimitErrorBody(error), { status: 403 });
+  }
+  return null;
+}
+
+function readSlideInterval(config: unknown): number | undefined {
+  const raw = parseJsonObject(config).slideInterval;
+  return typeof raw === "number" && Number.isFinite(raw) && raw >= 1 ? raw : undefined;
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    return await handlePost(request);
+  } catch (error) {
+    console.error("[media/direct/complete] Failed to complete direct upload", error);
+    return NextResponse.json(
+      { error: "メディアのアップロードに失敗しました" },
+      { status: 500 },
+    );
+  }
+}
+
+async function handlePost(request: NextRequest) {
+  const session = await getSessionUser();
+  if (!session) {
+    return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const result = directUploadCompleteSchema.safeParse(body);
+  if (!result.success) {
+    return NextResponse.json(
+      { error: "Validation failed", details: result.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const {
+    boardId,
+    mediaId,
+    fileName,
+    objectKey,
+    contentType,
+    sizeBytes,
+    width,
+    height,
+    duration,
+    poster,
+  } = result.data;
+  const mediaType = mediaTypeFromContentType(contentType);
+  if (!mediaType) {
+    return NextResponse.json(
+      { error: `Unsupported file type: ${contentType}` },
+      { status: 400 },
+    );
+  }
+
+  const board = await db.query.boards.findFirst({
+    where: eq(boards.id, boardId),
+  });
+  const ownerUserId = resolveOwnerUserId(session.user);
+  if (!board || board.ownerUserId !== ownerUserId) {
+    return NextResponse.json({ error: "Board not found" }, { status: 404 });
+  }
+
+  const expectedObjectKey = scopedMediaStorageKey({
+    ownerUserId: board.ownerUserId,
+    boardId,
+    mediaId,
+    extension: uploadExtensionFromFilename(fileName, contentType),
+  });
+  if (objectKey !== expectedObjectKey) {
+    return NextResponse.json({ error: "Invalid object key" }, { status: 400 });
+  }
+
+  if (poster) {
+    const expectedPosterKey = thumbnailStorageKeyFromStorageKey(expectedObjectKey);
+    if (
+      poster.objectKey !== expectedPosterKey
+      || !(ALLOWED_VIDEO_POSTER_TYPES as readonly string[]).includes(poster.contentType)
+    ) {
+      return NextResponse.json({ error: "Invalid poster upload" }, { status: 400 });
+    }
+  }
+
+  const object = await headStoredObject(objectKey);
+  if (!object) {
+    return NextResponse.json({ error: "Uploaded object not found" }, { status: 404 });
+  }
+  if (object.contentLength !== sizeBytes) {
+    return NextResponse.json(
+      { error: "Uploaded object size does not match" },
+      { status: 400 },
+    );
+  }
+
+  let posterSizeBytes = 0;
+  if (poster) {
+    const posterObject = await headStoredObject(poster.objectKey);
+    if (!posterObject) {
+      return NextResponse.json({ error: "Uploaded poster not found" }, { status: 404 });
+    }
+    if (posterObject.contentLength !== poster.sizeBytes) {
+      return NextResponse.json(
+        { error: "Uploaded poster size does not match" },
+        { status: 400 },
+      );
+    }
+    posterSizeBytes = posterObject.contentLength;
+  }
+
+  try {
+    await assertCanUploadMedia({
+      ownerUserId,
+      mediaType,
+      fileSize: sizeBytes,
+      additionalStorageBytes: object.contentLength + posterSizeBytes,
+    });
+
+    if (mediaType === "image" && width && height) {
+      await assertImageResolutionAllowed({
+        ownerUserId,
+        longEdge: Math.max(width, height),
+      });
+    }
+
+    if (mediaType === "video") {
+      if (!width || !height) {
+        return NextResponse.json(
+          {
+            error: "動画メタデータを取得できませんでした",
+            code: "video_metadata_unavailable",
+          },
+          { status: 400 },
+        );
+      }
+
+      await assertVideoResolutionAllowed({
+        ownerUserId,
+        width,
+        height,
+      });
+    }
+  } catch (error) {
+    const response = planLimitResponse(error);
+    if (response) return response;
+    throw error;
+  }
+
+  const existing = await db
+    .select()
+    .from(mediaItems)
+    .where(eq(mediaItems.boardId, boardId));
+  const maxOrder = existing.reduce(
+    (max, item) => Math.max(max, item.displayOrder),
+    -1,
+  );
+  const defaultDuration =
+    mediaType === "image" ? readSlideInterval(board.config) ?? 5 : 5;
+
+  const [created] = await db
+    .insert(mediaItems)
+    .values({
+      id: mediaId,
+      boardId,
+      type: mediaType,
+      filePath: publicPathForStorageKey(objectKey),
+      fileSizeBytes: object.contentLength,
+      thumbnailSizeBytes: posterSizeBytes,
+      width: width ?? null,
+      height: height ?? null,
+      displayOrder: maxOrder + 1,
+      duration: duration ?? defaultDuration,
+    })
+    .returning();
+
+  emitSSE(boardId, "media-updated");
+
+  return NextResponse.json(
+    {
+      success: true,
+      media: created,
+    },
+    { status: 201 },
+  );
+}

@@ -11,6 +11,7 @@ import {
   clearLegacyLastUserCookie,
 } from "@/lib/device-auth";
 import { isOwnerUser } from "@/lib/ownership";
+import { StripeBillingError } from "@/lib/stripe-billing";
 
 /** POST /api/auth/account-deletion/complete — delete an owner account by email token */
 export async function POST(request: NextRequest) {
@@ -52,10 +53,30 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const summary = await deleteOwnerAccount({
-    ownerUserId: ownerUser.id,
-    deletionRequestId: deletionRequest.id,
-  });
+  let summary;
+  try {
+    summary = await deleteOwnerAccount({
+      ownerUserId: ownerUser.id,
+      deletionRequestId: deletionRequest.id,
+      ownerUser,
+    });
+  } catch (error) {
+    if (error instanceof StripeBillingError) {
+      return NextResponse.json(
+        {
+          error: "Stripeサブスクリプションのキャンセルに失敗しました。退会処理は完了していません。",
+          code: error.code,
+        },
+        { status: error.status },
+      );
+    }
+
+    console.error("[account-deletion] Failed to delete owner account", error);
+    return NextResponse.json(
+      { error: "アカウント削除に失敗しました" },
+      { status: 500 },
+    );
+  }
 
   const response = NextResponse.json({ success: true, summary });
   response.cookies.set(AUTH_SESSION_COOKIE, "", buildExpiredAuthCookieOptions());

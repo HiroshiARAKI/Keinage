@@ -241,6 +241,21 @@ export function getTemplateCopy(templateId: string, locale: SupportedLocale) {
         name: translate(locale, "template.call-number.name"),
         description: translate(locale, "template.call-number.description"),
       };
+    case "clinic-hours":
+      return {
+        name: translate(locale, "template.clinic-hours.name"),
+        description: translate(locale, "template.clinic-hours.description"),
+      };
+    case "restaurant-menu":
+      return {
+        name: translate(locale, "template.restaurant-menu.name"),
+        description: translate(locale, "template.restaurant-menu.description"),
+      };
+    case "qr-info":
+      return {
+        name: translate(locale, "template.qr-info.name"),
+        description: translate(locale, "template.qr-info.description"),
+      };
     default:
       return { name: templateId, description: templateId };
   }

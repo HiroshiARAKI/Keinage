@@ -17,6 +17,7 @@ import {
 } from "@/lib/device-auth";
 import { getOwnerSetting } from "@/lib/owner-settings";
 import { resolveOwnerUserId } from "@/lib/ownership";
+import { getBillingConfig } from "@/lib/plans";
 import { ThemeProvider } from "@/components/dashboard/ThemeProvider";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
@@ -78,12 +79,15 @@ export default async function DashboardLayout({
   }
 
   const { userId, role, colorTheme } = session.user;
+  const { billingMode } = getBillingConfig();
 
   return (
     <ThemeProvider initialTheme={colorTheme as "system" | "light" | "dark"}>
       <DashboardShell
         userId={userId}
         role={role}
+        isSuperOwner={session.user.isSuperOwner}
+        billingEnabled={billingMode === "stripe"}
         initialTheme={colorTheme as "system" | "light" | "dark"}
       >
         {children}

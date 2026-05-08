@@ -40,9 +40,9 @@ export function TickerText({
   }, []);
 
   useEffect(() => {
-    setReady(false);
     // Use requestAnimationFrame to ensure DOM is laid out before measuring
     const raf = requestAnimationFrame(() => {
+      setReady(false);
       measure();
     });
     return () => cancelAnimationFrame(raf);

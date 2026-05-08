@@ -8,6 +8,12 @@ import { getSessionUser } from "@/lib/auth";
 import { createBoardSchema } from "@/lib/validators";
 import { resolveOwnerUserId } from "@/lib/ownership";
 import { templates } from "@/lib/templates";
+import {
+  assertCanCreateBoard,
+  assertCanUseTemplate,
+  isPlanLimitError,
+  planLimitErrorBody,
+} from "@/lib/plan-enforcement";
 
 export async function GET() {
   const session = await getSessionUser();
@@ -45,6 +51,17 @@ export async function POST(request: NextRequest) {
   }
 
   const { name, templateId, visibility, config } = result.data;
+  const ownerUserId = resolveOwnerUserId(session.user);
+
+  try {
+    await assertCanCreateBoard(ownerUserId);
+    await assertCanUseTemplate({ ownerUserId, templateId });
+  } catch (error) {
+    if (isPlanLimitError(error)) {
+      return NextResponse.json(planLimitErrorBody(error), { status: 403 });
+    }
+    throw error;
+  }
 
   // Apply default config from template if no config provided
   const template = templates[templateId as keyof typeof templates];
@@ -53,7 +70,7 @@ export async function POST(request: NextRequest) {
   const [inserted] = await db
     .insert(boards)
     .values({
-      ownerUserId: resolveOwnerUserId(session.user),
+      ownerUserId,
       name,
       visibility,
       templateId,

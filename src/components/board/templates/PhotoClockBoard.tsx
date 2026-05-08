@@ -6,6 +6,12 @@ import { MediaSlider } from "@/components/board/MediaSlider";
 import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { WeatherDisplay } from "@/components/board/WeatherDisplay";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
+import { ScheduledMediaFallback } from "@/components/board/ScheduledMediaFallback";
+import { useScheduleNow } from "@/hooks/useScheduleNow";
+import {
+  filterActiveMediaItems,
+  findFallbackImage,
+} from "@/lib/scheduling";
 import type { ClockLayout } from "@/components/board/DateTimeClock";
 import type { BoardTemplateProps } from "@/types";
 
@@ -28,6 +34,8 @@ export const photoClockDefaultConfig = {
   showWeather: false,
   objectFit: "contain" as "contain" | "cover",
   fontFamily: "",
+  fallbackMediaId: "",
+  mediaSchedules: {},
 };
 
 type PhotoClockConfig = typeof photoClockDefaultConfig;
@@ -61,12 +69,22 @@ const positionClasses: Record<ClockPosition, string> = {
 export default function PhotoClockBoard({
   board,
   mediaItems,
+  boardPlan,
 }: BoardTemplateProps) {
   const config = parseConfig(board.config);
+  const now = useScheduleNow();
+  const scheduling = boardPlan?.scheduling ?? "full";
 
   const sorted = [...mediaItems].sort(
     (a, b) => a.displayOrder - b.displayOrder
   );
+  const activeMedia = filterActiveMediaItems(
+    sorted,
+    config,
+    scheduling,
+    now,
+  );
+  const fallbackImage = findFallbackImage(sorted, config);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black">
@@ -74,7 +92,18 @@ export default function PhotoClockBoard({
         <GoogleFontLoader fonts={[config.fontFamily]} />
       )}
       {/* Full-screen slideshow */}
-      <MediaSlider mediaItems={sorted} interval={config.slideInterval} objectFit={config.objectFit} />
+      {activeMedia.length > 0 ? (
+        <MediaSlider
+          mediaItems={activeMedia}
+          interval={config.slideInterval}
+          objectFit={config.objectFit}
+        />
+      ) : (
+        <ScheduledMediaFallback
+          item={fallbackImage}
+          objectFit={config.objectFit}
+        />
+      )}
 
       {/* Clock + Weather overlay */}
       <div

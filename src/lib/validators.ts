@@ -10,6 +10,9 @@ export const templateIdSchema = z.enum([
   "retro",
   "message",
   "call-number",
+  "clinic-hours",
+  "restaurant-menu",
+  "qr-info",
 ]);
 
 export const boardVisibilitySchema = z.enum(["public", "private"]);

@@ -16,6 +16,7 @@ import {
 } from "@/lib/google-auth";
 import { DEVICE_AUTH_COOKIE } from "@/lib/device-auth";
 import { buildPublicAppUrl } from "@/lib/public-origin";
+import { maybeBootstrapSuperOwner } from "@/lib/super-owner";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
 const GOOGLE_USER_ID_FALLBACK = "google-user";
@@ -144,6 +145,13 @@ export async function GET(request: NextRequest) {
       })
       .where(eq(users.id, user.id));
 
+    await maybeBootstrapSuperOwner({
+      user,
+      emailVerified: true,
+      authenticatedProvider: "google",
+      request,
+    });
+
     const redirectPath = user.pinHash ? (flow.redirectTo ?? "/boards") : "/pin/setup";
     const response = await createSignedInResponse({
       requestDeviceToken: deviceToken,
@@ -190,6 +198,13 @@ export async function GET(request: NextRequest) {
       provider: GOOGLE_AUTH_PROVIDER,
       providerAccountId: googleUser.sub,
       email: googleUser.email,
+    });
+
+    await maybeBootstrapSuperOwner({
+      user: createdUser,
+      emailVerified: true,
+      authenticatedProvider: "google",
+      request,
     });
 
     const response = await createSignedInResponse({

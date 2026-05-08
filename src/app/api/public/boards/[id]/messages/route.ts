@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { boards, messages } from "@/db/schema";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
+import { isBoardDisplayable } from "@/lib/board-status";
 import { isInOwnerScope } from "@/lib/ownership";
 
 export async function GET(
@@ -16,7 +17,7 @@ export async function GET(
   const board = await db.query.boards.findFirst({
     where: eq(boards.id, id),
   });
-  if (!board || !board.isActive) {
+  if (!board || !isBoardDisplayable(board)) {
     return NextResponse.json({ error: "Board not found" }, { status: 404 });
   }
 

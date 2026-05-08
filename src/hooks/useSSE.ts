@@ -16,7 +16,10 @@ interface UseSSEOptions {
  */
 export function useSSE({ boardId, onEvent }: UseSSEOptions) {
   const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
+
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
 
   const connect = useCallback(() => {
     const es = new EventSource(`/api/sse/${boardId}`);

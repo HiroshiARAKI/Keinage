@@ -11,19 +11,29 @@ import type { AccountDeletionSummary } from "@/lib/account-deletion";
 type DeleteAccountRequestClientProps = {
   email: string;
   summary: AccountDeletionSummary;
+  planName: string;
+  hasPaidSubscription: boolean;
 };
 
 export default function DeleteAccountRequestClient({
   email,
   summary,
+  planName,
+  hasPaidSubscription,
 }: DeleteAccountRequestClientProps) {
   const { t } = useLocale();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState("");
 
   async function handleRequest() {
+    if (confirmation !== "DELETE") {
+      setError(t("accountDeletion.confirmationMismatch"));
+      return;
+    }
+
     const confirmed = window.confirm(
       t("accountDeletion.sendConfirm"),
     );
@@ -39,6 +49,8 @@ export default function DeleteAccountRequestClient({
     try {
       const response = await fetch("/api/auth/account-deletion/request", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation }),
       });
       const data = await response.json();
 
@@ -84,6 +96,15 @@ export default function DeleteAccountRequestClient({
             <p>
               {t("accountDeletion.requestWarning", { email })}
             </p>
+            {hasPaidSubscription ? (
+              <>
+                <p>{t("accountDeletion.paidPlanNotice", { planName })}</p>
+                <p>{t("accountDeletion.paidCancellationNotice")}</p>
+                <p>{t("accountDeletion.noRefundNotice")}</p>
+              </>
+            ) : (
+              <p>{t("accountDeletion.freePlanNotice")}</p>
+            )}
           </div>
         </div>
       </div>
@@ -108,11 +129,27 @@ export default function DeleteAccountRequestClient({
         </div>
       </div>
 
+      <div className="rounded-2xl border bg-background p-6">
+        <label className="block text-sm font-semibold text-foreground" htmlFor="delete-confirmation">
+          {t("accountDeletion.confirmationLabel")}
+        </label>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {t("accountDeletion.confirmationDescription")}
+        </p>
+        <input
+          id="delete-confirmation"
+          value={confirmation}
+          onChange={(event) => setConfirmation(event.target.value)}
+          className="mt-4 w-full rounded-lg border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-red-500"
+          autoComplete="off"
+        />
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={handleRequest}
-          disabled={submitting}
+          disabled={submitting || confirmation !== "DELETE"}
           className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
         >
           <MailWarning className="size-4" />
