@@ -40,14 +40,20 @@ export interface OwnerSubscriptionState {
   status: SubscriptionStatus;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
+  stripeScheduleId: string | null;
+  currentPriceId: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  cancelAt: string | null;
   canceledAt: string | null;
+  endedAt: string | null;
   deletedOwnerAt: string | null;
   pendingPlanCode: PlanCode | null;
+  pendingPriceId: string | null;
   pendingBillingInterval: BillingInterval | null;
   pendingPlanEffectiveAt: string | null;
   pendingActiveBoardIds: string[];
+  lastSyncedAt: string | null;
 }
 
 export interface EffectivePlan {
@@ -70,16 +76,22 @@ function normalizeSubscription(
     status: isSubscriptionStatus(row.status) ? row.status : "none",
     stripeCustomerId: row.stripeCustomerId,
     stripeSubscriptionId: row.stripeSubscriptionId,
+    stripeScheduleId: row.stripeScheduleId,
+    currentPriceId: row.currentPriceId,
     currentPeriodEnd: row.currentPeriodEnd,
     cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+    cancelAt: row.cancelAt,
     canceledAt: row.canceledAt,
+    endedAt: row.endedAt,
     deletedOwnerAt: row.deletedOwnerAt,
     pendingPlanCode: isPlanCode(row.pendingPlanCode) ? row.pendingPlanCode : null,
+    pendingPriceId: row.pendingPriceId,
     pendingBillingInterval: isBillingInterval(row.pendingBillingInterval)
       ? row.pendingBillingInterval
       : null,
     pendingPlanEffectiveAt: row.pendingPlanEffectiveAt,
     pendingActiveBoardIds: parsePendingActiveBoardIds(row.pendingActiveBoardIds),
+    lastSyncedAt: row.lastSyncedAt,
   };
 }
 

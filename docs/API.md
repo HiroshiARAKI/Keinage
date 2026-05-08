@@ -197,9 +197,9 @@ Owner user は削除できません。
 
 `BILLING_MODE=disabled` では `/billing` 導線は表示されず、`/api/billing/webhook` は 404 を返します。webhook は raw body と `STRIPE_WEBHOOK_SECRET` で署名検証し、event id を保存して重複処理を避けます。
 
-Stripe webhook は下位プランへの変更予約や `cancel_at_period_end=true` を検知した時点で、移行先プラン上限に収まる `pending_active_board_ids` を自動生成します。優先順位は `boards.last_viewed_at`、`updated_at`、`created_at` の降順です。実際の切替時に pending 候補だけを `active` として残し、それ以外を `inactive_due_to_plan` にします。pending 候補が空または不正な場合も同じ優先順位で再選択し、全ボード無効化を避けます。
+Stripe webhook は `customer.subscription.*` と `subscription_schedule.*` を受け取った時点で Stripe API から Subscription / Subscription Schedule を再取得し、現在 price、Subscription Item の `current_period_end`、`cancel_at`、`ended_at`、次 phase の price を同期します。下位プランへの変更予約や `cancel_at_period_end=true` を検知した時点で、移行先プラン上限に収まる `pending_active_board_ids` を自動生成します。優先順位は `boards.last_viewed_at`、`updated_at`、`created_at` の降順です。実際の切替時に pending 候補だけを `active` として残し、それ以外を `inactive_due_to_plan` にします。pending 候補が空または不正な場合も同じ優先順位で再選択し、全ボード無効化を避けます。
 
-Billing 画面は `/api/billing/plan`、Owner usage、`/api/billing/board-activation` 相当の状態を組み合わせ、予約中プランや下位プラン候補で超過する項目を警告します。表示対象はボード数、画像数、ストレージ、動画可否、動画解像度、1ファイル上限です。
+Billing 画面は `/api/billing/plan`、Owner usage、`/api/billing/board-activation` 相当の状態を組み合わせ、現在プランを利用できる期限、予約後のプラン、予約中プランや下位プラン候補で超過する項目を警告します。表示対象はボード数、画像数、ストレージ、動画可否、動画解像度、1ファイル上限です。
 
 Plan 制限に到達した場合、ボード作成・更新やメディア追加 API は `403` と machine readable な `code` を返します。主な code は `plan_limit_board_count`、`plan_limit_storage`、`plan_limit_image_count`、`plan_limit_video_disabled`、`plan_limit_resolution`、`plan_limit_upload_size`、`plan_limit_template_disabled` です。`PLAN_ENFORCEMENT_MODE=unlimited` では制限を適用しません。
 

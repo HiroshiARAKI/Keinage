@@ -294,7 +294,7 @@ flowchart LR
 
 ボードのプラン適用状態は `boards.status` で管理します。`active` はプラン上有効、`inactive_due_to_plan` はダウングレード適用により表示対象外になった状態です。従来の `is_active` はユーザー操作による表示オン/オフとして残します。表示ページと公開ボード API は、表示成功時に `boards.last_viewed_at` を一定間隔で更新し、ダウングレード予約時の自動候補選択に使います。
 
-Stripe のダウングレード予約またはキャンセル予約を検知した場合、`owner_subscriptions.pending_plan_code`、`pending_billing_interval`、`pending_plan_effective_at`、`pending_active_board_ids` を保存します。`pending_active_board_ids` は `last_viewed_at`、`updated_at`、`created_at` の降順で、移行先プランの `PlanLimits.boards` 件まで自動生成します。実際の切替時は pending 候補だけを `active` とし、それ以外を `inactive_due_to_plan` にします。pending 候補が空または不正な場合も同じ順序で再選択します。
+Stripe のダウングレード予約またはキャンセル予約を検知した場合、Webhook payload だけで確定せず Stripe API から Subscription / Subscription Schedule を再取得します。`owner_subscriptions.current_price_id`、`current_period_end`、`cancel_at`、`stripe_schedule_id`、`pending_plan_code`、`pending_price_id`、`pending_billing_interval`、`pending_plan_effective_at`、`pending_active_board_ids` を保存します。`pending_active_board_ids` は `last_viewed_at`、`updated_at`、`created_at` の降順で、移行先プランの `PlanLimits.boards` 件まで自動生成します。実際の切替時は pending 候補だけを `active` とし、それ以外を `inactive_due_to_plan` にします。pending 候補が空または不正な場合も同じ順序で再選択します。
 
 ダウングレード影響の表示は `src/lib/plan-impact.ts` に集約します。`OwnerUsage` と対象 `PlanDefinition` を比較し、ボード数、画像数、ストレージ、動画可否、動画解像度、1ファイル上限の超過候補を `PlanImpact` として返します。Billing 画面は予約中プランの影響警告、現在プランの over-limit 解消案内、プラン比較カードの事前警告に同じ判定を使います。
 

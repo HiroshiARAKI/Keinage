@@ -287,6 +287,47 @@ export function BillingClient({
   const pendingPlanDefinition = boardSelectionState.pendingPlanCode
     ? getPlanDefinition(boardSelectionState.pendingPlanCode)
     : null;
+  const pendingEffectiveDate = subscription?.pendingPlanEffectiveAt
+    ?? (subscription?.cancelAtPeriodEnd ? subscription.cancelAt ?? subscription.currentPeriodEnd : null);
+  const formattedPendingEffectiveDate = pendingEffectiveDate
+    ? formatDate(pendingEffectiveDate, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        timeZone: "Asia/Tokyo",
+      })
+    : null;
+  const formattedCurrentPeriodEnd = subscription?.currentPeriodEnd
+    ? formatDate(subscription.currentPeriodEnd, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        timeZone: "Asia/Tokyo",
+      })
+    : null;
+  const pendingPlanName = subscription?.pendingPlanCode
+    ? getPlanName(subscription.pendingPlanCode)
+    : null;
+  const subscriptionAvailabilityNotice =
+    subscription?.status === "canceled"
+      ? t("billing.availability.canceled")
+      : subscription?.cancelAtPeriodEnd && formattedPendingEffectiveDate
+        ? t("billing.availability.cancelScheduled", {
+            plan: currentPlanDisplay.name,
+            date: formattedPendingEffectiveDate,
+          })
+        : pendingPlanName && formattedPendingEffectiveDate
+          ? t("billing.availability.changeScheduled", {
+              currentPlan: currentPlanDisplay.name,
+              nextPlan: pendingPlanName,
+              date: formattedPendingEffectiveDate,
+            })
+          : isPaidPlan && formattedCurrentPeriodEnd
+            ? t("billing.availability.normal", {
+                plan: currentPlanDisplay.name,
+                date: formattedCurrentPeriodEnd,
+              })
+            : null;
   const pendingPlanImpacts = pendingPlanDefinition
     ? buildPlanImpacts({
         usage,
@@ -460,20 +501,16 @@ export function BillingClient({
               <dt className="text-muted-foreground">{t("billing.nextRenewal")}</dt>
               <dd className="font-medium">
                 {subscription?.currentPeriodEnd
-                  ? formatDate(subscription.currentPeriodEnd, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })
+                  ? formattedCurrentPeriodEnd
                   : t("billing.value.unset")}
               </dd>
             </div>
           </dl>
         </div>
 
-        {subscription?.cancelAtPeriodEnd && (
+        {subscriptionAvailabilityNotice && (
           <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-            {t("billing.cancelAtPeriodEnd")}
+            {subscriptionAvailabilityNotice}
           </div>
         )}
 
