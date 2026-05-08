@@ -180,7 +180,7 @@ S3 storage 利用時の動画アップロードは、ブラウザが `/api/media
 | `PATCH` | `/api/messages/<id>` | メッセージ更新 | 必要 |
 | `DELETE` | `/api/messages/<id>` | メッセージ削除 | 必要 |
 
-メッセージ作成・更新では `content`、`priority`、`expiresAt` に加え、種別 `kind` を指定できます。`kind` は `info`、`notice`、`warning`、`alert` のいずれかで、省略時は `info` です。メッセージ変更後は対象ボードへ SSE イベントが発行されます。
+メッセージ作成・更新では `content`、`priority`、`expiresAt` に加え、種別 `kind` を指定できます。`kind` は `info`、`notice`、`alert` のいずれかで、省略時は `info` です。メッセージ変更後は対象ボードへ SSE イベントが発行されます。
 
 ## 9. ユーザー API
 

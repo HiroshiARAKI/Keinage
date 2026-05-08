@@ -53,7 +53,7 @@ export const updateMediaOrderSchema = z.array(
 
 // --- Message ---
 
-export const messageKindSchema = z.enum(["info", "notice", "warning", "alert"]);
+export const messageKindSchema = z.enum(["info", "notice", "alert"]);
 
 export const createMessageSchema = z.object({
   boardId: z.string().uuid(),

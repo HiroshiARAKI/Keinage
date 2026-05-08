@@ -54,6 +54,9 @@ export function MessageBoardConfigEditor({
   const showClock = (config.showClock as boolean) ?? false;
   const showWeather = (config.showWeather as boolean) ?? false;
   const fontFamily = (config.fontFamily as string) ?? "";
+  const timestampSize = (config.timestampSize as string) === "small" || (config.timestampSize as string) === "large"
+    ? (config.timestampSize as string)
+    : "medium";
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
@@ -115,6 +118,26 @@ export function MessageBoardConfigEditor({
           onChange={(e) => update("fontSize", Number(e.target.value))}
           className="w-full sm:max-w-48"
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="cfg-timestampSize">{t("configEditor.messageTimestampSize")}</Label>
+        <Select value={timestampSize} onValueChange={(v) => update("timestampSize", v)}>
+          <SelectTrigger id="cfg-timestampSize" className="w-full sm:max-w-48">
+            <SelectValue>
+              {timestampSize === "large"
+                ? t("configEditor.sizeLarge")
+                : timestampSize === "small"
+                  ? t("configEditor.sizeSmall")
+                  : t("configEditor.sizeMedium")}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="small">{t("configEditor.sizeSmall")}</SelectItem>
+            <SelectItem value="medium">{t("configEditor.sizeMedium")}</SelectItem>
+            <SelectItem value="large">{t("configEditor.sizeLarge")}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-1.5">

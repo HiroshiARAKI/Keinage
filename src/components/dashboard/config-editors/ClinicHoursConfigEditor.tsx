@@ -63,6 +63,8 @@ export function ClinicHoursConfigEditor({
   const specialDates = normalizeSpecialDates(config.specialDates);
   const daysToShow = numberValue(config.daysToShow, 14);
   const fontFamily = (config.fontFamily as string) ?? "";
+  const showClock = (config.showClock as boolean) ?? false;
+  const showWeather = (config.showWeather as boolean) ?? false;
   const weekStartsOn = ((config.weekStartsOn as string) ?? "sun") === "mon" ? "mon" : "sun";
 
   function update(key: string, value: unknown) {
@@ -164,6 +166,32 @@ export function ClinicHoursConfigEditor({
           value={fontFamily}
           onChange={(value) => update("fontFamily", value)}
         />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="flex items-center gap-3 rounded-md border p-3">
+          <Switch
+            id="cfg-clinic-showClock"
+            checked={showClock}
+            onCheckedChange={(value) => update("showClock", value)}
+          />
+          <Label htmlFor="cfg-clinic-showClock">{t("configEditor.showClock")}</Label>
+        </div>
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="cfg-clinic-showWeather"
+              checked={showWeather}
+              onCheckedChange={(value) => update("showWeather", value)}
+            />
+            <Label htmlFor="cfg-clinic-showWeather">{t("configEditor.showWeather")}</Label>
+          </div>
+          {showWeather && (
+            <p className="text-xs text-muted-foreground">
+              {t("configEditor.weatherHint")}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

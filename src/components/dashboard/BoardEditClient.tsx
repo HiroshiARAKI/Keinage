@@ -67,11 +67,16 @@ const DEFAULT_BOARD_PLAN: PublicBoardPlan = {
   menuItemImages: true,
 };
 
-const MESSAGE_KINDS = ["info", "notice", "warning", "alert"] as const;
+const MESSAGE_KINDS = ["info", "notice", "alert"] as const;
 type MessageKind = (typeof MESSAGE_KINDS)[number];
 
 function isMessageKind(value: unknown): value is MessageKind {
   return typeof value === "string" && MESSAGE_KINDS.includes(value as MessageKind);
+}
+
+function normalizeMessageKind(value: string | null | undefined): MessageKind {
+  if (value === "warning") return "notice";
+  return isMessageKind(value) ? value : "info";
 }
 
 function localDateTimeValue(value: string | null | undefined) {
@@ -87,7 +92,7 @@ function isoFromLocalDateTime(value: string) {
 }
 
 function messageKindLabelKey(kind: string | null | undefined) {
-  const safeKind = kind && isMessageKind(kind) ? kind : "info";
+  const safeKind = normalizeMessageKind(kind);
   return `board.message.kind.${safeKind}` as const;
 }
 
@@ -205,7 +210,7 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
     setEditingMsgId(msg.id);
     setEditMsgContent(msg.content);
     setEditMsgPriority(String(msg.priority));
-    setEditMsgKind(isMessageKind(msg.kind) ? msg.kind : "info");
+    setEditMsgKind(normalizeMessageKind(msg.kind));
     setEditMsgExpiresAt(localDateTimeValue(msg.expiresAt));
   }
 
