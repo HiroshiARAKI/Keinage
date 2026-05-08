@@ -348,28 +348,36 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
                 <div className="space-y-1.5">
                   <Label>{t("announcements.fieldType")}</Label>
                   <Select value={form.type} onValueChange={(value) => setForm((current) => ({ ...current, type: value as AnnouncementType }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue>{label("type", form.type)}</SelectValue>
+                    </SelectTrigger>
                     <SelectContent>{TYPES.map((type) => <SelectItem key={type} value={type}>{label("type", type)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label>{t("announcements.fieldSeverity")}</Label>
                   <Select value={form.severity} onValueChange={(value) => setForm((current) => ({ ...current, severity: value as AnnouncementSeverity }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue>{label("severity", form.severity)}</SelectValue>
+                    </SelectTrigger>
                     <SelectContent>{SEVERITIES.map((severity) => <SelectItem key={severity} value={severity}>{label("severity", severity)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label>{t("announcements.fieldTargetScope")}</Label>
                   <Select value={form.targetScope} onValueChange={(value) => setForm((current) => ({ ...current, targetScope: value as AnnouncementTargetScope }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue>{label("target", form.targetScope)}</SelectValue>
+                    </SelectTrigger>
                     <SelectContent>{TARGET_SCOPES.map((scope) => <SelectItem key={scope} value={scope}>{label("target", scope)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label>{t("announcements.fieldStatus")}</Label>
                   <Select value={form.publishStatus} onValueChange={(value) => setForm((current) => ({ ...current, publishStatus: value as AnnouncementStatus }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue>{label("status", form.publishStatus)}</SelectValue>
+                    </SelectTrigger>
                     <SelectContent>{STATUSES.map((status) => <SelectItem key={status} value={status}>{label("status", status)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>

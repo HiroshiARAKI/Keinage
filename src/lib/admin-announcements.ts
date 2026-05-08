@@ -252,7 +252,10 @@ export async function sendAnnouncementEmailToTargets(input: {
         "",
         input.announcement.body,
         "",
-        "Keinage",
+        "---",
+        "このメールは Keinage管理者 から送信されています。",
+        "お問い合わせ: contact@keinage.com",
+        "ホームページ: https://keinage.com",
       ],
     });
     if (ok) {
