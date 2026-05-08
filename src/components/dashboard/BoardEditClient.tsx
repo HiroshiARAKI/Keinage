@@ -31,6 +31,13 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -60,6 +67,35 @@ const DEFAULT_BOARD_PLAN: PublicBoardPlan = {
   menuItemImages: true,
 };
 
+const MESSAGE_KINDS = ["info", "notice", "alert"] as const;
+type MessageKind = (typeof MESSAGE_KINDS)[number];
+
+function isMessageKind(value: unknown): value is MessageKind {
+  return typeof value === "string" && MESSAGE_KINDS.includes(value as MessageKind);
+}
+
+function normalizeMessageKind(value: string | null | undefined): MessageKind {
+  if (value === "warning") return "notice";
+  return isMessageKind(value) ? value : "info";
+}
+
+function localDateTimeValue(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function isoFromLocalDateTime(value: string) {
+  return value ? new Date(value).toISOString() : null;
+}
+
+function messageKindLabelKey(kind: string | null | undefined) {
+  const safeKind = normalizeMessageKind(kind);
+  return `board.message.kind.${safeKind}` as const;
+}
+
 export default function BoardEditClient({ boardId }: { boardId: string }) {
   const router = useRouter();
   const { t, formatDateTime, getTemplateCopy } = useLocale();
@@ -77,11 +113,15 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
   // New message state
   const [newMsgContent, setNewMsgContent] = useState("");
   const [newMsgPriority, setNewMsgPriority] = useState("0");
+  const [newMsgKind, setNewMsgKind] = useState<MessageKind>("info");
+  const [newMsgExpiresAt, setNewMsgExpiresAt] = useState("");
 
   // Message editing state
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
   const [editMsgContent, setEditMsgContent] = useState("");
   const [editMsgPriority, setEditMsgPriority] = useState("");
+  const [editMsgKind, setEditMsgKind] = useState<MessageKind>("info");
+  const [editMsgExpiresAt, setEditMsgExpiresAt] = useState("");
 
   const fetchBoard = useCallback(async () => {
     const res = await fetch(`/api/boards/${boardId}`);
@@ -145,12 +185,16 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
         boardId,
         content: newMsgContent,
         priority: parseInt(newMsgPriority, 10) || 0,
+        kind: newMsgKind,
+        expiresAt: isoFromLocalDateTime(newMsgExpiresAt),
       }),
     });
 
     if (res.ok) {
       setNewMsgContent("");
       setNewMsgPriority("0");
+      setNewMsgKind("info");
+      setNewMsgExpiresAt("");
       await fetchBoard();
     }
   }
@@ -166,12 +210,16 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
     setEditingMsgId(msg.id);
     setEditMsgContent(msg.content);
     setEditMsgPriority(String(msg.priority));
+    setEditMsgKind(normalizeMessageKind(msg.kind));
+    setEditMsgExpiresAt(localDateTimeValue(msg.expiresAt));
   }
 
   function cancelEditMessage() {
     setEditingMsgId(null);
     setEditMsgContent("");
     setEditMsgPriority("");
+    setEditMsgKind("info");
+    setEditMsgExpiresAt("");
   }
 
   async function handleSaveMessage(msgId: string) {
@@ -181,6 +229,8 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
       body: JSON.stringify({
         content: editMsgContent,
         priority: parseInt(editMsgPriority, 10) || 0,
+        kind: editMsgKind,
+        expiresAt: isoFromLocalDateTime(editMsgExpiresAt),
       }),
     });
     if (res.ok) {
@@ -363,12 +413,11 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Add new message */}
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-3 rounded-md border bg-muted/20 p-3">
                 <Input
                   value={newMsgContent}
                   onChange={(e) => setNewMsgContent(e.target.value)}
                   placeholder={t("boardEdit.messagePlaceholder")}
-                  className="min-w-0 flex-1 basis-40"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                       e.preventDefault();
@@ -376,20 +425,51 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                     }
                   }}
                 />
-                {board.templateId !== "call-number" && (
-                <Input
-                  value={newMsgPriority}
-                  onChange={(e) => setNewMsgPriority(e.target.value)}
-                  placeholder={t("boardEdit.priorityPlaceholder")}
-                  type="number"
-                  min={0}
-                  className="w-20"
-                />
-                )}
-                <Button type="button" size="sm" onClick={handleAddMessage}>
-                  <Plus data-icon="inline-start" />
-                  {t("common.add")}
-                </Button>
+                <div className="grid gap-3 sm:grid-cols-[120px_160px_minmax(180px,1fr)_auto] sm:items-end">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-message-priority">{t("boardEdit.priorityPlaceholder")}</Label>
+                    <Input
+                      id="new-message-priority"
+                      value={newMsgPriority}
+                      onChange={(e) => setNewMsgPriority(e.target.value)}
+                      type="number"
+                      min={0}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-message-kind">{t("boardEdit.messageKind")}</Label>
+                    <Select
+                      value={newMsgKind}
+                      onValueChange={(value) => {
+                        if (isMessageKind(value)) setNewMsgKind(value);
+                      }}
+                    >
+                      <SelectTrigger id="new-message-kind">
+                        <SelectValue>{t(messageKindLabelKey(newMsgKind))}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MESSAGE_KINDS.map((kind) => (
+                          <SelectItem key={kind} value={kind}>
+                            {t(messageKindLabelKey(kind))}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-message-expires">{t("boardEdit.messageExpiresAt")}</Label>
+                    <Input
+                      id="new-message-expires"
+                      type="datetime-local"
+                      value={newMsgExpiresAt}
+                      onChange={(e) => setNewMsgExpiresAt(e.target.value)}
+                    />
+                  </div>
+                  <Button type="button" size="sm" onClick={handleAddMessage}>
+                    <Plus data-icon="inline-start" />
+                    {t("common.add")}
+                  </Button>
+                </div>
               </div>
 
               <Separator />
@@ -407,19 +487,11 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                       editingMsgId === msg.id ? (
                         <div
                           key={msg.id}
-                          className="flex flex-col gap-2 rounded-md border border-primary/30 bg-accent/30 px-3 py-2 text-sm sm:flex-row sm:items-center"
+                          className="grid gap-2 rounded-md border border-primary/30 bg-accent/30 px-3 py-2 text-sm"
                         >
-                          <Input
-                            value={editMsgPriority}
-                            onChange={(e) => setEditMsgPriority(e.target.value)}
-                            type="number"
-                            min={0}
-                            className="w-20 shrink-0 sm:w-16"
-                          />
                           <Input
                             value={editMsgContent}
                             onChange={(e) => setEditMsgContent(e.target.value)}
-                            className="min-w-0 flex-1"
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                                 e.preventDefault();
@@ -431,6 +503,35 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                             }}
                             autoFocus
                           />
+                          <div className="grid gap-2 sm:grid-cols-[100px_140px_minmax(180px,1fr)_auto] sm:items-end">
+                            <Input
+                              value={editMsgPriority}
+                              onChange={(e) => setEditMsgPriority(e.target.value)}
+                              type="number"
+                              min={0}
+                            />
+                            <Select
+                              value={editMsgKind}
+                              onValueChange={(value) => {
+                                if (isMessageKind(value)) setEditMsgKind(value);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue>{t(messageKindLabelKey(editMsgKind))}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {MESSAGE_KINDS.map((kind) => (
+                                  <SelectItem key={kind} value={kind}>
+                                    {t(messageKindLabelKey(kind))}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="datetime-local"
+                              value={editMsgExpiresAt}
+                              onChange={(e) => setEditMsgExpiresAt(e.target.value)}
+                            />
                           <div className="flex items-center gap-2 self-end sm:self-auto">
                             <Button
                               variant="ghost"
@@ -447,16 +548,28 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                               <X className="size-3.5 text-muted-foreground" />
                             </Button>
                           </div>
+                          </div>
                         </div>
                       ) : (
                         <div
                           key={msg.id}
                           className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm"
                         >
+                          <Badge variant="default" className="shrink-0">
+                            {t(messageKindLabelKey(msg.kind))}
+                          </Badge>
                           <Badge variant="secondary" className="shrink-0">
                             P{msg.priority}
                           </Badge>
                           <span className="flex-1 truncate">{msg.content}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDateTime(msg.createdAt)}
+                          </span>
+                          {msg.expiresAt && (
+                            <span className="text-xs text-muted-foreground">
+                              {t("board.message.expiresAt", { value: formatDateTime(msg.expiresAt) })}
+                            </span>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon-xs"

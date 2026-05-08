@@ -213,6 +213,7 @@ erDiagram
     text board_id FK
     text content
     integer priority
+    text kind
     text expires_at
   }
 
@@ -381,7 +382,7 @@ flowchart TB
 - `STORAGE_DELIVERY_MODE=cloudfront-signed-url` の場合、board に返す media URL は `/uploads/<mediaId>` 形式にし、`/uploads/[...path]` route で board の公開設定と Owner scope を確認してから CloudFront Signed URL へ 302 redirect します。署名生成には `STORAGE_CDN_BASE_URL`、`CLOUDFRONT_KEY_PAIR_ID`、`CLOUDFRONT_PRIVATE_KEY` を使い、有効期限は `CLOUDFRONT_SIGNED_URL_EXPIRES_SECONDS` で調整できます。
 - 署名付き配信を使わない場合は、`S3_PUBLIC_BASE_URL`、`STORAGE_PUBLIC_BASE_URL`、`CLOUDFRONT_BASE_URL` の順で公開 base URL を参照し、設定されている場合は public board の media URL に使います。private board は `/uploads/[...path]` route を維持し、認可と `private, no-store` cache-control を適用します。
 - 画像は `src/lib/image.ts` でリサイズとサムネイル生成を行います。
-- standalone build 後の動的ファイル配信に対応するため、`/uploads/[...path]` route で保存先から読み出します。
+- standalone build 後の動的ファイル配信に対応するため、`/uploads/[...path]` route で保存先から読み出します。動画のシークと終端ループを安定させるため、ローカル保存と S3 保存のどちらでも `Range` リクエストへ `206 Partial Content` で応答します。
 
 ## 9. リアルタイム更新
 

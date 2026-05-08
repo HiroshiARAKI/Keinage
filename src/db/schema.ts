@@ -107,6 +107,7 @@ export const messages = pgTable("messages", {
     .references(() => boards.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
   priority: integer("priority").notNull().default(0),
+  kind: text("kind").notNull().default("info"),
   expiresAt: text("expires_at"),
   createdAt: text("created_at")
     .notNull()

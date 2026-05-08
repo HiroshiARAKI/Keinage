@@ -59,6 +59,11 @@ export type StoredObjectBody = {
   contentType: string;
 };
 
+export type StoredObjectRangeBody = StoredObjectBody & {
+  contentRange: string;
+  totalLength: number;
+};
+
 export type StoredObjectMetadata = {
   contentLength: number;
   contentType: string;
@@ -445,6 +450,78 @@ export async function readStoredObject(key: string): Promise<StoredObjectBody | 
       body,
       contentLength: Number(response.ContentLength ?? body.length),
       contentType: response.ContentType ?? mimeTypeFromKey(safeKey),
+    };
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function readStoredObjectRange(
+  key: string,
+  start: number,
+  end: number,
+): Promise<StoredObjectRangeBody | null> {
+  const safeKey = sanitizeStorageKey(key);
+
+  if (getStorageDriver() === "local") {
+    const targetPath = resolveLocalPath(safeKey);
+    if (!fs.existsSync(targetPath)) {
+      return null;
+    }
+
+    const stat = fs.statSync(targetPath);
+    const rangeStart = Math.max(0, start);
+    const rangeEnd = Math.min(end, stat.size - 1);
+    const length = Math.max(0, rangeEnd - rangeStart + 1);
+    const body = Buffer.alloc(length);
+    const descriptor = fs.openSync(targetPath, "r");
+    try {
+      fs.readSync(descriptor, body, 0, length, rangeStart);
+    } finally {
+      fs.closeSync(descriptor);
+    }
+
+    return {
+      body,
+      contentLength: body.length,
+      contentType: mimeTypeFromKey(safeKey),
+      contentRange: `bytes ${rangeStart}-${rangeEnd}/${stat.size}`,
+      totalLength: stat.size,
+    };
+  }
+
+  const metadata = await headStoredObject(safeKey);
+  if (!metadata) {
+    return null;
+  }
+
+  const rangeStart = Math.max(0, start);
+  const rangeEnd = Math.min(end, metadata.contentLength - 1);
+  const { client, config } = getS3Client();
+
+  try {
+    const response = await client.send(
+      new GetObjectCommand({
+        Bucket: config.bucket,
+        Key: safeKey,
+        Range: `bytes=${rangeStart}-${rangeEnd}`,
+      }),
+    );
+
+    if (!response.Body) {
+      return null;
+    }
+
+    const body = Buffer.from(await response.Body.transformToByteArray());
+    return {
+      body,
+      contentLength: Number(response.ContentLength ?? body.length),
+      contentType: response.ContentType ?? metadata.contentType,
+      contentRange: response.ContentRange ?? `bytes ${rangeStart}-${rangeEnd}/${metadata.contentLength}`,
+      totalLength: metadata.contentLength,
     };
   } catch (error) {
     if (isNotFoundError(error)) {

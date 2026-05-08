@@ -33,6 +33,7 @@ export const photoClockDefaultConfig = {
   is24Hour: true,
   showWeather: false,
   objectFit: "contain" as "contain" | "cover",
+  videoAdvanceMode: "duration" as "duration" | "until-ended",
   fontFamily: "",
   fallbackMediaId: "",
   mediaSchedules: {},
@@ -97,6 +98,7 @@ export default function PhotoClockBoard({
           mediaItems={activeMedia}
           interval={config.slideInterval}
           objectFit={config.objectFit}
+          videoAdvanceMode={config.videoAdvanceMode}
         />
       ) : (
         <ScheduledMediaFallback

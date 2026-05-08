@@ -2,13 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
+import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
+import { WeatherDisplay } from "@/components/board/WeatherDisplay";
 import type { BoardTemplateProps } from "@/types";
 
 interface ClinicDayConfig {
   closed: boolean;
   morning: string;
   afternoon: string;
+}
+
+interface ClinicDateOverride extends ClinicDayConfig {
+  date: string;
 }
 
 interface ClinicHoursConfig {
@@ -19,7 +25,10 @@ interface ClinicHoursConfig {
   titleColor: string;
   bodyColor: string;
   fontFamily: string;
+  showClock: boolean;
+  showWeather: boolean;
   days: ClinicDayConfig[];
+  specialDates: ClinicDateOverride[];
 }
 
 export const clinicHoursDefaultConfig: ClinicHoursConfig = {
@@ -30,6 +39,8 @@ export const clinicHoursDefaultConfig: ClinicHoursConfig = {
   titleColor: "#0f766e",
   bodyColor: "#1f2937",
   fontFamily: "",
+  showClock: false,
+  showWeather: false,
   days: [
     { closed: true, morning: "", afternoon: "" },
     { closed: false, morning: "09:00~12:00", afternoon: "14:00~18:00" },
@@ -39,6 +50,7 @@ export const clinicHoursDefaultConfig: ClinicHoursConfig = {
     { closed: false, morning: "09:00~12:00", afternoon: "14:00~18:00" },
     { closed: false, morning: "09:00~12:00", afternoon: "" },
   ],
+  specialDates: [],
 };
 
 function parseConfig(raw: unknown): ClinicHoursConfig {
@@ -52,7 +64,23 @@ function parseConfig(raw: unknown): ClinicHoursConfig {
     ...cfg,
     daysToShow: Math.min(31, Math.max(7, Number(cfg.daysToShow) || 14)),
     days,
+    specialDates: normalizeSpecialDates(cfg.specialDates),
   };
+}
+
+function normalizeSpecialDates(value: unknown): ClinicDateOverride[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Partial<ClinicDateOverride> & { date: string } =>
+      !!item && typeof item === "object" && typeof item.date === "string",
+    )
+    .map((item) => ({
+      date: item.date.slice(0, 10),
+      closed: Boolean(item.closed),
+      morning: typeof item.morning === "string" ? item.morning : "",
+      afternoon: typeof item.afternoon === "string" ? item.afternoon : "",
+    }))
+    .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item.date));
 }
 
 function addDays(date: Date, amount: number) {
@@ -63,6 +91,13 @@ function addDays(date: Date, amount: number) {
 
 function formatDay(date: Date) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
@@ -78,6 +113,11 @@ export default function ClinicHoursBoard({ board }: BoardTemplateProps) {
     ...dates,
   ];
   const weekRows = Math.ceil(calendarCells.length / 7);
+  const placeholderCount = weekRows * 7 - calendarCells.length;
+  const displayCells: Array<Date | null> = [
+    ...calendarCells,
+    ...Array.from({ length: placeholderCount }, () => null),
+  ];
   const layout = getCalendarLayout(weekRows);
 
   return (
@@ -89,20 +129,48 @@ export default function ClinicHoursBoard({ board }: BoardTemplateProps) {
       }}
     >
       {config.fontFamily && <GoogleFontLoader fonts={[config.fontFamily]} />}
-      <header style={{ marginBottom: layout.headerMargin }}>
-        <h1
-          className="font-bold tracking-normal"
-          style={{ color: config.titleColor, fontSize: layout.titleFontSize, lineHeight: 1.1 }}
-        >
-          {config.title || board.name}
-        </h1>
-        {config.body && (
-          <p
-            className="mt-1 max-w-5xl leading-relaxed"
-            style={{ color: config.bodyColor, fontSize: layout.bodyFontSize }}
+      <header
+        className="flex items-start justify-between gap-5"
+        style={{ marginBottom: layout.headerMargin }}
+      >
+        <div className="min-w-0 flex-1">
+          <h1
+            className="font-bold tracking-normal"
+            style={{ color: config.titleColor, fontSize: layout.titleFontSize, lineHeight: 1.1 }}
           >
-            {config.body}
-          </p>
+            {config.title || board.name}
+          </h1>
+          {config.body && (
+            <p
+              className="mt-1 max-w-5xl leading-relaxed"
+              style={{ color: config.bodyColor, fontSize: layout.bodyFontSize }}
+            >
+              {config.body}
+            </p>
+          )}
+        </div>
+        {(config.showClock || config.showWeather) && (
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            {config.showClock && (
+              <DateTimeClock
+                timeFontSize={layout.clockFontSize}
+                color={config.titleColor}
+                bgOpacity={0.08}
+                layout="compact"
+                fontFamily={config.fontFamily || undefined}
+              />
+            )}
+            {config.showWeather && (
+              <div className="max-w-[520px] scale-[0.72] origin-top-right">
+                <WeatherDisplay
+                  boardId={board.id}
+                  color={config.titleColor}
+                  bgOpacity={0.08}
+                  fontFamily={config.fontFamily || undefined}
+                />
+              </div>
+            )}
+          </div>
         )}
       </header>
 
@@ -114,12 +182,19 @@ export default function ClinicHoursBoard({ board }: BoardTemplateProps) {
           gridTemplateRows: `repeat(${weekRows}, minmax(0, 1fr))`,
         }}
       >
-        {calendarCells.map((date, index) => {
+        {displayCells.map((date, index) => {
           if (!date) {
-            return <div key={`blank-${index}`} aria-hidden="true" />;
+            return (
+              <div
+                key={`blank-${index}`}
+                aria-hidden="true"
+                className="min-h-0 rounded-md border border-slate-200/80 bg-slate-100/55"
+              />
+            );
           }
 
-          const day = config.days[date.getDay()] ?? clinicHoursDefaultConfig.days[date.getDay()];
+          const special = config.specialDates.find((item) => item.date === dateKey(date));
+          const day = special ?? config.days[date.getDay()] ?? clinicHoursDefaultConfig.days[date.getDay()];
           const isSunday = date.getDay() === 0;
           const isSaturday = date.getDay() === 6;
           return (
@@ -236,6 +311,7 @@ function getCalendarLayout(weekRows: number) {
       dateFontSize: 18,
       weekdayFontSize: 11,
       closedFontSize: 20,
+      clockFontSize: 18,
       slotGap: "5px",
       slotPadding: "6px",
       slotLabelFontSize: 11,
@@ -255,6 +331,7 @@ function getCalendarLayout(weekRows: number) {
       dateFontSize: 20,
       weekdayFontSize: 12,
       closedFontSize: 24,
+      clockFontSize: 20,
       slotGap: "6px",
       slotPadding: "8px",
       slotLabelFontSize: 12,
@@ -273,6 +350,7 @@ function getCalendarLayout(weekRows: number) {
     dateFontSize: 24,
     weekdayFontSize: 14,
     closedFontSize: 30,
+    clockFontSize: 24,
     slotGap: "12px",
     slotPadding: "12px",
     slotLabelFontSize: 14,

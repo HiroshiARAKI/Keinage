@@ -20,6 +20,7 @@ export const messageBoardDefaultConfig = {
   showClock: false,
   showWeather: false,
   fontFamily: "",
+  timestampSize: "medium" as "small" | "medium" | "large",
 };
 
 type MessageBoardConfig = typeof messageBoardDefaultConfig;
@@ -52,10 +53,42 @@ function priorityColor(priority: number): string {
   return "#6b7280"; // gray — normal
 }
 
+type MessageKind = "info" | "notice" | "alert";
+
+function messageKind(value: string | null | undefined): MessageKind {
+  return value === "notice" || value === "warning"
+    ? "notice"
+    : value === "alert"
+    ? value
+    : "info";
+}
+
+function kindStyle(kind: MessageKind) {
+  switch (kind) {
+    case "alert":
+      return { backgroundColor: "#dc2626", color: "#ffffff" };
+    case "notice":
+      return { backgroundColor: "#f59e0b", color: "#111827" };
+    case "info":
+    default:
+      return { backgroundColor: "#0f766e", color: "#ffffff" };
+  }
+}
+
+function kindLabel(kind: MessageKind) {
+  return `board.message.kind.${kind}` as const;
+}
+
 function priorityLabel(priority: number): string {
   if (priority >= 5) return "board.message.priorityUrgent";
   if (priority >= 3) return "board.message.priorityHigh";
   return "board.message.priorityNormal";
+}
+
+function timestampFontSize(size: MessageBoardConfig["timestampSize"]) {
+  if (size === "large") return 16;
+  if (size === "small") return 12;
+  return 14;
 }
 
 /** Check if a message is expired */
@@ -164,6 +197,7 @@ export default function MessageBoard({
           <AnimatePresence mode="popLayout">
             {currentMessages.map((msg) => {
               const isNew = newIds.has(msg.id);
+              const kind = messageKind(msg.kind);
               return (
                 <motion.div
                   key={msg.id}
@@ -184,13 +218,22 @@ export default function MessageBoard({
                   }}
                 >
                   <div className="mb-1 flex items-center gap-3">
-                    {/* Priority badge */}
-                    <span
-                      className="rounded px-2 py-0.5 text-xs font-bold text-white"
-                      style={{ backgroundColor: priorityColor(msg.priority) }}
-                    >
-                      {t(priorityLabel(msg.priority) as "board.message.priorityUrgent" | "board.message.priorityHigh" | "board.message.priorityNormal")}
-                    </span>
+                    {kind !== "info" && (
+                      <span
+                        className="rounded px-2 py-0.5 text-xs font-bold"
+                        style={kindStyle(kind)}
+                      >
+                        {t(kindLabel(kind))}
+                      </span>
+                    )}
+                    {msg.priority >= 3 && (
+                      <span
+                        className="rounded px-2 py-0.5 text-xs font-bold text-white"
+                        style={{ backgroundColor: priorityColor(msg.priority) }}
+                      >
+                        {t(priorityLabel(msg.priority) as "board.message.priorityUrgent" | "board.message.priorityHigh")}
+                      </span>
+                    )}
 
                     {isNew && (
                       <span
@@ -200,13 +243,19 @@ export default function MessageBoard({
                           border: `1px solid ${config.accentColor}`,
                         }}
                       >
-                        NEW
+                        {t("board.message.new")}
                       </span>
                     )}
 
+                    <span className="ml-auto text-xs opacity-50">
+                      <span style={{ fontSize: timestampFontSize(config.timestampSize) }}>
+                        {t("board.message.createdAt", { value: formatDateTime(msg.createdAt) })}
+                      </span>
+                    </span>
+
                     {/* Expiry indicator */}
                     {msg.expiresAt && (
-                      <span className="ml-auto text-xs opacity-40">
+                      <span className="text-xs opacity-40">
                         {t("board.message.expiresAt", { value: formatDateTime(msg.expiresAt) })}
                       </span>
                     )}

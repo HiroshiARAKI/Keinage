@@ -17,11 +17,14 @@ interface MediaSliderProps {
   interval?: number;
   /** How media fits the container: "contain" (show all) or "cover" (fill, may crop) */
   objectFit?: "contain" | "cover";
+  /** Whether video slides advance by timer or after the video naturally ends */
+  videoAdvanceMode?: "duration" | "until-ended";
 }
 
 interface DeferredVideoSlideProps {
   item: MediaItem;
   fitClass: string;
+  loop: boolean;
   onEnded: () => void;
 }
 
@@ -42,7 +45,7 @@ function DisabledVideoSlide({ item }: { item: MediaItem }) {
   );
 }
 
-function DeferredVideoSlide({ item, fitClass, onEnded }: DeferredVideoSlideProps) {
+function DeferredVideoSlide({ item, fitClass, loop, onEnded }: DeferredVideoSlideProps) {
   const { t } = useLocale();
   const [shouldLoad, setShouldLoad] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -80,7 +83,7 @@ function DeferredVideoSlide({ item, fitClass, onEnded }: DeferredVideoSlideProps
           isPlaying ? "opacity-100" : "opacity-0"
         }`}
         autoPlay
-        loop
+        loop={loop}
         muted
         playsInline
         onCanPlay={() => {
@@ -110,7 +113,12 @@ function DeferredVideoSlide({ item, fitClass, onEnded }: DeferredVideoSlideProps
   );
 }
 
-export function MediaSlider({ mediaItems, interval = 5, objectFit = "contain" }: MediaSliderProps) {
+export function MediaSlider({
+  mediaItems,
+  interval = 5,
+  objectFit = "contain",
+  videoAdvanceMode = "duration",
+}: MediaSliderProps) {
   const { t } = useLocale();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -159,7 +167,7 @@ export function MediaSlider({ mediaItems, interval = 5, objectFit = "contain" }:
     const item = mediaItems[safeCurrentIndex];
     if (!item) return;
 
-    // For videos the advance is driven by the onEnded callback
+    // For videos the advance is handled by the video-specific effect/callback.
     if (item.type === "video") return;
 
     // Wait until the browser has decoded and painted the current image
@@ -170,17 +178,18 @@ export function MediaSlider({ mediaItems, interval = 5, objectFit = "contain" }:
     return () => clearTimeout(timer);
   }, [safeCurrentIndex, mediaItems, interval, advance, imageLoaded]);
 
-  // --- Video timer fallback (in case onEnded doesn't fire) ---
+  // --- Video timer mode ---
   useEffect(() => {
     if (mediaItems.length <= 1) return;
 
     const item = mediaItems[safeCurrentIndex];
     if (item?.type !== "video") return;
+    if (videoAdvanceMode === "until-ended") return;
 
     const ms = (item.duration || interval) * 1000;
     const timer = setTimeout(advance, ms);
     return () => clearTimeout(timer);
-  }, [safeCurrentIndex, mediaItems, interval, advance]);
+  }, [safeCurrentIndex, mediaItems, interval, advance, videoAdvanceMode]);
 
   // Reset preload cache when the media list changes
   useEffect(() => {
@@ -217,6 +226,7 @@ export function MediaSlider({ mediaItems, interval = 5, objectFit = "contain" }:
               <DeferredVideoSlide
                 item={current}
                 fitClass={fitClass}
+                loop={mediaItems.length <= 1 || videoAdvanceMode === "duration"}
                 onEnded={advance}
               />
             )

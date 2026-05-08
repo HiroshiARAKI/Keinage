@@ -29,6 +29,7 @@ export const simpleBoardDefaultConfig = {
   showClock: false,
   showWeather: false,
   objectFit: "contain" as "contain" | "cover",
+  videoAdvanceMode: "duration" as "duration" | "until-ended",
   fallbackMediaId: "",
   mediaSchedules: {},
   messageSchedules: {},
@@ -111,6 +112,7 @@ export default function SimpleBoard({
             mediaItems={activeMedia}
             interval={config.slideInterval}
             objectFit={config.objectFit}
+            videoAdvanceMode={config.videoAdvanceMode}
           />
         ) : (
           <ScheduledMediaFallback

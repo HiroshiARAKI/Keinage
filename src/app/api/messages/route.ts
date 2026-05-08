@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { boardId, content, priority, expiresAt } = result.data;
+  const { boardId, content, priority, kind, expiresAt } = result.data;
 
   // Verify board exists
   const board = await db.query.boards.findFirst({
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       boardId,
       content,
       priority,
+      kind,
       expiresAt: expiresAt ?? null,
     })
     .returning();
