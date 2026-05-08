@@ -7,6 +7,7 @@ import Link from "next/link";
 import {
   CreditCard,
   Activity,
+  Bell,
   MessageCircle,
   LayoutDashboard,
   Settings,
@@ -18,6 +19,7 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Separator } from "@/components/ui/separator";
 import { LogoutButton } from "@/components/dashboard/LogoutButton";
 import { KeinageLogo } from "@/components/KeinageLogo";
+import { AnnouncementBanner } from "@/components/dashboard/AnnouncementBanner";
 
 function getThemeBootstrapScript(initialTheme: "system" | "light" | "dark") {
   return `(() => {
@@ -58,12 +60,14 @@ function SidebarLink({
 export function DashboardShell({
   userId,
   role,
+  isSuperOwner,
   billingEnabled,
   initialTheme,
   children,
 }: {
   userId: string;
   role: string;
+  isSuperOwner: boolean;
   billingEnabled: boolean;
   initialTheme: "system" | "light" | "dark";
   children: React.ReactNode;
@@ -125,6 +129,9 @@ export function DashboardShell({
         <SidebarLink href="/contact" icon={MessageCircle} onClick={closeSidebar}>
           {t("dashboard.navContact")}
         </SidebarLink>
+        <SidebarLink href="/announcements" icon={Bell} onClick={closeSidebar}>
+          {isSuperOwner ? t("dashboard.navAnnouncementAdmin") : t("dashboard.navAnnouncements")}
+        </SidebarLink>
         <SidebarLink href="/settings" icon={Settings} onClick={closeSidebar}>
           {t("dashboard.navSettings")}
         </SidebarLink>
@@ -175,6 +182,7 @@ export function DashboardShell({
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
+        <AnnouncementBanner />
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">{children}</div>
       </main>
     </div>

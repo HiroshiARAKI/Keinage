@@ -390,6 +390,73 @@ export const superOwnerAuditLogs = pgTable(
   }),
 );
 
+export const adminAnnouncements = pgTable(
+  "admin_announcements",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    type: text("type").notNull().default("info"),
+    severity: text("severity").notNull().default("medium"),
+    targetScope: text("target_scope").notNull().default("all"),
+    publishStatus: text("publish_status").notNull().default("draft"),
+    startsAt: text("starts_at"),
+    endsAt: text("ends_at"),
+    sendEmail: boolean("send_email").notNull().default(false),
+    emailSentAt: text("email_sent_at"),
+    emailLastError: text("email_last_error"),
+    requireAcknowledgement: boolean("require_acknowledgement").notNull().default(false),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    publishedAt: text("published_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(isoNow)
+      .$onUpdate(() => new Date().toISOString()),
+  },
+  (table) => ({
+    statusIdx: index("admin_announcements_publish_status_idx").on(table.publishStatus),
+    startsAtIdx: index("admin_announcements_starts_at_idx").on(table.startsAt),
+    createdByIdx: index("admin_announcements_created_by_idx").on(table.createdBy),
+  }),
+);
+
+export const announcementReads = pgTable(
+  "announcement_reads",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    announcementId: text("announcement_id")
+      .notNull()
+      .references(() => adminAnnouncements.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    readAt: text("read_at"),
+    acknowledgedAt: text("acknowledged_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(isoNow)
+      .$onUpdate(() => new Date().toISOString()),
+  },
+  (table) => ({
+    announcementUserUnique: uniqueIndex("announcement_reads_announcement_user_unique")
+      .on(table.announcementId, table.userId),
+    userIdx: index("announcement_reads_user_id_idx").on(table.userId),
+    announcementIdx: index("announcement_reads_announcement_id_idx").on(table.announcementId),
+  }),
+);
+
 export const authAccounts = pgTable(
   "auth_accounts",
   {
@@ -468,6 +535,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   ownerSubscriptions: many(ownerSubscriptions),
   boardDisplayDevices: many(boardDisplayDevices),
   superOwnerAuditLogs: many(superOwnerAuditLogs),
+  createdAdminAnnouncements: many(adminAnnouncements),
+  announcementReads: many(announcementReads),
 }));
 
 export const boardsRelations = relations(boards, ({ many }) => ({
@@ -523,6 +592,25 @@ export const deviceAuthGrantsRelations = relations(deviceAuthGrants, ({ one }) =
 export const superOwnerAuditLogsRelations = relations(superOwnerAuditLogs, ({ one }) => ({
   user: one(users, {
     fields: [superOwnerAuditLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+export const adminAnnouncementsRelations = relations(adminAnnouncements, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [adminAnnouncements.createdBy],
+    references: [users.id],
+  }),
+  reads: many(announcementReads),
+}));
+
+export const announcementReadsRelations = relations(announcementReads, ({ one }) => ({
+  announcement: one(adminAnnouncements, {
+    fields: [announcementReads.announcementId],
+    references: [adminAnnouncements.id],
+  }),
+  user: one(users, {
+    fields: [announcementReads.userId],
     references: [users.id],
   }),
 }));
