@@ -199,6 +199,8 @@ SUPER_OWNER_REQUIRE_GOOGLE=false
 
 Self-hosted では必要に応じて `SUPER_OWNER_REQUIRE_GOOGLE=false` を利用できます。公開インスタンスや公式SaaSでは、Google OAuth/OIDC を有効化したうえで `SUPER_OWNER_REQUIRE_GOOGLE=true` にすることを推奨します。Super Owner 作成後は `SUPER_OWNER_BOOTSTRAP_ENABLED=false` に戻しても構いません。
 
+Super Owner が存在する環境では、管理画面の「お知らせ」から運営通知を作成できます。重要通知は管理画面上部に表示され、確認必須通知はユーザーごとに確認状態を保存します。メール送信付き通知を使う場合は、既存の `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` を設定してください。
+
 ```bash
 # 停止
 docker compose down

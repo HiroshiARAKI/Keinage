@@ -86,6 +86,7 @@ export default async function DashboardLayout({
       <DashboardShell
         userId={userId}
         role={role}
+        isSuperOwner={session.user.isSuperOwner}
         billingEnabled={billingMode === "stripe"}
         initialTheme={colorTheme as "system" | "light" | "dark"}
       >
