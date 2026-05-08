@@ -6,12 +6,9 @@ import { db } from "@/db";
 import { authSessions } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
 import { AUTH_SESSION_COOKIE } from "@/lib/auth";
-import { getEffectivePlanForUser } from "@/lib/billing";
 import { SettingsClient } from "@/components/dashboard/SettingsClient";
-import { UsageDashboard } from "@/components/dashboard/UsageDashboard";
 import { getRequestI18n } from "@/lib/i18n-server";
 import { isOwnerUser } from "@/lib/ownership";
-import { getOwnerUsage } from "@/lib/owner-usage";
 
 export default async function SettingsPage() {
   const { t } = await getRequestI18n();
@@ -28,21 +25,9 @@ export default async function SettingsPage() {
   });
   if (!session) redirect("/pin");
 
-  const effectivePlan = session.user.role === "admin"
-    ? await getEffectivePlanForUser(session.user)
-    : null;
-  const usage = effectivePlan ? await getOwnerUsage(effectivePlan.ownerUserId) : null;
-
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{t("settings.title")}</h1>
-      {effectivePlan && usage && (
-        <UsageDashboard
-          effectivePlan={effectivePlan}
-          usage={usage}
-          showUpgradeAction
-        />
-      )}
       <SettingsClient
         role={session.user.role as "admin" | "general"}
         currentUserId={session.user.userId}

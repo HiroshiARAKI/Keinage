@@ -37,6 +37,7 @@ flowchart TB
 | `/boards/<boardId>` | ボード編集 | 必要 |
 | `/media` | アップロード済みメディア管理 | `admin` |
 | `/billing` | プランとお支払い管理 | `admin` / Billing 有効時 |
+| `/status` | 使用量、表示端末状態、バージョン情報 | `admin` |
 | `/settings` | ユーザー設定・管理設定 | 必要 |
 | `/users` | Shared user 管理 | `admin` |
 | `/delete-account` | Owner アカウント削除リクエスト | Owner / `admin` |
@@ -121,8 +122,11 @@ flowchart TB
 | `PATCH` | `/api/boards/<id>` | ボード設定更新 | 必要 |
 | `DELETE` | `/api/boards/<id>` | ボード削除 | 必要 |
 | `GET` | `/api/public/boards/<id>` | 公開ボード詳細 | 不要 |
+| `POST` | `/api/public/boards/<id>/heartbeat` | 表示端末の最終アクセス heartbeat | 表示権限 |
 
 `GET /api/public/boards/<id>` はボード表示に必要な `boardPlan.watermark` を返します。この値は Owner の effective plan からサーバー側で算出され、plan code や subscription 詳細は公開しません。ブラウザ表示上のウォーターマークであり、完全な削除・改ざん防止は保証しません。
+
+`POST /api/public/boards/<id>/heartbeat` は表示画面から約5分間隔で送られ、Self-hosted / unlimited または Lite 以上の Owner について、匿名 device key と表示中ボードの組み合わせごとに、User-Agent、最終アクセス日時を保存します。IPアドレスは保存しません。Private board では通常の表示権限確認を行います。
 
 Owner退会時、`BILLING_MODE=stripe` かつキャンセル可能な Stripe subscription がある場合は Stripe の即時キャンセルに成功してからOwner削除へ進みます。キャンセルに失敗した場合、アカウントとデータは削除されません。退会済みOwnerのStripe IDは最小限のtombstoneとして保持し、遅延Webhookで有料プランが復活しないようにします。
 
@@ -205,6 +209,7 @@ Plan 制限に到達した場合、ボード作成・更新やメディア追加
 | --- | --- | --- | --- |
 | `GET` | `/api/settings` | Owner 設定取得 | `admin` |
 | `PATCH` | `/api/settings` | Owner 設定更新 | `admin` |
+| `GET` | `/api/board-devices` | 表示端末の最終アクセス状態を取得 | `admin` |
 | `GET` | `/api/weather` | 天気情報取得 | 不要 |
 | `GET` | `/api/version` | 現在バージョンと最新リリース情報 | 不要 |
 | `GET` | `/api/network` | ネットワーク情報取得 | 不要 |

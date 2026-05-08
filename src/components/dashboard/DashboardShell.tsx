@@ -6,6 +6,7 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import {
   CreditCard,
+  Activity,
   MessageCircle,
   LayoutDashboard,
   Settings,
@@ -114,6 +115,11 @@ export function DashboardShell({
         {role === "admin" && billingEnabled && (
           <SidebarLink href="/billing" icon={CreditCard} onClick={closeSidebar}>
             {t("dashboard.navBilling")}
+          </SidebarLink>
+        )}
+        {role === "admin" && (
+          <SidebarLink href="/status" icon={Activity} onClick={closeSidebar}>
+            {t("dashboard.navStatus")}
           </SidebarLink>
         )}
         <SidebarLink href="/contact" icon={MessageCircle} onClick={closeSidebar}>

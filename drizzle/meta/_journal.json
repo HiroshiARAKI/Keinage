@@ -106,6 +106,20 @@
       "when": 1778117400000,
       "tag": "0014_safe_account_deletion_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1778121000000,
+      "tag": "0015_board_display_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1778202000000,
+      "tag": "0016_board_display_devices_per_board",
+      "breakpoints": true
     }
   ]
 }

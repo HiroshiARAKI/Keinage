@@ -39,6 +39,41 @@ export const boards = pgTable("boards", {
     .$onUpdate(() => new Date().toISOString()),
 });
 
+export const boardDisplayDevices = pgTable(
+  "board_display_devices",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    boardId: text("board_id")
+      .notNull()
+      .references(() => boards.id, { onDelete: "cascade" }),
+    deviceKey: text("device_key").notNull(),
+    userAgent: text("user_agent"),
+    lastSeenAt: text("last_seen_at").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(isoNow)
+      .$onUpdate(() => new Date().toISOString()),
+  },
+  (table) => ({
+    ownerDeviceBoardUnique: uniqueIndex("board_display_devices_owner_device_board_unique")
+      .on(table.ownerUserId, table.deviceKey, table.boardId),
+    ownerIdx: index("board_display_devices_owner_user_id_idx")
+      .on(table.ownerUserId),
+    boardIdx: index("board_display_devices_board_id_idx")
+      .on(table.boardId),
+    lastSeenIdx: index("board_display_devices_last_seen_at_idx")
+      .on(table.lastSeenAt),
+  }),
+);
+
 export const mediaItems = pgTable("media_items", {
   id: text("id")
     .primaryKey()
@@ -389,6 +424,22 @@ export const usersRelations = relations(users, ({ many }) => ({
   deviceAuthGrants: many(deviceAuthGrants),
   pinResetTokens: many(pinResetTokens),
   ownerSubscriptions: many(ownerSubscriptions),
+  boardDisplayDevices: many(boardDisplayDevices),
+}));
+
+export const boardsRelations = relations(boards, ({ many }) => ({
+  displayDevices: many(boardDisplayDevices),
+}));
+
+export const boardDisplayDevicesRelations = relations(boardDisplayDevices, ({ one }) => ({
+  owner: one(users, {
+    fields: [boardDisplayDevices.ownerUserId],
+    references: [users.id],
+  }),
+  board: one(boards, {
+    fields: [boardDisplayDevices.boardId],
+    references: [boards.id],
+  }),
 }));
 
 export const ownerSubscriptionsRelations = relations(ownerSubscriptions, ({ one }) => ({
