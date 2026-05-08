@@ -20,6 +20,14 @@ import {
   normalizePhoneNumber,
   normalizeSignupEmail,
 } from "@/lib/signup";
+import {
+  buildRateLimitKey,
+  consumeRateLimit,
+  resolveRateLimitClientIp,
+} from "@/lib/rate-limit";
+
+const SIGNUP_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const SIGNUP_RATE_LIMIT_MAX = 10;
 
 /** POST /api/auth/credentials/setup — request owner signup by email link */
 export async function POST(request: NextRequest) {
@@ -57,6 +65,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "電話番号を正しく入力してください" },
       { status: 400 },
+    );
+  }
+  const signupRateLimit = await consumeRateLimit({
+    rateLimitKey: buildRateLimitKey({
+      flow: "signup",
+      clientIp: resolveRateLimitClientIp(request),
+      subject: normalizedEmail || normalizedUserId || "missing-signup",
+    }),
+    windowMs: SIGNUP_RATE_LIMIT_WINDOW_MS,
+    maxAttempts: SIGNUP_RATE_LIMIT_MAX,
+  });
+  if (signupRateLimit.limited) {
+    return NextResponse.json(
+      {
+        error: "登録リクエストの上限に達しました。しばらくしてから再度お試しください。",
+        code: "signup_rate_limited",
+      },
+      { status: 429 },
     );
   }
 

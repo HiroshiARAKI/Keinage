@@ -22,6 +22,14 @@ import {
   createStripeCheckoutSession,
   createStripeCustomer,
 } from "@/lib/stripe-billing";
+import {
+  buildRateLimitKey,
+  consumeRateLimit,
+  resolveRateLimitClientIp,
+} from "@/lib/rate-limit";
+
+const BILLING_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const BILLING_RATE_LIMIT_MAX = 20;
 
 function errorResponse(error: unknown) {
   if (error instanceof StripeBillingError) {
@@ -53,6 +61,22 @@ export async function POST(request: NextRequest) {
       { status: 403 },
     );
   }
+  const ownerUserId = resolveOwnerUserId(session.user);
+  const billingRateLimit = await consumeRateLimit({
+    rateLimitKey: buildRateLimitKey({
+      flow: "billing",
+      clientIp: resolveRateLimitClientIp(request),
+      subject: ownerUserId,
+    }),
+    windowMs: BILLING_RATE_LIMIT_WINDOW_MS,
+    maxAttempts: BILLING_RATE_LIMIT_MAX,
+  });
+  if (billingRateLimit.limited) {
+    return NextResponse.json(
+      { error: "決済リクエストの上限に達しました", code: "billing_rate_limited" },
+      { status: 429 },
+    );
+  }
 
   const body = await request.json().catch(() => ({}));
   const planCode = typeof body.planCode === "string" ? body.planCode : null;
@@ -82,7 +106,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const ownerUserId = resolveOwnerUserId(session.user);
     const owner = await db.query.users.findFirst({
       where: eq(users.id, ownerUserId),
     });

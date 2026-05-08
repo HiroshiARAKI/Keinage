@@ -14,6 +14,14 @@ import {
 } from "@/lib/google-auth";
 import { buildAuthCookieOptions } from "@/lib/auth";
 import { getPublicAppOrigin } from "@/lib/public-origin";
+import {
+  buildRateLimitKey,
+  consumeRateLimit,
+  resolveRateLimitClientIp,
+} from "@/lib/rate-limit";
+
+const GOOGLE_OAUTH_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const GOOGLE_OAUTH_RATE_LIMIT_MAX = 30;
 
 function isAllowedRedirectTo(value: string | null): value is string {
   return !!value && value.startsWith("/") && !value.startsWith("//");
@@ -48,10 +56,27 @@ async function createAuthorization(input: {
 }
 
 async function createAuthResponse(input: {
+  request: NextRequest;
   mode: GoogleAuthMode;
   redirectTo?: string | null;
   sharedSignupToken?: string | null;
 }) {
+  const rateLimit = await consumeRateLimit({
+    rateLimitKey: buildRateLimitKey({
+      flow: "google-oauth",
+      clientIp: resolveRateLimitClientIp(input.request),
+      subject: input.mode,
+    }),
+    windowMs: GOOGLE_OAUTH_RATE_LIMIT_WINDOW_MS,
+    maxAttempts: GOOGLE_OAUTH_RATE_LIMIT_MAX,
+  });
+  if (rateLimit.limited) {
+    return NextResponse.json(
+      { error: "Google認証リクエストの上限に達しました", code: "google_oauth_rate_limited" },
+      { status: 429 },
+    );
+  }
+
   const authorization = await createAuthorization(input);
   if (!authorization) {
     return NextResponse.json(
@@ -130,6 +155,22 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const rateLimit = await consumeRateLimit({
+    rateLimitKey: buildRateLimitKey({
+      flow: "google-oauth",
+      clientIp: resolveRateLimitClientIp(request),
+      subject: mode,
+    }),
+    windowMs: GOOGLE_OAUTH_RATE_LIMIT_WINDOW_MS,
+    maxAttempts: GOOGLE_OAUTH_RATE_LIMIT_MAX,
+  });
+  if (rateLimit.limited) {
+    return NextResponse.json(
+      { error: "Google認証リクエストの上限に達しました", code: "google_oauth_rate_limited" },
+      { status: 429 },
+    );
+  }
+
   const authorization = await createAuthorization({
     mode,
     redirectTo: mode === "login" ? redirectTo : null,
@@ -165,11 +206,11 @@ export async function POST(request: NextRequest) {
 
   if (mode === "login") {
     const redirectTo = isAllowedRedirectTo(body.redirectTo) ? body.redirectTo : "/boards";
-    return createAuthResponse({ mode, redirectTo });
+    return createAuthResponse({ request, mode, redirectTo });
   }
 
   if (mode === "owner-signup") {
-    return createAuthResponse({ mode });
+    return createAuthResponse({ request, mode });
   }
 
   if (mode === "shared-signup") {
@@ -189,7 +230,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return createAuthResponse({ mode, sharedSignupToken: token });
+    return createAuthResponse({ request, mode, sharedSignupToken: token });
   }
 
   return NextResponse.json({ error: "不正な認証モードです" }, { status: 400 });

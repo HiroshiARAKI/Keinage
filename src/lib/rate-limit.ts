@@ -1,8 +1,19 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
 import { NextRequest } from "next/server";
+import { and, eq, gt } from "drizzle-orm";
+import { db } from "@/db";
+import { pinAttempts } from "@/db/schema";
 
 export const TRUST_PROXY_HEADERS = process.env.TRUST_PROXY_HEADERS === "true";
+export type RateLimitFlow =
+  | "billing"
+  | "contact"
+  | "credentials"
+  | "google-oauth"
+  | "pin"
+  | "signup"
+  | "upload";
 
 function normalizeRateLimitSegment(value: string): string {
   const normalized = value.trim().toLowerCase();
@@ -39,7 +50,7 @@ export function resolveRateLimitClientIp(request: NextRequest): string {
 }
 
 export function buildRateLimitKey(params: {
-  flow: "contact" | "credentials" | "pin";
+  flow: RateLimitFlow;
   clientIp: string;
   subject: string;
 }): string {
@@ -48,4 +59,45 @@ export function buildRateLimitKey(params: {
     normalizeRateLimitSegment(params.clientIp),
     normalizeRateLimitSegment(params.subject),
   ].join(":");
+}
+
+export async function countRecentRateLimitAttempts(
+  rateLimitKey: string,
+  windowMs: number,
+) {
+  const threshold = new Date(Date.now() - windowMs).toISOString();
+  const recentAttempts = await db
+    .select({ id: pinAttempts.id })
+    .from(pinAttempts)
+    .where(
+      and(
+        eq(pinAttempts.ipAddress, rateLimitKey),
+        gt(pinAttempts.attemptedAt, threshold),
+      ),
+    );
+  return recentAttempts.length;
+}
+
+export async function recordRateLimitAttempt(rateLimitKey: string) {
+  await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
+}
+
+export async function consumeRateLimit(params: {
+  rateLimitKey: string;
+  windowMs: number;
+  maxAttempts: number;
+}): Promise<{ limited: boolean; remaining: number }> {
+  const recentCount = await countRecentRateLimitAttempts(
+    params.rateLimitKey,
+    params.windowMs,
+  );
+  if (recentCount >= params.maxAttempts) {
+    return { limited: true, remaining: 0 };
+  }
+
+  await recordRateLimitAttempt(params.rateLimitKey);
+  return {
+    limited: false,
+    remaining: Math.max(params.maxAttempts - recentCount - 1, 0),
+  };
 }

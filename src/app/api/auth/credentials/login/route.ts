@@ -87,11 +87,11 @@ export async function POST(request: NextRequest) {
     ),
   });
 
-  console.log("[credentials/login] User lookup", {
-    identifier: normalizedIdentifier,
-    found: !!user,
-    userId: user?.userId ?? null,
-  });
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[credentials/login] User lookup", {
+      found: !!user,
+    });
+  }
 
   // Constant-time failure to prevent user enumeration
   if (!user) {
@@ -110,11 +110,9 @@ export async function POST(request: NextRequest) {
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
-  console.log("[credentials/login] Password verify result", {
-    userId: user.userId,
-    valid,
-    pwHashLen: user.passwordHash?.length ?? 0,
-  });
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[credentials/login] Password verify result", { valid });
+  }
   if (!valid) {
     await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
     const remaining = MAX_PIN_ATTEMPTS - (recentAttempts.length + 1);
@@ -130,7 +128,9 @@ export async function POST(request: NextRequest) {
   // Clear attempts for the successfully authenticated subject bucket.
   await db.delete(pinAttempts).where(eq(pinAttempts.ipAddress, rateLimitKey));
 
-  console.log("[credentials/login] Password verified OK for", user.userId);
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[credentials/login] Password verified OK");
+  }
 
   const now = new Date().toISOString();
 

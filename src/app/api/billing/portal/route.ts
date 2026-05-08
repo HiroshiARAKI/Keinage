@@ -1,6 +1,6 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAdminSessionUser } from "@/lib/auth";
 import { getOwnerSubscription } from "@/lib/billing";
 import { resolveOwnerUserId } from "@/lib/ownership";
@@ -10,6 +10,14 @@ import {
   StripeBillingError,
   createStripePortalSession,
 } from "@/lib/stripe-billing";
+import {
+  buildRateLimitKey,
+  consumeRateLimit,
+  resolveRateLimitClientIp,
+} from "@/lib/rate-limit";
+
+const BILLING_PORTAL_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const BILLING_PORTAL_RATE_LIMIT_MAX = 20;
 
 function errorResponse(error: unknown) {
   if (error instanceof StripeBillingError) {
@@ -28,7 +36,7 @@ function errorResponse(error: unknown) {
   );
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   const session = await getAdminSessionUser();
   if (!session) {
     return NextResponse.json({ error: "管理者権限が必要です" }, { status: 403 });
@@ -41,6 +49,22 @@ export async function POST() {
       { status: 403 },
     );
   }
+  const ownerUserId = resolveOwnerUserId(session.user);
+  const billingRateLimit = await consumeRateLimit({
+    rateLimitKey: buildRateLimitKey({
+      flow: "billing",
+      clientIp: resolveRateLimitClientIp(request),
+      subject: ownerUserId,
+    }),
+    windowMs: BILLING_PORTAL_RATE_LIMIT_WINDOW_MS,
+    maxAttempts: BILLING_PORTAL_RATE_LIMIT_MAX,
+  });
+  if (billingRateLimit.limited) {
+    return NextResponse.json(
+      { error: "決済リクエストの上限に達しました", code: "billing_rate_limited" },
+      { status: 429 },
+    );
+  }
 
   const returnUrl = buildPublicAppUrl("/billing?billing=portal-return");
   if (!returnUrl) {
@@ -51,7 +75,6 @@ export async function POST() {
   }
 
   try {
-    const ownerUserId = resolveOwnerUserId(session.user);
     const subscription = await getOwnerSubscription(ownerUserId);
     if (!subscription?.stripeCustomerId) {
       return NextResponse.json(
