@@ -18,10 +18,17 @@ import {
   storeDeviceFullAuth,
 } from "@/lib/device-auth";
 import { generateSessionToken } from "@/lib/pin";
+import { sendSignupCompletedEmail } from "@/lib/mail";
+import { buildPublicAppUrl } from "@/lib/public-origin";
 import { SIGNUP_REQUEST_COOKIE } from "@/lib/signup";
 import { maybeBootstrapSuperOwner } from "@/lib/super-owner";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
+
+function loginUrl(request: NextRequest) {
+  return buildPublicAppUrl("/pin/login")
+    ?? new URL("/pin/login", request.nextUrl.origin).toString();
+}
 
 /** POST /api/auth/credentials/complete — create the owner after email verification */
 export async function POST(request: NextRequest) {
@@ -104,6 +111,12 @@ export async function POST(request: NextRequest) {
     .update(signupRequests)
     .set({ completedAt: now })
     .where(eq(signupRequests.id, signupRequest.id));
+
+  await sendSignupCompletedEmail({
+    to: createdUser.email,
+    loginUrl: loginUrl(request),
+    acceptLanguage: request.headers.get("accept-language"),
+  });
 
   const sessionToken = generateSessionToken();
   const expiresAt = new Date(Date.now() + SETUP_SESSION_MAX_AGE * 1000).toISOString();

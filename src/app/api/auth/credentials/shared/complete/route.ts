@@ -15,9 +15,16 @@ import {
   setDeviceAuthCookie,
   storeDeviceFullAuth,
 } from "@/lib/device-auth";
+import { sendSignupCompletedEmail } from "@/lib/mail";
 import { generateSessionToken } from "@/lib/pin";
+import { buildPublicAppUrl } from "@/lib/public-origin";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
+
+function loginUrl(request: NextRequest) {
+  return buildPublicAppUrl("/pin/login")
+    ?? new URL("/pin/login", request.nextUrl.origin).toString();
+}
 
 /** POST /api/auth/credentials/shared/complete — create shared user from invite */
 export async function POST(request: NextRequest) {
@@ -92,6 +99,12 @@ export async function POST(request: NextRequest) {
     .update(sharedSignupRequests)
     .set({ completedAt: now })
     .where(eq(sharedSignupRequests.id, signupRequest.id));
+
+  await sendSignupCompletedEmail({
+    to: createdUser.email,
+    loginUrl: loginUrl(request),
+    acceptLanguage: request.headers.get("accept-language"),
+  });
 
   const sessionToken = generateSessionToken();
   const expiresAt = new Date(Date.now() + SETUP_SESSION_MAX_AGE * 1000).toISOString();

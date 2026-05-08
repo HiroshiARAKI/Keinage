@@ -15,6 +15,7 @@ import {
   createSignedInResponse,
 } from "@/lib/google-auth";
 import { DEVICE_AUTH_COOKIE } from "@/lib/device-auth";
+import { sendSignupCompletedEmail } from "@/lib/mail";
 import { buildPublicAppUrl } from "@/lib/public-origin";
 import { maybeBootstrapSuperOwner } from "@/lib/super-owner";
 
@@ -207,6 +208,12 @@ export async function GET(request: NextRequest) {
       request,
     });
 
+    await sendSignupCompletedEmail({
+      to: createdUser.email,
+      loginUrl: absoluteUrl(request, "/pin/login"),
+      acceptLanguage: request.headers.get("accept-language"),
+    });
+
     const response = await createSignedInResponse({
       requestDeviceToken: deviceToken,
       userId: createdUser.id,
@@ -278,6 +285,12 @@ export async function GET(request: NextRequest) {
       .update(sharedSignupRequests)
       .set({ completedAt: now })
       .where(eq(sharedSignupRequests.id, signupRequest.id));
+
+    await sendSignupCompletedEmail({
+      to: createdUser.email,
+      loginUrl: absoluteUrl(request, "/pin/login"),
+      acceptLanguage: request.headers.get("accept-language"),
+    });
 
     const response = await createSignedInResponse({
       requestDeviceToken: deviceToken,

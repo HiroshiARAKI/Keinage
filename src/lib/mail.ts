@@ -1,6 +1,11 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
 import nodemailer from "nodemailer";
+import {
+  resolvePreferredLocale,
+  translate,
+  type SupportedLocale,
+} from "@/lib/i18n";
 
 /** SMTP configuration from environment variables */
 function getSmtpConfig() {
@@ -63,6 +68,41 @@ export async function sendPlainTextEmail(options: {
   lines: string[];
 }): Promise<boolean> {
   return sendTextMail(options);
+}
+
+function resolveMailLocale(acceptLanguage?: string | null): SupportedLocale {
+  return resolvePreferredLocale({
+    acceptLanguage,
+    cookieLocale: null,
+    storedLocale: null,
+  });
+}
+
+/** Send a signup completion email after an account has been created */
+export async function sendSignupCompletedEmail(input: {
+  to: string;
+  loginUrl: string;
+  acceptLanguage?: string | null;
+}): Promise<boolean> {
+  const locale = resolveMailLocale(input.acceptLanguage);
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
+
+  return sendTextMail({
+    to: input.to,
+    subject: t("mail.signupComplete.subject"),
+    lines: [
+      t("mail.signupComplete.title"),
+      "",
+      t("mail.signupComplete.thanks"),
+      "",
+      t("mail.signupComplete.loginIntro"),
+      input.loginUrl,
+      "",
+      t("mail.signupComplete.pinSetup"),
+      "",
+      t("mail.signupComplete.footer"),
+    ],
+  });
 }
 
 /** Send a PIN reset email */

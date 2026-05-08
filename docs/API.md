@@ -86,6 +86,8 @@ flowchart TB
 
 `GET /api/auth/google/start` は `mode=login|owner-signup|shared-signup`、`redirectTo`、`token` を受け付けます。Google OAuth/OIDC は Authorization Code + PKCE、nonce、opaque state、JWKS 署名検証を使います。
 
+Owner / Shared user の登録完了時は、`SMTP_HOST` などの既存SMTP設定を使って登録完了メールを送信します。本文は `Accept-Language` に従ってローカライズし、謝辞と `/pin/login` のログイン URL を含めます。SMTP 未設定または送信失敗時も、ユーザー作成やセッション発行は取り消しません。
+
 ### 5.2 ログイン・ログアウト
 
 | Method | Path | 内容 | 認証 |
