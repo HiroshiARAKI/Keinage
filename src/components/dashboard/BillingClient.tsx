@@ -74,7 +74,7 @@ const PLAN_DISPLAYS: PlanDisplay[] = [
     storageKey: "billing.plan.lite.storage",
     resolution: "1920px",
     videoKey: "billing.value.fhd",
-    maxUpload: "20MB",
+    maxUpload: "100MB",
     watermarkKey: "billing.value.none",
     deviceStatusKey: "billing.value.included",
   },

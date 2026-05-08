@@ -82,7 +82,7 @@ export const PLAN_DEFINITIONS = {
     limits: {
       boards: 1,
       images: 3,
-      storageBytes: 20 * MB,
+      storageBytes: 300 * MB,
       maxResolution: 1920,
       videoEnabled: false,
       watermark: true,
@@ -99,11 +99,11 @@ export const PLAN_DEFINITIONS = {
     limits: {
       boards: 10,
       images: null,
-      storageBytes: 1 * GB,
+      storageBytes: 5 * GB,
       maxResolution: 1920,
       videoEnabled: true,
       watermark: false,
-      maxUploadBytes: 20 * MB,
+      maxUploadBytes: 100 * MB,
       scheduling: "time_weekday",
       extendedTemplates: true,
       menuItemImages: false,
@@ -116,7 +116,7 @@ export const PLAN_DEFINITIONS = {
     limits: {
       boards: 100,
       images: null,
-      storageBytes: 10 * GB,
+      storageBytes: 20 * GB,
       maxResolution: 3840,
       videoEnabled: true,
       watermark: false,
@@ -133,7 +133,7 @@ export const PLAN_DEFINITIONS = {
     limits: {
       boards: 300,
       images: null,
-      storageBytes: 50 * GB,
+      storageBytes: 100 * GB,
       maxResolution: 3840,
       videoEnabled: true,
       watermark: false,
