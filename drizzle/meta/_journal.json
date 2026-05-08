@@ -127,6 +127,13 @@
       "when": 1778288400000,
       "tag": "0017_subscription_availability_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1778292000000,
+      "tag": "0018_super_owner_foundation",
+      "breakpoints": true
     }
   ]
 }

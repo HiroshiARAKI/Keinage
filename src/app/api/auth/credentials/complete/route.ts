@@ -19,6 +19,7 @@ import {
 } from "@/lib/device-auth";
 import { generateSessionToken } from "@/lib/pin";
 import { SIGNUP_REQUEST_COOKIE } from "@/lib/signup";
+import { maybeBootstrapSuperOwner } from "@/lib/super-owner";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
 
@@ -90,6 +91,13 @@ export async function POST(request: NextRequest) {
     provider: "credentials",
     providerAccountId: signupRequest.email,
     email: signupRequest.email,
+  });
+
+  await maybeBootstrapSuperOwner({
+    user: createdUser,
+    emailVerified: true,
+    authenticatedProvider: "credentials",
+    request,
   });
 
   await db

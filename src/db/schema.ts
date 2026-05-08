@@ -321,40 +321,74 @@ export const accountDeletionRequests = pgTable("account_deletion_requests", {
 
 // ── New auth tables ─────────────────────────────────────
 
-export const users = pgTable("users", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => randomUUID()),
-  /** Human-readable login ID (e.g. "admin") */
-  userId: text("user_id").notNull().unique(),
-  email: text("email").notNull().unique(),
-  /** Phone number for owner sign-up uniqueness checks */
-  phoneNumber: text("phone_number").unique(),
-  passwordHash: text("password_hash"),
-  /** 6-digit PIN hash (nullable until PIN is configured) */
-  pinHash: text("pin_hash"),
-  /** Owner of an isolated workspace, or a shared member under an owner */
-  attribute: text("attribute").notNull().default("shared"),
-  /** Shared users point at their owner user; owner users keep this null */
-  ownerUserId: text("owner_user_id").references(
-    (): AnyPgColumn => users.id,
-    { onDelete: "set null" },
-  ),
-  role: text("role").notNull().default("general"),
-  /** Dashboard color theme preference: "system" | "light" | "dark" */
-  colorTheme: text("color_theme").notNull().default("system"),
-  /** Preferred UI locale. Null means fallback to Accept-Language per request. */
-  locale: text("locale"),
-  /** Timestamp of the last successful email+password login */
-  lastFullAuthAt: text("last_full_auth_at"),
-  createdAt: text("created_at")
-    .notNull()
-    .default(isoNow),
-  updatedAt: text("updated_at")
-    .notNull()
-    .default(isoNow)
-    .$onUpdate(() => new Date().toISOString()),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    /** Human-readable login ID (e.g. "admin") */
+    userId: text("user_id").notNull().unique(),
+    email: text("email").notNull().unique(),
+    /** Phone number for owner sign-up uniqueness checks */
+    phoneNumber: text("phone_number").unique(),
+    passwordHash: text("password_hash"),
+    /** 6-digit PIN hash (nullable until PIN is configured) */
+    pinHash: text("pin_hash"),
+    /** Owner of an isolated workspace, or a shared member under an owner */
+    attribute: text("attribute").notNull().default("shared"),
+    /** Shared users point at their owner user; owner users keep this null */
+    ownerUserId: text("owner_user_id").references(
+      (): AnyPgColumn => users.id,
+      { onDelete: "set null" },
+    ),
+    role: text("role").notNull().default("general"),
+    isSuperOwner: boolean("is_super_owner").notNull().default(false),
+    superOwnerGrantedAt: text("super_owner_granted_at"),
+    /** Dashboard color theme preference: "system" | "light" | "dark" */
+    colorTheme: text("color_theme").notNull().default("system"),
+    /** Preferred UI locale. Null means fallback to Accept-Language per request. */
+    locale: text("locale"),
+    /** Timestamp of the last successful email+password login */
+    lastFullAuthAt: text("last_full_auth_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(isoNow)
+      .$onUpdate(() => new Date().toISOString()),
+  },
+  (table) => ({
+    uniqueSuperOwner: uniqueIndex("users_single_super_owner_unique")
+      .on(table.isSuperOwner)
+      .where(sql`${table.isSuperOwner} = true`),
+  }),
+);
+
+export const superOwnerAuditLogs = pgTable(
+  "super_owner_audit_logs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id"),
+    ipHash: text("ip_hash"),
+    userAgent: text("user_agent"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+  },
+  (table) => ({
+    userIdx: index("super_owner_audit_logs_user_id_idx").on(table.userId),
+    createdAtIdx: index("super_owner_audit_logs_created_at_idx").on(table.createdAt),
+  }),
+);
 
 export const authAccounts = pgTable(
   "auth_accounts",
@@ -433,6 +467,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   pinResetTokens: many(pinResetTokens),
   ownerSubscriptions: many(ownerSubscriptions),
   boardDisplayDevices: many(boardDisplayDevices),
+  superOwnerAuditLogs: many(superOwnerAuditLogs),
 }));
 
 export const boardsRelations = relations(boards, ({ many }) => ({
@@ -481,6 +516,13 @@ export const authSessionsRelations = relations(authSessions, ({ one }) => ({
 export const deviceAuthGrantsRelations = relations(deviceAuthGrants, ({ one }) => ({
   user: one(users, {
     fields: [deviceAuthGrants.userId],
+    references: [users.id],
+  }),
+}));
+
+export const superOwnerAuditLogsRelations = relations(superOwnerAuditLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [superOwnerAuditLogs.userId],
     references: [users.id],
   }),
 }));

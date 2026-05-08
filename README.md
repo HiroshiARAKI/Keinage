@@ -187,6 +187,18 @@ GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 
 Google 認証で作成したユーザーは Google 認証専用、メールアドレス + パスワードで作成したユーザーはパスワード認証専用です。作成後に認証方式は変更できません。
 
+#### Super Owner 設定 (任意)
+
+公式SaaSや公開インスタンスで運営者向けの高権限ユーザーを用意する場合は、初回ログイン前に `.env` で Super Owner bootstrap を設定します。デフォルト管理者アカウントや初期パスワードはありません。Super Owner は1人のみで、作成後に UI/API から任意ユーザーを昇格する機能はありません。
+
+```bash
+SUPER_OWNER_EMAIL=admin@example.com
+SUPER_OWNER_BOOTSTRAP_ENABLED=true
+SUPER_OWNER_REQUIRE_GOOGLE=false
+```
+
+Self-hosted では必要に応じて `SUPER_OWNER_REQUIRE_GOOGLE=false` を利用できます。公開インスタンスや公式SaaSでは、Google OAuth/OIDC を有効化したうえで `SUPER_OWNER_REQUIRE_GOOGLE=true` にすることを推奨します。Super Owner 作成後は `SUPER_OWNER_BOOTSTRAP_ENABLED=false` に戻しても構いません。
+
 ```bash
 # 停止
 docker compose down

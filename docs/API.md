@@ -179,8 +179,11 @@ S3 storage 利用時の動画アップロードは、ブラウザが `/api/media
 | `POST` | `/api/users` | Shared user 招待作成 | `admin` |
 | `PATCH` | `/api/users/<id>` | Shared user のロールなどを更新 | `admin` |
 | `DELETE` | `/api/users/<id>` | Shared user 削除 | `admin` |
+| `GET` | `/api/super-owner/status` | Super Owner認証状態を確認 | `super_owner` |
 
 Owner user は削除できません。
+
+Super Ownerは通常のOwner登録・ログイン経路で認証し、`SUPER_OWNER_*` 環境変数に一致する初回Ownerのみbootstrapされます。Super Owner専用APIは `requireSuperOwner()` によるサーバー側判定を必須とし、アクセスは監査ログに記録されます。
 
 ## 10. Billing API
 
