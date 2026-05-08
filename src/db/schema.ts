@@ -63,8 +63,8 @@ export const boardDisplayDevices = pgTable(
       .$onUpdate(() => new Date().toISOString()),
   },
   (table) => ({
-    ownerDeviceUnique: uniqueIndex("board_display_devices_owner_device_unique")
-      .on(table.ownerUserId, table.deviceKey),
+    ownerDeviceBoardUnique: uniqueIndex("board_display_devices_owner_device_board_unique")
+      .on(table.ownerUserId, table.deviceKey, table.boardId),
     ownerIdx: index("board_display_devices_owner_user_id_idx")
       .on(table.ownerUserId),
     boardIdx: index("board_display_devices_board_id_idx")

@@ -126,7 +126,7 @@ flowchart TB
 
 `GET /api/public/boards/<id>` はボード表示に必要な `boardPlan.watermark` を返します。この値は Owner の effective plan からサーバー側で算出され、plan code や subscription 詳細は公開しません。ブラウザ表示上のウォーターマークであり、完全な削除・改ざん防止は保証しません。
 
-`POST /api/public/boards/<id>/heartbeat` は表示画面から約5分間隔で送られ、Self-hosted / unlimited または Lite 以上の Owner について、匿名 device key、表示中ボード、User-Agent、最終アクセス日時を保存します。IPアドレスは保存しません。Private board では通常の表示権限確認を行います。
+`POST /api/public/boards/<id>/heartbeat` は表示画面から約5分間隔で送られ、Self-hosted / unlimited または Lite 以上の Owner について、匿名 device key と表示中ボードの組み合わせごとに、User-Agent、最終アクセス日時を保存します。IPアドレスは保存しません。Private board では通常の表示権限確認を行います。
 
 Owner退会時、`BILLING_MODE=stripe` かつキャンセル可能な Stripe subscription がある場合は Stripe の即時キャンセルに成功してからOwner削除へ進みます。キャンセルに失敗した場合、アカウントとデータは削除されません。退会済みOwnerのStripe IDは最小限のtombstoneとして保持し、遅延Webhookで有料プランが復活しないようにします。
 

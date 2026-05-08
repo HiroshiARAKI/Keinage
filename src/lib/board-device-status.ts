@@ -65,6 +65,7 @@ export async function recordBoardDeviceHeartbeat(input: {
     where: and(
       eq(boardDisplayDevices.ownerUserId, input.board.ownerUserId),
       eq(boardDisplayDevices.deviceKey, input.deviceKey),
+      eq(boardDisplayDevices.boardId, input.board.id),
     ),
   });
 
@@ -79,9 +80,12 @@ export async function recordBoardDeviceHeartbeat(input: {
         lastSeenAt: now,
       })
       .onConflictDoUpdate({
-        target: [boardDisplayDevices.ownerUserId, boardDisplayDevices.deviceKey],
+        target: [
+          boardDisplayDevices.ownerUserId,
+          boardDisplayDevices.deviceKey,
+          boardDisplayDevices.boardId,
+        ],
         set: {
-          boardId: input.board.id,
           userAgent,
           lastSeenAt: now,
           updatedAt: now,
@@ -91,8 +95,7 @@ export async function recordBoardDeviceHeartbeat(input: {
   }
 
   const shouldUpdate =
-    existing.boardId !== input.board.id
-    || existing.userAgent !== userAgent
+    existing.userAgent !== userAgent
     || existing.lastSeenAt < threshold;
 
   if (!shouldUpdate) {
@@ -102,7 +105,6 @@ export async function recordBoardDeviceHeartbeat(input: {
   await db
     .update(boardDisplayDevices)
     .set({
-      boardId: input.board.id,
       userAgent,
       lastSeenAt: now,
       updatedAt: now,

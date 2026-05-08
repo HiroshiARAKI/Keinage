@@ -204,7 +204,7 @@ erDiagram
 | `pin_reset_tokens` | PIN リセット用トークン |
 | `account_deletion_requests` | Owner アカウント削除用トークン |
 | `boards` | ボード本体。テンプレート ID と JSON config を保持 |
-| `board_display_devices` | 表示端末 heartbeat。匿名 device key、表示中ボード、User-Agent、最終アクセス時刻を保持 |
+| `board_display_devices` | 表示端末 heartbeat。匿名 device key と表示中ボードの組み合わせごとに、User-Agent、最終アクセス時刻を保持 |
 | `media_items` | ボードに紐づく画像・動画 |
 | `messages` | ボードに紐づくメッセージ |
 | `settings` | Owner 単位の KV 設定 |
