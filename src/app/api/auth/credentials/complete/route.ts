@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
       userId: signupRequest.userId,
       email: signupRequest.email,
       phoneNumber: signupRequest.phoneNumber,
+      organizationName: signupRequest.organizationName,
       passwordHash,
       attribute: "owner",
       role: "admin",

@@ -47,6 +47,7 @@ export async function sendContactEmail(input: {
     userId: string;
     email: string;
     phoneNumber: string | null;
+    organizationName: string | null;
   };
   submittedBy: {
     id: string;
@@ -93,6 +94,7 @@ export async function sendContactEmail(input: {
         `Owner userId: ${input.owner.userId}`,
         `Owner email: ${input.owner.email}`,
         `Owner phone: ${input.owner.phoneNumber ?? "-"}`,
+        `Owner organization: ${input.owner.organizationName ?? "-"}`,
         "",
         "## Submitted by",
         `User ID: ${input.submittedBy.id}`,

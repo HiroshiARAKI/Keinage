@@ -19,6 +19,11 @@ import {
   consumeRateLimit,
   resolveRateLimitClientIp,
 } from "@/lib/rate-limit";
+import {
+  ORGANIZATION_NAME_MAX_LENGTH,
+  isValidOrganizationName,
+  normalizeOrganizationName,
+} from "@/lib/signup";
 
 const GOOGLE_OAUTH_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const GOOGLE_OAUTH_RATE_LIMIT_MAX = 30;
@@ -31,6 +36,7 @@ async function createAuthorization(input: {
   mode: GoogleAuthMode;
   redirectTo?: string | null;
   sharedSignupToken?: string | null;
+  organizationName?: string | null;
 }) {
   const flow = createGoogleOAuthFlowContext(input);
   const authorizationUrl = await buildGoogleAuthorizationUrl({
@@ -47,6 +53,7 @@ async function createAuthorization(input: {
     mode: flow.mode,
     redirectTo: flow.redirectTo,
     sharedSignupToken: flow.sharedSignupToken,
+    organizationName: flow.organizationName,
     codeVerifier: flow.codeVerifier,
     nonce: flow.nonce,
     expiresAt: flow.expiresAt,
@@ -60,6 +67,7 @@ async function createAuthResponse(input: {
   mode: GoogleAuthMode;
   redirectTo?: string | null;
   sharedSignupToken?: string | null;
+  organizationName?: string | null;
 }) {
   const rateLimit = await consumeRateLimit({
     rateLimitKey: buildRateLimitKey({
@@ -133,7 +141,17 @@ export async function GET(request: NextRequest) {
 
   const redirectToParam = request.nextUrl.searchParams.get("redirectTo");
   const redirectTo = isAllowedRedirectTo(redirectToParam) ? redirectToParam : "/boards";
+  const organizationName = normalizeOrganizationName(
+    request.nextUrl.searchParams.get("organizationName"),
+  );
   let sharedSignupToken: string | null = null;
+
+  if (organizationName !== null && !isValidOrganizationName(organizationName)) {
+    return NextResponse.json(
+      { error: `組織名は${ORGANIZATION_NAME_MAX_LENGTH}文字以内で入力してください` },
+      { status: 400 },
+    );
+  }
 
   if (mode === "shared-signup") {
     sharedSignupToken = request.nextUrl.searchParams.get("token");
@@ -175,6 +193,7 @@ export async function GET(request: NextRequest) {
     mode,
     redirectTo: mode === "login" ? redirectTo : null,
     sharedSignupToken,
+    organizationName: mode === "owner-signup" ? organizationName : null,
   });
   if (!authorization) {
     return NextResponse.json(
@@ -210,7 +229,15 @@ export async function POST(request: NextRequest) {
   }
 
   if (mode === "owner-signup") {
-    return createAuthResponse({ request, mode });
+    const organizationName = normalizeOrganizationName(body.organizationName);
+    if (organizationName !== null && !isValidOrganizationName(organizationName)) {
+      return NextResponse.json(
+        { error: `組織名は${ORGANIZATION_NAME_MAX_LENGTH}文字以内で入力してください` },
+        { status: 400 },
+      );
+    }
+
+    return createAuthResponse({ request, mode, organizationName });
   }
 
   if (mode === "shared-signup") {

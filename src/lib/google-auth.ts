@@ -41,6 +41,7 @@ export interface GoogleOAuthFlowContext {
   mode: GoogleAuthMode;
   redirectTo: string | null;
   sharedSignupToken: string | null;
+  organizationName: string | null;
   state: string;
   codeVerifier: string;
   codeChallenge: string;
@@ -82,6 +83,7 @@ export function createGoogleOAuthFlowContext(input: {
   mode: GoogleAuthMode;
   redirectTo?: string | null;
   sharedSignupToken?: string | null;
+  organizationName?: string | null;
 }): GoogleOAuthFlowContext {
   const flow = createOidcFlowContext(GOOGLE_OAUTH_STATE_MAX_AGE);
 
@@ -89,6 +91,7 @@ export function createGoogleOAuthFlowContext(input: {
     mode: input.mode,
     redirectTo: input.redirectTo ?? null,
     sharedSignupToken: input.sharedSignupToken ?? null,
+    organizationName: input.organizationName ?? null,
     ...flow,
   };
 }

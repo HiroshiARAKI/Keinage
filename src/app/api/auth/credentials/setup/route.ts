@@ -11,12 +11,15 @@ import {
   isUnauthenticatedSignupPreviewEnabled,
 } from "@/lib/public-origin";
 import {
+  ORGANIZATION_NAME_MAX_LENGTH,
   SIGNUP_REQUEST_COOKIE,
   SIGNUP_REQUEST_COOKIE_MAX_AGE,
   computeSignupExpiry,
   generateSignupToken,
+  isValidOrganizationName,
   isValidSignupEmail,
   isValidSignupUserId,
+  normalizeOrganizationName,
   normalizePhoneNumber,
   normalizeSignupEmail,
 } from "@/lib/signup";
@@ -32,14 +35,16 @@ const SIGNUP_RATE_LIMIT_MAX = 10;
 /** POST /api/auth/credentials/setup — request owner signup by email link */
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { userId, email, phoneNumber } = body as {
+  const { userId, email, phoneNumber, organizationName } = body as {
     userId?: string;
     email?: string;
     phoneNumber?: string;
+    organizationName?: string;
   };
 
   const normalizedUserId = userId?.trim() ?? "";
   const normalizedEmail = email ? normalizeSignupEmail(email) : "";
+  const normalizedOrganizationName = normalizeOrganizationName(organizationName);
 
   if (
     !normalizedUserId ||
@@ -64,6 +69,15 @@ export async function POST(request: NextRequest) {
   if (!normalizedPhoneNumber) {
     return NextResponse.json(
       { error: "電話番号を正しく入力してください" },
+      { status: 400 },
+    );
+  }
+  if (
+    normalizedOrganizationName !== null &&
+    !isValidOrganizationName(normalizedOrganizationName)
+  ) {
+    return NextResponse.json(
+      { error: `組織名は${ORGANIZATION_NAME_MAX_LENGTH}文字以内で入力してください` },
       { status: 400 },
     );
   }
@@ -126,6 +140,7 @@ export async function POST(request: NextRequest) {
     userId: normalizedUserId,
     email: normalizedEmail,
     phoneNumber: normalizedPhoneNumber,
+    organizationName: normalizedOrganizationName,
     token,
     expiresAt,
   }).returning();

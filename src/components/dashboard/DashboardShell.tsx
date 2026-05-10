@@ -61,6 +61,7 @@ function SidebarLink({
 export function DashboardShell({
   userId,
   role,
+  organizationName,
   isSuperOwner,
   billingEnabled,
   initialTheme,
@@ -69,6 +70,7 @@ export function DashboardShell({
 }: {
   userId: string;
   role: string;
+  organizationName: string | null;
   isSuperOwner: boolean;
   billingEnabled: boolean;
   initialTheme: "system" | "light" | "dark";
@@ -86,7 +88,14 @@ export function DashboardShell({
       <div className="flex min-h-14 items-center gap-2 px-4 py-3">
         <Link href="/boards" className="flex items-center gap-2 font-bold" onClick={closeSidebar}>
           <KeinageLogo className="h-5 w-auto text-foreground" />
-          <span>Keinage</span>
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span>Keinage</span>
+            {organizationName && (
+              <span className="truncate text-[11px] font-medium text-muted-foreground">
+                {t("dashboard.brandFor", { organizationName })}
+              </span>
+            )}
+          </div>
         </Link>
         {/* Close button: mobile only */}
         <button
@@ -164,7 +173,14 @@ export function DashboardShell({
         </button>
         <Link href="/boards" className="flex items-center gap-2 font-bold">
           <KeinageLogo className="h-4 w-auto text-foreground" />
-          <span className="text-sm">Keinage</span>
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span className="text-sm">Keinage</span>
+            {organizationName && (
+              <span className="truncate text-[10px] font-medium text-muted-foreground">
+                {t("dashboard.brandFor", { organizationName })}
+              </span>
+            )}
+          </div>
         </Link>
       </header>
 

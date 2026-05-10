@@ -41,10 +41,18 @@ export default function CallScreenAdmin({
   // Fetch local network IP for the URL
   useEffect(() => {
     (async () => {
+      const origin = window.location.origin;
+      const hostname = window.location.hostname;
+
+      if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+        setNetworkOrigin(origin);
+        return;
+      }
+
       try {
         const res = await fetch("/api/network");
         if (!res.ok) {
-          setNetworkOrigin(window.location.origin);
+          setNetworkOrigin(origin);
           return;
         }
         const data = await res.json();
@@ -53,10 +61,10 @@ export default function CallScreenAdmin({
           const protocol = window.location.protocol;
           setNetworkOrigin(`${protocol}//${data.ip}${port ? `:${port}` : ""}`);
         } else {
-          setNetworkOrigin(window.location.origin);
+          setNetworkOrigin(origin);
         }
       } catch {
-        setNetworkOrigin(window.location.origin);
+        setNetworkOrigin(origin);
       }
     })();
   }, []);

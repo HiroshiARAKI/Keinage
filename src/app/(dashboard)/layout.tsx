@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { authSessions } from "@/db/schema";
+import { authSessions, users } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
 import {
   AUTH_SESSION_COOKIE,
@@ -92,12 +92,19 @@ export default async function DashboardLayout({
   const showOwnerOnboarding =
     isOwnerUser(session.user)
     && session.user.ownerOnboardingAcknowledgedAt === null;
+  const ownerOrganizationName = ownerUserId === session.user.id
+    ? session.user.organizationName
+    : (await db.query.users.findFirst({
+        where: eq(users.id, ownerUserId),
+        columns: { organizationName: true },
+      }))?.organizationName ?? null;
 
   return (
     <ThemeProvider initialTheme={colorTheme as "system" | "light" | "dark"}>
       <DashboardShell
         userId={userId}
         role={role}
+        organizationName={ownerOrganizationName}
         isSuperOwner={session.user.isSuperOwner}
         billingEnabled={billingMode === "stripe"}
         initialTheme={colorTheme as "system" | "light" | "dark"}

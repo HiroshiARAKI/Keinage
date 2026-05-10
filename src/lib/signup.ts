@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 export const SIGNUP_REQUEST_COOKIE = "signup-request-id";
 export const SIGNUP_REQUEST_COOKIE_MAX_AGE = 60 * 30;
 export const SIGNUP_TOKEN_TTL_MS = 10 * 60 * 1000;
+export const ORGANIZATION_NAME_MAX_LENGTH = 120;
 
 const SIGNUP_USER_ID_RE = /^[a-zA-Z0-9_\-]{3,32}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -33,6 +34,16 @@ export function normalizePhoneNumber(input: string): string | null {
   }
 
   return null;
+}
+
+export function normalizeOrganizationName(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const normalized = input.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+export function isValidOrganizationName(name: string): boolean {
+  return name.length <= ORGANIZATION_NAME_MAX_LENGTH;
 }
 
 export function generateSignupToken(): string {

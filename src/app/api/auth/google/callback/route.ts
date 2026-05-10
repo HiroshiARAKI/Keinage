@@ -187,6 +187,7 @@ export async function GET(request: NextRequest) {
         userId,
         email: googleUser.email,
         phoneNumber: null,
+        organizationName: flow.organizationName,
         passwordHash: null,
         attribute: "owner",
         role: "admin",

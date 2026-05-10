@@ -269,6 +269,7 @@ export const signupRequests = pgTable("signup_requests", {
   userId: text("user_id").notNull(),
   email: text("email").notNull(),
   phoneNumber: text("phone_number").notNull(),
+  organizationName: text("organization_name"),
   token: text("token").notNull().unique(),
   expiresAt: text("expires_at").notNull(),
   completedAt: text("completed_at"),
@@ -333,6 +334,7 @@ export const users = pgTable(
     email: text("email").notNull().unique(),
     /** Phone number for owner sign-up uniqueness checks */
     phoneNumber: text("phone_number").unique(),
+    organizationName: text("organization_name"),
     passwordHash: text("password_hash"),
     /** 6-digit PIN hash (nullable until PIN is configured) */
     pinHash: text("pin_hash"),
@@ -487,6 +489,7 @@ export const googleOAuthFlows = pgTable("google_oauth_flows", {
   mode: text("mode").notNull(),
   redirectTo: text("redirect_to"),
   sharedSignupToken: text("shared_signup_token"),
+  organizationName: text("organization_name"),
   codeVerifier: text("code_verifier").notNull(),
   nonce: text("nonce").notNull(),
   expiresAt: text("expires_at").notNull(),

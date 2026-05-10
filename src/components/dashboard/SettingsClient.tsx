@@ -38,10 +38,12 @@ interface UploadedFile {
 export function SettingsClient({
   role,
   currentUserId,
+  initialOrganizationName,
   isOwner,
 }: {
   role: "admin" | "general";
   currentUserId: string;
+  initialOrganizationName: string;
   isOwner: boolean;
 }) {
   const router = useRouter();
@@ -86,6 +88,10 @@ export function SettingsClient({
   const [newEmail, setNewEmail] = useState("");
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailSaved, setEmailSaved] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [storedOrganizationName, setStoredOrganizationName] = useState(initialOrganizationName);
+  const [organizationNameDraft, setOrganizationNameDraft] = useState(initialOrganizationName);
+  const [organizationSaving, setOrganizationSaving] = useState(false);
+  const [organizationResult, setOrganizationResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // Password change states
   const [currentPassword, setCurrentPassword] = useState("");
@@ -432,6 +438,32 @@ export function SettingsClient({
     window.location.href = "/pin";
   }
 
+  async function handleOrganizationNameSave() {
+    setOrganizationSaving(true);
+    setOrganizationResult(null);
+    const normalizedOrganizationName = organizationNameDraft.trim();
+    try {
+      const res = await fetch("/api/users/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationName: normalizedOrganizationName || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setStoredOrganizationName(normalizedOrganizationName);
+        setOrganizationNameDraft(normalizedOrganizationName);
+        setOrganizationResult({ ok: true, msg: t("settings.organizationNameSaved") });
+        router.refresh();
+      } else {
+        setOrganizationResult({ ok: false, msg: data.error ?? t("settings.changeFailed") });
+      }
+    } catch {
+      setOrganizationResult({ ok: false, msg: t("error.network") });
+    } finally {
+      setOrganizationSaving(false);
+    }
+  }
+
   async function handlePasswordChange() {
     if (newPassword !== confirmNewPassword) {
       setPasswordChangeResult({ ok: false, msg: t("settings.passwordMismatch") });
@@ -676,6 +708,43 @@ export function SettingsClient({
             </span>
           )}
         </div>
+
+        {isOwner && (
+          <div className="mt-6 border-t pt-6">
+            <h3 className="mb-2 text-sm font-medium">{t("settings.organizationNameTitle")}</h3>
+            <p className="mb-4 text-sm text-muted-foreground">
+              {t("settings.organizationNameDescription")}
+            </p>
+            {storedOrganizationName && (
+              <p className="mb-3 text-sm text-muted-foreground">
+                {t("common.currentSetting")}: <span className="font-medium">{storedOrganizationName}</span>
+              </p>
+            )}
+            <div className="flex max-w-xl flex-col gap-3 sm:flex-row sm:items-center">
+              <Input
+                type="text"
+                placeholder={t("settings.organizationNamePlaceholder")}
+                value={organizationNameDraft}
+                onChange={(e) => {
+                  setOrganizationNameDraft(e.target.value);
+                  setOrganizationResult(null);
+                }}
+                maxLength={120}
+              />
+              <Button
+                onClick={handleOrganizationNameSave}
+                disabled={organizationSaving || organizationNameDraft.trim() === storedOrganizationName}
+              >
+                {organizationSaving ? t("common.loading") : t("common.change")}
+              </Button>
+            </div>
+            {organizationResult && (
+              <span className={`mt-2 block text-sm ${organizationResult.ok ? "text-green-600" : "text-red-600"}`}>
+                {organizationResult.msg}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Weather Area Selection */}

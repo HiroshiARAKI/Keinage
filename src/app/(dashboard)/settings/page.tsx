@@ -31,6 +31,7 @@ export default async function SettingsPage() {
       <SettingsClient
         role={session.user.role as "admin" | "general"}
         currentUserId={session.user.userId}
+        initialOrganizationName={session.user.organizationName ?? ""}
         isOwner={isOwnerUser(session.user)}
       />
     </div>

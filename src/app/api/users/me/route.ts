@@ -6,6 +6,12 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { isSupportedLocale, LOCALE_COOKIE_NAME, type SupportedLocale } from "@/lib/i18n";
+import { isOwnerUser } from "@/lib/ownership";
+import {
+  ORGANIZATION_NAME_MAX_LENGTH,
+  isValidOrganizationName,
+  normalizeOrganizationName,
+} from "@/lib/signup";
 
 /** PATCH /api/users/me — update current user's mutable preferences */
 export async function PATCH(request: NextRequest) {
@@ -15,9 +21,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { colorTheme, locale } = body as {
+  const { colorTheme, locale, organizationName } = body as {
     colorTheme?: string;
     locale?: SupportedLocale | null;
+    organizationName?: string | null;
   };
 
   const updates: Partial<typeof users.$inferInsert> = {};
@@ -40,6 +47,28 @@ export async function PATCH(request: NextRequest) {
       );
     }
     updates.locale = locale;
+  }
+
+  if (organizationName !== undefined) {
+    if (!isOwnerUser(session.user)) {
+      return NextResponse.json(
+        { error: "組織名を変更できるのはOwnerのみです" },
+        { status: 403 },
+      );
+    }
+
+    const normalizedOrganizationName = normalizeOrganizationName(organizationName);
+    if (
+      normalizedOrganizationName !== null &&
+      !isValidOrganizationName(normalizedOrganizationName)
+    ) {
+      return NextResponse.json(
+        { error: `組織名は${ORGANIZATION_NAME_MAX_LENGTH}文字以内で入力してください` },
+        { status: 400 },
+      );
+    }
+
+    updates.organizationName = normalizedOrganizationName;
   }
 
   if (Object.keys(updates).length > 0) {

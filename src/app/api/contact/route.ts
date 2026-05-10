@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
       userId: owner.userId,
       email: owner.email,
       phoneNumber: owner.phoneNumber,
+      organizationName: owner.organizationName,
     },
     submittedBy: {
       id: session.user.id,
