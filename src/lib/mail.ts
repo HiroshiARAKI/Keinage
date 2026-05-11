@@ -78,6 +78,17 @@ function resolveMailLocale(acceptLanguage?: string | null): SupportedLocale {
   });
 }
 
+function resolveMailLocaleWithStored(input: {
+  acceptLanguage?: string | null;
+  storedLocale?: string | null;
+}): SupportedLocale {
+  return resolvePreferredLocale({
+    acceptLanguage: input.acceptLanguage,
+    cookieLocale: null,
+    storedLocale: input.storedLocale,
+  });
+}
+
 /** Send a signup completion email after an account has been created */
 export async function sendSignupCompletedEmail(input: {
   to: string;
@@ -121,6 +132,33 @@ export async function sendPinResetEmail(
         "",
         "このリンクは30分間有効です。",
         "心当たりがない場合は、このメールを無視してください。",
+    ],
+  });
+}
+
+export async function sendPasswordResetEmail(input: {
+  to: string;
+  resetUrl: string;
+  acceptLanguage?: string | null;
+  storedLocale?: string | null;
+}): Promise<boolean> {
+  const locale = resolveMailLocaleWithStored({
+    acceptLanguage: input.acceptLanguage,
+    storedLocale: input.storedLocale,
+  });
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
+
+  return sendTextMail({
+    to: input.to,
+    subject: t("mail.passwordReset.subject"),
+    lines: [
+      t("mail.passwordReset.title"),
+      "",
+      t("mail.passwordReset.intro"),
+      input.resetUrl,
+      "",
+      t("mail.passwordReset.expiry"),
+      t("mail.passwordReset.footer"),
     ],
   });
 }

@@ -252,6 +252,28 @@ export const pinResetTokens = pgTable("pin_reset_tokens", {
     .default(isoNow),
 });
 
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+  },
+  (table) => ({
+    userIdx: index("password_reset_tokens_user_id_idx").on(table.userId),
+    expiresAtIdx: index("password_reset_tokens_expires_at_idx").on(table.expiresAt),
+  }),
+);
+
 export const pinAttempts = pgTable("pin_attempts", {
   id: text("id")
     .primaryKey()
@@ -356,6 +378,12 @@ export const users = pgTable(
     ownerOnboardingAcknowledgedAt: text("owner_onboarding_acknowledged_at"),
     /** Timestamp of the last successful email+password login */
     lastFullAuthAt: text("last_full_auth_at"),
+    /** Consecutive failed credential or PIN sign-in attempts */
+    failedAuthAttempts: integer("failed_auth_attempts").notNull().default(0),
+    /** Timestamp when the account lock expires */
+    lockedUntil: text("locked_until"),
+    /** Timestamp of the latest failed credential or PIN sign-in */
+    lastFailedAuthAt: text("last_failed_auth_at"),
     createdAt: text("created_at")
       .notNull()
       .default(isoNow),
@@ -538,6 +566,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(authSessions),
   deviceAuthGrants: many(deviceAuthGrants),
   pinResetTokens: many(pinResetTokens),
+  passwordResetTokens: many(passwordResetTokens),
   ownerSubscriptions: many(ownerSubscriptions),
   boardDisplayDevices: many(boardDisplayDevices),
   superOwnerAuditLogs: many(superOwnerAuditLogs),
@@ -577,6 +606,13 @@ export const authAccountsRelations = relations(authAccounts, ({ one }) => ({
 export const pinResetTokensRelations = relations(pinResetTokens, ({ one }) => ({
   user: one(users, {
     fields: [pinResetTokens.userId],
+    references: [users.id],
+  }),
+}));
+
+export const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [passwordResetTokens.userId],
     references: [users.id],
   }),
 }));

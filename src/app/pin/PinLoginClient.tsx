@@ -42,7 +42,7 @@ export default function PinLoginClient({
         console.log("[PinLoginClient] Verify response", { status: res.status, ok: res.ok, data });
 
         if (!res.ok) {
-          if (data.blocked) {
+          if (data.blocked || data.locked) {
             setBlocked(true);
           }
           setError(data.error || t("error.authFailed"));

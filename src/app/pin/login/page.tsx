@@ -122,7 +122,11 @@ export default async function LoginPage({
   return (
     <LoginClient
       redirectTo={redirectTo}
-      notice={notice === "signup-existing" ? "signup-existing" : null}
+      notice={
+        notice === "signup-existing" || notice === "password-reset"
+          ? notice
+          : null
+      }
       showPinLoginLink={showPinLoginLink}
       googleAuthEnabled={isGoogleAuthEnabled()}
     />

@@ -33,6 +33,11 @@ import {
   resolveRateLimitClientIp,
 } from "@/lib/rate-limit";
 import {
+  buildFailedAuthState,
+  buildUnlockAuthState,
+  isAccountLocked,
+} from "@/lib/account-security";
+import {
   resolveAuthenticatedLocale,
   setLocaleCookie,
 } from "@/lib/locale-cookie";
@@ -122,18 +127,51 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const now = new Date().toISOString();
+  if (isAccountLocked(adminUser.lockedUntil, now)) {
+    return NextResponse.json(
+      {
+        error:
+          "このアカウントは一時的にロックされています。メールアドレスでログインしてパスワードを再設定するか、30分後に再度お試しください。",
+        blocked: true,
+        locked: true,
+      },
+      { status: 423 },
+    );
+  }
+
   if (!(await verifyPin(pin, adminUser.pinHash))) {
     // Record failed attempt
     await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
+    const failedState = buildFailedAuthState(adminUser.failedAuthAttempts);
+    await db
+      .update(users)
+      .set({
+        failedAuthAttempts: failedState.failedAuthAttempts,
+        lockedUntil: failedState.lockedUntil,
+        lastFailedAuthAt: failedState.lastFailedAuthAt,
+      })
+      .where(eq(users.id, adminUser.id));
 
-    const remaining = MAX_PIN_ATTEMPTS - (recentAttempts.length + 1);
+    if (failedState.lockedNow) {
+      return NextResponse.json(
+        {
+          error:
+            "5回連続でPIN認証に失敗したため、アカウントを30分間ロックしました。メールアドレスでログインしてパスワードを再設定するか、30分後に再度お試しください。",
+          blocked: true,
+          locked: true,
+        },
+        { status: 423 },
+      );
+    }
+
     if (process.env.NODE_ENV !== "production") {
-      console.log("[pin/verify] PIN incorrect", { remaining });
+      console.log("[pin/verify] PIN incorrect", { remaining: failedState.remaining });
     }
     return NextResponse.json(
       {
-        error: `PINが正しくありません${remaining > 0 ? `（残り${remaining}回）` : ""}`,
-        remaining,
+        error: `PINが正しくありません${failedState.remaining > 0 ? `（残り${failedState.remaining}回）` : ""}`,
+        remaining: failedState.remaining,
       },
       { status: 401 },
     );
@@ -142,7 +180,15 @@ export async function POST(request: NextRequest) {
   if (needsPinRehash(adminUser.pinHash)) {
     await db
       .update(users)
-      .set({ pinHash: await hashPin(pin) })
+      .set({
+        pinHash: await hashPin(pin),
+        ...buildUnlockAuthState(),
+      })
+      .where(eq(users.id, adminUser.id));
+  } else {
+    await db
+      .update(users)
+      .set(buildUnlockAuthState())
       .where(eq(users.id, adminUser.id));
   }
 

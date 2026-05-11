@@ -162,6 +162,13 @@
       "when": 1778392800000,
       "tag": "0022_owner_organization_name",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1778479200000,
+      "tag": "0023_password_reset_lockout",
+      "breakpoints": true
     }
   ]
 }

@@ -18,7 +18,7 @@ export default function LoginClient({
   googleAuthEnabled,
 }: {
   redirectTo?: string | null;
-  notice?: "signup-existing" | null;
+  notice?: "password-reset" | "signup-existing" | null;
   showPinLoginLink: boolean;
   googleAuthEnabled: boolean;
 }) {
@@ -48,7 +48,7 @@ export default function LoginClient({
         console.log("[LoginClient] Login response", { status: res.status, ok: res.ok, data });
 
         if (!res.ok) {
-          if (data.blocked) setBlocked(true);
+          if (data.blocked || data.locked) setBlocked(true);
           setError(data.error || t("error.authFailed"));
           setPassword("");
           setSubmitting(false);
@@ -97,6 +97,12 @@ export default function LoginClient({
           {notice === "signup-existing" && (
             <p className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-center text-sm text-blue-700">
               すでに登録済みのアカウントがあります。ログインしてください。
+            </p>
+          )}
+
+          {notice === "password-reset" && (
+            <p className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-center text-sm text-emerald-700">
+              {t("auth.login.noticePasswordReset")}
             </p>
           )}
 
@@ -174,6 +180,12 @@ export default function LoginClient({
                 {t("auth.login.loginWithPin")}
               </Link>
             )}
+            <Link
+              href="/password/forgot"
+              className="block text-sm text-gray-500 hover:text-blue-600"
+            >
+              {t("auth.login.forgotPassword")}
+            </Link>
             <Link
               href="/signup"
               className="block text-sm text-gray-500 hover:text-blue-600"

@@ -22,6 +22,11 @@ import {
   generateSessionToken,
 } from "@/lib/pin";
 import {
+  buildFailedAuthState,
+  buildSuccessfulAuthState,
+  isAccountLocked,
+} from "@/lib/account-security";
+import {
   buildRateLimitKey,
   resolveRateLimitClientIp,
 } from "@/lib/rate-limit";
@@ -109,17 +114,51 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const now = new Date().toISOString();
+  if (isAccountLocked(user.lockedUntil, now)) {
+    return NextResponse.json(
+      {
+        error:
+          "このアカウントは一時的にロックされています。パスワードを再設定するか、30分後に再度お試しください。",
+        blocked: true,
+        locked: true,
+      },
+      { status: 423 },
+    );
+  }
+
   const valid = await verifyPassword(password, user.passwordHash);
   if (process.env.NODE_ENV !== "production") {
     console.log("[credentials/login] Password verify result", { valid });
   }
   if (!valid) {
     await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
-    const remaining = MAX_PIN_ATTEMPTS - (recentAttempts.length + 1);
+    const failedState = buildFailedAuthState(user.failedAuthAttempts);
+    await db
+      .update(users)
+      .set({
+        failedAuthAttempts: failedState.failedAuthAttempts,
+        lockedUntil: failedState.lockedUntil,
+        lastFailedAuthAt: failedState.lastFailedAuthAt,
+      })
+      .where(eq(users.id, user.id));
+
+    if (failedState.lockedNow) {
+      return NextResponse.json(
+        {
+          error:
+            "5回連続で認証に失敗したため、アカウントを30分間ロックしました。パスワード再設定後、または30分後に再度お試しください。",
+          blocked: true,
+          locked: true,
+        },
+        { status: 423 },
+      );
+    }
+
     return NextResponse.json(
       {
-        error: `ユーザーIDまたはパスワードが正しくありません${remaining > 0 ? `（残り${remaining}回）` : ""}`,
-        remaining,
+        error: `ユーザーIDまたはパスワードが正しくありません${failedState.remaining > 0 ? `（残り${failedState.remaining}回）` : ""}`,
+        remaining: failedState.remaining,
       },
       { status: 401 },
     );
@@ -132,12 +171,10 @@ export async function POST(request: NextRequest) {
     console.log("[credentials/login] Password verified OK");
   }
 
-  const now = new Date().toISOString();
-
   // Record full-auth timestamp
   await db
     .update(users)
-    .set({ lastFullAuthAt: now })
+    .set(buildSuccessfulAuthState(now))
     .where(eq(users.id, user.id));
 
   await maybeBootstrapSuperOwner({
