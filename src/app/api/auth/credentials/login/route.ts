@@ -107,23 +107,50 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!user.passwordHash) {
-    return NextResponse.json(
-      { error: "このユーザーはGoogleアカウントでログインしてください" },
-      { status: 401 },
-    );
-  }
-
   const now = new Date().toISOString();
   if (isAccountLocked(user.lockedUntil, now)) {
     return NextResponse.json(
       {
-        error:
-          "このアカウントは一時的にロックされています。パスワードを再設定するか、30分後に再度お試しください。",
+        error: user.passwordHash
+          ? "このアカウントは一時的にロックされています。パスワードを再設定するか、30分後に再度お試しください。"
+          : "このアカウントは一時的にロックされています。Googleでログインし、必要に応じてPIN初期化を利用するか、30分後に再度お試しください。",
         blocked: true,
         locked: true,
       },
       { status: 423 },
+    );
+  }
+
+  if (!user.passwordHash) {
+    await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
+    const failedState = buildFailedAuthState(user.failedAuthAttempts);
+    await db
+      .update(users)
+      .set({
+        failedAuthAttempts: failedState.failedAuthAttempts,
+        lockedUntil: failedState.lockedUntil,
+        lastFailedAuthAt: failedState.lastFailedAuthAt,
+      })
+      .where(eq(users.id, user.id));
+
+    if (failedState.lockedNow) {
+      return NextResponse.json(
+        {
+          error:
+            "Google連携ユーザに対して5回連続でパスワードログインが失敗したため、アカウントを30分間ロックしました。Googleでログインし、必要に応じてPIN初期化を利用するか、30分後に再度お試しください。",
+          blocked: true,
+          locked: true,
+        },
+        { status: 423 },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        error: `当該ユーザはGoogleアカウント連携をしているのでパスワードログインやパスワードリセットはできません。Googleでログインしてください。PINを忘れた場合は、Googleログイン後にPIN初期化を利用してください${failedState.remaining > 0 ? `（残り${failedState.remaining}回でロック）` : ""}`,
+        remaining: failedState.remaining,
+      },
+      { status: 401 },
     );
   }
 

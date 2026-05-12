@@ -15,6 +15,7 @@ import {
   createSignedInResponse,
 } from "@/lib/google-auth";
 import { DEVICE_AUTH_COOKIE } from "@/lib/device-auth";
+import { buildSuccessfulAuthState } from "@/lib/account-security";
 import { sendSignupCompletedEmail } from "@/lib/mail";
 import { buildPublicAppUrl } from "@/lib/public-origin";
 import { maybeBootstrapSuperOwner } from "@/lib/super-owner";
@@ -141,9 +142,7 @@ export async function GET(request: NextRequest) {
 
     await db
       .update(users)
-      .set({
-        lastFullAuthAt: now,
-      })
+      .set(buildSuccessfulAuthState(now))
       .where(eq(users.id, user.id));
 
     await maybeBootstrapSuperOwner({

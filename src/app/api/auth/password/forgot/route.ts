@@ -42,8 +42,18 @@ export async function POST(request: NextRequest) {
     ),
   });
 
-  if (!user || !user.passwordHash) {
+  if (!user) {
     return NextResponse.json({ success: true });
+  }
+
+  if (!user.passwordHash) {
+    return NextResponse.json(
+      {
+        error:
+          "当該ユーザはGoogleアカウント連携をしているのでパスワードリセットはできません。Googleでログインしてください。PINを忘れた場合は、Googleログイン後にPIN初期化を利用してください。",
+      },
+      { status: 400 },
+    );
   }
 
   const token = generateResetToken();
