@@ -535,11 +535,69 @@ export const authSessions = pgTable("auth_sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   sessionToken: text("session_token").notNull().unique(),
+  webauthnVerified: boolean("webauthn_verified").notNull().default(true),
   expiresAt: text("expires_at").notNull(),
   createdAt: text("created_at")
     .notNull()
     .default(isoNow),
 });
+
+export const webauthnCredentials = pgTable(
+  "webauthn_credentials",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    credentialId: text("credential_id").notNull(),
+    publicKey: text("public_key").notNull(),
+    counter: integer("counter").notNull().default(0),
+    transports: text("transports"),
+    deviceType: text("device_type"),
+    backedUp: boolean("backed_up").notNull().default(false),
+    name: text("name").notNull().default("Passkey"),
+    lastUsedAt: text("last_used_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(isoNow)
+      .$onUpdate(() => new Date().toISOString()),
+  },
+  (table) => ({
+    credentialUnique: uniqueIndex("webauthn_credentials_credential_id_unique")
+      .on(table.credentialId),
+    userIdx: index("webauthn_credentials_user_id_idx").on(table.userId),
+  }),
+);
+
+export const webauthnChallenges = pgTable(
+  "webauthn_challenges",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    challenge: text("challenge").notNull(),
+    type: text("type").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+  },
+  (table) => ({
+    userTypeIdx: index("webauthn_challenges_user_type_idx")
+      .on(table.userId, table.type),
+    challengeIdx: index("webauthn_challenges_challenge_idx")
+      .on(table.challenge),
+  }),
+);
 
 export const deviceAuthGrants = pgTable("device_auth_grants", {
   id: text("id")
@@ -564,6 +622,8 @@ export const deviceAuthGrants = pgTable("device_auth_grants", {
 export const usersRelations = relations(users, ({ many }) => ({
   authAccounts: many(authAccounts),
   sessions: many(authSessions),
+  webauthnCredentials: many(webauthnCredentials),
+  webauthnChallenges: many(webauthnChallenges),
   deviceAuthGrants: many(deviceAuthGrants),
   pinResetTokens: many(pinResetTokens),
   passwordResetTokens: many(passwordResetTokens),
@@ -620,6 +680,20 @@ export const passwordResetTokensRelations = relations(passwordResetTokens, ({ on
 export const authSessionsRelations = relations(authSessions, ({ one }) => ({
   user: one(users, {
     fields: [authSessions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const webauthnCredentialsRelations = relations(webauthnCredentials, ({ one }) => ({
+  user: one(users, {
+    fields: [webauthnCredentials.userId],
+    references: [users.id],
+  }),
+}));
+
+export const webauthnChallengesRelations = relations(webauthnChallenges, ({ one }) => ({
+  user: one(users, {
+    fields: [webauthnChallenges.userId],
     references: [users.id],
   }),
 }));

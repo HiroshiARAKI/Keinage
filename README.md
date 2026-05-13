@@ -188,6 +188,20 @@ GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 
 Google 認証で作成したユーザーは Google 認証専用、メールアドレス + パスワードで作成したユーザーはパスワード認証専用です。作成後に認証方式は変更できません。
 
+#### WebAuthn / Passkey 設定 (任意)
+
+Owner アカウントに Passkey 二要素認証を追加できます。`WEBAUTHN_OWNER_REQUIRED=true` の場合、Owner はメールアドレス + パスワード、Google、または PIN の認証後に、登録済み Passkey で追加認証します。初回は `/passkey/setup` に誘導され、登録後にダッシュボードへ進みます。
+
+```bash
+WEBAUTHN_ENABLED=true
+WEBAUTHN_OWNER_REQUIRED=true
+WEBAUTHN_RP_ID=keinage.example.com
+WEBAUTHN_RP_NAME=Keinage
+WEBAUTHN_ORIGIN=https://keinage.example.com
+```
+
+本番環境では HTTPS が必要です。ローカル開発ではブラウザ仕様により `http://localhost:3000` を利用できます。`WEBAUTHN_RP_ID` はブラウザで開くホスト名と一致させてください。
+
 #### Super Owner 設定 (任意)
 
 公式SaaSや公開インスタンスで運営者向けの高権限ユーザーを用意する場合は、初回ログイン前に `.env` で Super Owner bootstrap を設定します。デフォルト管理者アカウントや初期パスワードはありません。Super Owner は1人のみで、作成後に UI/API から任意ユーザーを昇格する機能はありません。

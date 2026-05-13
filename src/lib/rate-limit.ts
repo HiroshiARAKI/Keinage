@@ -13,7 +13,8 @@ export type RateLimitFlow =
   | "google-oauth"
   | "pin"
   | "signup"
-  | "upload";
+  | "upload"
+  | "webauthn";
 
 function normalizeRateLimitSegment(value: string): string {
   const normalized = value.trim().toLowerCase();

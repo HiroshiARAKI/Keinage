@@ -106,7 +106,7 @@ import { eq, and, gt } from "drizzle-orm";
  * Only for use inside Next.js request context (Route Handlers / Server
  * Components).
  */
-export async function getSessionUser() {
+export async function getSessionUser(options?: { allowWebAuthnPending?: boolean }) {
   const cookieStore = await cookies();
   const token = cookieStore.get(AUTH_SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -118,7 +118,15 @@ export async function getSessionUser() {
     ),
     with: { user: true },
   });
-  return session ?? null;
+  if (!session) return null;
+  if (!options?.allowWebAuthnPending && !session.webauthnVerified) {
+    return null;
+  }
+  return session;
+}
+
+export async function getSessionUserAllowingWebAuthnPending() {
+  return getSessionUser({ allowWebAuthnPending: true });
 }
 
 /** Return the current session only when the authenticated user is an admin. */

@@ -169,6 +169,13 @@
       "when": 1778479200000,
       "tag": "0023_password_reset_lockout",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1778655600000,
+      "tag": "0024_webauthn_passkeys",
+      "breakpoints": true
     }
   ]
 }

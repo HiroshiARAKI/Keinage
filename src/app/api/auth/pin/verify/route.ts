@@ -41,6 +41,10 @@ import {
   resolveAuthenticatedLocale,
   setLocaleCookie,
 } from "@/lib/locale-cookie";
+import {
+  getWebAuthnPostAuthAction,
+  isWebAuthnVerifiedAtSessionCreation,
+} from "@/lib/webauthn";
 
 /** POST /api/auth/pin/verify — verify PIN and issue session */
 export async function POST(request: NextRequest) {
@@ -206,6 +210,7 @@ export async function POST(request: NextRequest) {
   await db.insert(authSessions).values({
     userId: adminUser.id,
     sessionToken,
+    webauthnVerified: await isWebAuthnVerifiedAtSessionCreation(adminUser),
     expiresAt,
   });
 
@@ -213,7 +218,17 @@ export async function POST(request: NextRequest) {
     storedLocale: adminUser.locale,
     acceptLanguage: request.headers.get("accept-language"),
   });
-  const res = NextResponse.json({ success: true, locale });
+  const webauthnAction = await getWebAuthnPostAuthAction(adminUser);
+  const res = NextResponse.json({
+    success: true,
+    locale,
+    webauthnAction,
+    redirectTo: webauthnAction === "register"
+      ? "/passkey/setup"
+      : webauthnAction === "authenticate"
+        ? "/passkey/verify"
+        : null,
+  });
   res.cookies.set(AUTH_SESSION_COOKIE, sessionToken, buildAuthCookieOptions(SESSION_MAX_AGE));
   if (deviceToken) {
     setDeviceAuthCookie(res, deviceToken);
