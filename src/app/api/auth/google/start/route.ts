@@ -28,6 +28,37 @@ import {
 const GOOGLE_OAUTH_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const GOOGLE_OAUTH_RATE_LIMIT_MAX = 30;
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function createAuthorizationRedirectPage(authorizationUrl: string) {
+  const escapedUrl = escapeHtml(authorizationUrl);
+  const serializedUrl = JSON.stringify(authorizationUrl);
+
+  return `<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="0;url=${escapedUrl}" />
+    <title>Google sign-in</title>
+  </head>
+  <body>
+    <p>Google sign-in に移動しています...</p>
+    <p><a href="${escapedUrl}">移動しない場合はこちら</a></p>
+    <script>
+      window.location.replace(${serializedUrl});
+    </script>
+  </body>
+</html>`;
+}
+
 function isAllowedRedirectTo(value: string | null): value is string {
   return !!value && value.startsWith("/") && !value.startsWith("//");
 }
@@ -161,7 +192,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const redirectResponse = NextResponse.redirect(authorization.authorizationUrl);
+  const redirectResponse = new NextResponse(
+    createAuthorizationRedirectPage(authorization.authorizationUrl),
+    {
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      },
+    },
+  );
   redirectResponse.cookies.set(
     GOOGLE_OAUTH_STATE_COOKIE,
     authorization.state,
