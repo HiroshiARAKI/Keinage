@@ -22,6 +22,7 @@ import {
 import { cookies } from "next/headers";
 import { getOwnerSetting } from "@/lib/owner-settings";
 import { resolveOwnerUserId } from "@/lib/ownership";
+import { isWebAuthnVerifiedAtSessionCreation } from "@/lib/webauthn";
 
 /** POST /api/auth/pin/setup — set initial PIN for the admin user */
 export async function POST(request: NextRequest) {
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
   await db.insert(authSessions).values({
     userId: targetUser.id,
     sessionToken: fullSessionToken,
+    webauthnVerified: await isWebAuthnVerifiedAtSessionCreation(targetUser),
     expiresAt,
   });
 
@@ -124,4 +126,3 @@ export async function POST(request: NextRequest) {
   clearLegacyLastUserCookie(res);
   return res;
 }
-

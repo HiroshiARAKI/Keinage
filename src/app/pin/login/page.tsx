@@ -19,6 +19,7 @@ import { getOwnerSetting } from "@/lib/owner-settings";
 import { resolveOwnerUserId } from "@/lib/ownership";
 import { sanitizeRedirectTarget } from "@/lib/utils";
 import { isGoogleAuthEnabled } from "@/lib/google-auth";
+import { getWebAuthnRedirectForSession } from "@/lib/webauthn";
 import LoginClient from "./LoginClient";
 
 export const dynamic = "force-dynamic";
@@ -109,6 +110,14 @@ export default async function LoginPage({
       });
 
       if (fullAuthValid) {
+        const passkeyRedirect = await getWebAuthnRedirectForSession({
+          user: sessionRow.user,
+          webauthnVerified: sessionRow.webauthnVerified,
+          redirectTo,
+        });
+        if (passkeyRedirect) {
+          redirect(passkeyRedirect);
+        }
         console.log("[/pin/login] Already authenticated → target");
         redirect(redirectTo || "/boards");
       }

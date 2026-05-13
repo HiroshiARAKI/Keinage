@@ -59,7 +59,11 @@ export default function LoginClient({
           setLocale(data.locale);
         }
 
-        router.push(redirectTo || "/boards");
+        const nextPath =
+          data.redirectTo && redirectTo
+            ? `${data.redirectTo}?redirectTo=${encodeURIComponent(redirectTo)}`
+            : data.redirectTo || redirectTo || "/boards";
+        router.push(nextPath);
       } catch {
         setError(t("error.network"));
         setPassword("");

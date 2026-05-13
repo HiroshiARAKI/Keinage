@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { db } from "@/db";
-import { users, authSessions } from "@/db/schema";
+import { authSessions } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
 import {
   AUTH_SESSION_COOKIE,
@@ -18,6 +18,7 @@ import {
 import { getOwnerSetting } from "@/lib/owner-settings";
 import { resolveOwnerUserId } from "@/lib/ownership";
 import { sanitizeRedirectTarget } from "@/lib/utils";
+import { getWebAuthnRedirectForSession } from "@/lib/webauthn";
 import PinLoginClient from "./PinLoginClient";
 
 export const dynamic = "force-dynamic";
@@ -79,6 +80,14 @@ export default async function PinLoginPage({
       });
 
       if (fullSessionValid) {
+        const passkeyRedirect = await getWebAuthnRedirectForSession({
+          user: sessionRow.user,
+          webauthnVerified: sessionRow.webauthnVerified,
+          redirectTo,
+        });
+        if (passkeyRedirect) {
+          redirect(passkeyRedirect);
+        }
         console.log("[/pin] Valid session found → target");
         redirect(redirectTo || "/boards");
       }

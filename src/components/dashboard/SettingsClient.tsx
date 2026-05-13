@@ -5,6 +5,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
+import { Fingerprint, Trash2 } from "lucide-react";
+import { startRegistration } from "@simplewebauthn/browser";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -33,6 +35,15 @@ interface UploadedFile {
   size: number;
   modifiedAt: string;
   boards: { boardId: string; boardName: string | null }[];
+}
+
+interface PasskeyCredential {
+  id: string;
+  name: string;
+  deviceType: string | null;
+  backedUp: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
 }
 
 export function SettingsClient({
@@ -105,12 +116,36 @@ export function SettingsClient({
   const [authExpirySaving, setAuthExpirySaving] = useState(false);
   const [authExpirySaved, setAuthExpirySaved] = useState<{ ok: boolean; msg: string } | null>(null);
   const [fullAuthExpiry, setFullAuthExpiry] = useState<string | null>(null);
+  const [passkeyEnabled, setPasskeyEnabled] = useState(false);
+  const [passkeyOwnerRequired, setPasskeyOwnerRequired] = useState(false);
+  const [passkeys, setPasskeys] = useState<PasskeyCredential[]>([]);
+  const [passkeyLoading, setPasskeyLoading] = useState(true);
+  const [passkeyWorking, setPasskeyWorking] = useState(false);
+  const [passkeyResult, setPasskeyResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // UserId change states
   const [newUserId, setNewUserId] = useState("");
   const [userIdChanging, setUserIdChanging] = useState(false);
   const [userIdChangeResult, setUserIdChangeResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const currentLocaleDefinition = getLocaleDefinition(locale);
+
+  const fetchPasskeys = useCallback(async () => {
+    if (!isOwner) {
+      setPasskeyLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/account/webauthn/credentials");
+      if (!res.ok) return;
+      const data = await res.json();
+      setPasskeyEnabled(Boolean(data.enabled));
+      setPasskeyOwnerRequired(Boolean(data.ownerRequired));
+      setPasskeys(Array.isArray(data.credentials) ? data.credentials : []);
+    } finally {
+      setPasskeyLoading(false);
+    }
+  }, [isOwner]);
 
   const fetchMedia = useCallback(async () => {
     if (role !== "admin") {
@@ -126,7 +161,7 @@ export function SettingsClient({
     } finally {
       setMediaLoading(false);
     }
-  }, []);
+  }, [role]);
 
   // Load current settings
   useEffect(() => {
@@ -173,6 +208,7 @@ export function SettingsClient({
       }
     })();
     fetchMedia();
+    void fetchPasskeys();
     // Resolve dashboard URL for QR code
     (async () => {
       const origin = window.location.origin;
@@ -203,7 +239,7 @@ export function SettingsClient({
         }
       })
       .catch(() => {});
-  }, [fetchMedia, role]);
+  }, [fetchMedia, fetchPasskeys, role]);
 
   function handlePrefChange(prefName: string | null) {
     if (!prefName) return;
@@ -516,6 +552,64 @@ export function SettingsClient({
       setAuthExpirySaved({ ok: false, msg: t("error.network") });
     } finally {
       setAuthExpirySaving(false);
+    }
+  }
+
+  async function handleAddPasskey() {
+    setPasskeyWorking(true);
+    setPasskeyResult(null);
+    try {
+      const optionsResponse = await fetch("/api/auth/webauthn/register/start", {
+        method: "POST",
+      });
+      const options = await optionsResponse.json();
+      if (!optionsResponse.ok) {
+        setPasskeyResult({ ok: false, msg: options.error ?? t("settings.passkeyAddFailed") });
+        return;
+      }
+
+      const credential = await startRegistration({ optionsJSON: options });
+      const finishResponse = await fetch("/api/auth/webauthn/register/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credential),
+      });
+      const finish = await finishResponse.json().catch(() => ({}));
+      if (!finishResponse.ok) {
+        setPasskeyResult({ ok: false, msg: finish.error ?? t("settings.passkeyAddFailed") });
+        return;
+      }
+
+      setPasskeyResult({ ok: true, msg: t("settings.passkeyAdded") });
+      await fetchPasskeys();
+    } catch {
+      setPasskeyResult({ ok: false, msg: t("settings.passkeyAddFailed") });
+    } finally {
+      setPasskeyWorking(false);
+    }
+  }
+
+  async function handleDeletePasskey(id: string) {
+    setPasskeyWorking(true);
+    setPasskeyResult(null);
+    try {
+      const res = await fetch("/api/account/webauthn/credentials", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPasskeyResult({ ok: false, msg: data.error ?? t("settings.passkeyDeleteFailed") });
+        return;
+      }
+
+      setPasskeyResult({ ok: true, msg: t("settings.passkeyDeleted") });
+      await fetchPasskeys();
+    } catch {
+      setPasskeyResult({ ok: false, msg: t("settings.passkeyDeleteFailed") });
+    } finally {
+      setPasskeyWorking(false);
     }
   }
 
@@ -1030,6 +1124,76 @@ export function SettingsClient({
               )}
             </div>
           </div>
+
+          {isOwner && passkeyEnabled && (
+            <div className="border-t pt-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="mb-2 flex items-center gap-2 text-sm font-medium">
+                    <Fingerprint className="size-4 text-primary" />
+                    {t("settings.passkeyTitle")}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {passkeyOwnerRequired
+                      ? t("settings.passkeyRequiredDescription")
+                      : t("settings.passkeyOptionalDescription")}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddPasskey}
+                  disabled={passkeyWorking}
+                >
+                  {passkeyWorking ? t("common.loading") : t("settings.passkeyAdd")}
+                </Button>
+              </div>
+
+              {passkeyLoading ? (
+                <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+              ) : passkeys.length === 0 ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  {t("settings.passkeyEmpty")}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {passkeys.map((credential) => (
+                    <div
+                      key={credential.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium">{credential.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t("settings.passkeyCreatedAt")}:{" "}
+                          {new Date(credential.createdAt).toLocaleString(locale)}
+                          {credential.lastUsedAt
+                            ? ` / ${t("settings.passkeyLastUsedAt")}: ${new Date(credential.lastUsedAt).toLocaleString(locale)}`
+                            : ""}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleDeletePasskey(credential.id)}
+                        disabled={passkeyWorking || (passkeyOwnerRequired && passkeys.length <= 1)}
+                        title={t("common.delete")}
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {passkeyResult && (
+                <span className={`mt-2 block text-sm ${passkeyResult.ok ? "text-green-600" : "text-red-600"}`}>
+                  {passkeyResult.msg}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Auth Expiry / Login Cache Period - admin only */}
           {role === "admin" && <div className="border-t pt-4">

@@ -135,6 +135,7 @@ export async function createSignedInResponse(input: {
   setupSessionMaxAge?: number;
   locale?: string | null;
   acceptLanguage?: string | null;
+  webauthnVerified?: boolean;
 }) {
   const now = new Date().toISOString();
   const sessionToken = generateSessionToken();
@@ -144,6 +145,7 @@ export async function createSignedInResponse(input: {
   await db.insert(authSessions).values({
     userId: input.userId,
     sessionToken,
+    webauthnVerified: input.webauthnVerified ?? true,
     expiresAt,
   });
 

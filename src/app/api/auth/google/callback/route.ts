@@ -19,6 +19,10 @@ import { buildSuccessfulAuthState } from "@/lib/account-security";
 import { sendSignupCompletedEmail } from "@/lib/mail";
 import { buildPublicAppUrl } from "@/lib/public-origin";
 import { maybeBootstrapSuperOwner } from "@/lib/super-owner";
+import {
+  getWebAuthnPostAuthAction,
+  isWebAuthnVerifiedAtSessionCreation,
+} from "@/lib/webauthn";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
 const GOOGLE_USER_ID_FALLBACK = "google-user";
@@ -152,7 +156,17 @@ export async function GET(request: NextRequest) {
       request,
     });
 
-    const redirectPath = user.pinHash ? (flow.redirectTo ?? "/boards") : "/pin/setup";
+    const webauthnAction = await getWebAuthnPostAuthAction(user);
+    const webauthnRedirectSuffix = flow.redirectTo
+      ? `?redirectTo=${encodeURIComponent(flow.redirectTo)}`
+      : "";
+    const redirectPath = user.pinHash
+      ? webauthnAction === "register"
+        ? `/passkey/setup${webauthnRedirectSuffix}`
+        : webauthnAction === "authenticate"
+          ? `/passkey/verify${webauthnRedirectSuffix}`
+          : (flow.redirectTo ?? "/boards")
+      : "/pin/setup";
     const response = await createSignedInResponse({
       requestDeviceToken: deviceToken,
       userId: user.id,
@@ -160,6 +174,9 @@ export async function GET(request: NextRequest) {
       setupSessionMaxAge: user.pinHash ? undefined : SETUP_SESSION_MAX_AGE,
       locale: user.locale,
       acceptLanguage: request.headers.get("accept-language"),
+      webauthnVerified: user.pinHash
+        ? await isWebAuthnVerifiedAtSessionCreation(user)
+        : true,
     });
     response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions());
     return response;
@@ -221,6 +238,7 @@ export async function GET(request: NextRequest) {
       setupSessionMaxAge: SETUP_SESSION_MAX_AGE,
       locale: createdUser.locale,
       acceptLanguage: request.headers.get("accept-language"),
+      webauthnVerified: true,
     });
     response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions());
     return response;
@@ -299,6 +317,7 @@ export async function GET(request: NextRequest) {
       setupSessionMaxAge: SETUP_SESSION_MAX_AGE,
       locale: createdUser.locale,
       acceptLanguage: request.headers.get("accept-language"),
+      webauthnVerified: true,
     });
     response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions());
     return response;
