@@ -62,47 +62,6 @@ async function createAuthorization(input: {
   return { state: flow.state, authorizationUrl };
 }
 
-async function createAuthResponse(input: {
-  request: NextRequest;
-  mode: GoogleAuthMode;
-  redirectTo?: string | null;
-  sharedSignupToken?: string | null;
-  organizationName?: string | null;
-}) {
-  const rateLimit = await consumeRateLimit({
-    rateLimitKey: buildRateLimitKey({
-      flow: "google-oauth",
-      clientIp: resolveRateLimitClientIp(input.request),
-      subject: input.mode,
-    }),
-    windowMs: GOOGLE_OAUTH_RATE_LIMIT_WINDOW_MS,
-    maxAttempts: GOOGLE_OAUTH_RATE_LIMIT_MAX,
-  });
-  if (rateLimit.limited) {
-    return NextResponse.json(
-      { error: "Google認証リクエストの上限に達しました", code: "google_oauth_rate_limited" },
-      { status: 429 },
-    );
-  }
-
-  const authorization = await createAuthorization(input);
-  if (!authorization) {
-    return NextResponse.json(
-      { error: "Google認証の設定が不完全です" },
-      { status: 503 },
-    );
-  }
-  const response = NextResponse.json({
-    authorizationUrl: authorization.authorizationUrl,
-  });
-  response.cookies.set(
-    GOOGLE_OAUTH_STATE_COOKIE,
-    authorization.state,
-    buildAuthCookieOptions(GOOGLE_OAUTH_STATE_MAX_AGE),
-  );
-  return response;
-}
-
 function canonicalOriginRedirect(request: NextRequest) {
   const origin = getPublicAppOrigin();
   if (!origin) {
@@ -209,56 +168,4 @@ export async function GET(request: NextRequest) {
     buildAuthCookieOptions(GOOGLE_OAUTH_STATE_MAX_AGE),
   );
   return redirectResponse;
-}
-
-/** POST /api/auth/google/start — start Google login/signup */
-export async function POST(request: NextRequest) {
-  if (!isGoogleAuthEnabled()) {
-    return NextResponse.json(
-      { error: "Google認証は有効化されていません" },
-      { status: 503 },
-    );
-  }
-
-  const body = await request.json();
-  const mode = body.mode as GoogleAuthMode | undefined;
-
-  if (mode === "login") {
-    const redirectTo = isAllowedRedirectTo(body.redirectTo) ? body.redirectTo : "/boards";
-    return createAuthResponse({ request, mode, redirectTo });
-  }
-
-  if (mode === "owner-signup") {
-    const organizationName = normalizeOrganizationName(body.organizationName);
-    if (organizationName !== null && !isValidOrganizationName(organizationName)) {
-      return NextResponse.json(
-        { error: `組織名は${ORGANIZATION_NAME_MAX_LENGTH}文字以内で入力してください` },
-        { status: 400 },
-      );
-    }
-
-    return createAuthResponse({ request, mode, organizationName });
-  }
-
-  if (mode === "shared-signup") {
-    const token = typeof body.token === "string" ? body.token : "";
-    const now = new Date().toISOString();
-    const signupRequest = await db.query.sharedSignupRequests.findFirst({
-      where: and(
-        eq(sharedSignupRequests.token, token),
-        isNull(sharedSignupRequests.completedAt),
-        gt(sharedSignupRequests.expiresAt, now),
-      ),
-    });
-    if (!signupRequest) {
-      return NextResponse.json(
-        { error: "無効または期限切れの招待リンクです" },
-        { status: 400 },
-      );
-    }
-
-    return createAuthResponse({ request, mode, sharedSignupToken: token });
-  }
-
-  return NextResponse.json({ error: "不正な認証モードです" }, { status: 400 });
 }

@@ -3,7 +3,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import googleLogo from "@/resources/google_logo.png";
 
 const googleButtonClassName = [
@@ -40,10 +39,10 @@ export function GoogleAuthButton({
 }) {
   if (href) {
     return (
-      <Link href={href} className={googleButtonClassName}>
+      <a href={href} className={googleButtonClassName}>
         <GoogleLogo />
         <span>{children}</span>
-      </Link>
+      </a>
     );
   }
 
