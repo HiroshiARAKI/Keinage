@@ -9,6 +9,7 @@ import {
   AUTH_SESSION_COOKIE,
   SESSION_MAX_AGE,
   buildAuthCookieOptions,
+  createCookieCommittedNavigationPage,
 } from "@/lib/auth";
 import {
   DEVICE_AUTH_COOKIE,
@@ -39,16 +40,49 @@ import {
   getWebAuthnPostAuthAction,
   isWebAuthnVerifiedAtSessionCreation,
 } from "@/lib/webauthn";
+import { sanitizeRedirectTarget } from "@/lib/utils";
+
+function getRequestedRedirectTo(request: NextRequest, contentType: string, body: {
+  redirectTo?: string;
+}) {
+  const bodyRedirectTo = sanitizeRedirectTarget(body.redirectTo ?? null);
+  if (bodyRedirectTo) {
+    return bodyRedirectTo;
+  }
+
+  if (!contentType.includes("application/x-www-form-urlencoded")) {
+    return null;
+  }
+
+  return sanitizeRedirectTarget(request.nextUrl.searchParams.get("redirectTo"));
+}
+
+function createLoginRedirectResponse(request: NextRequest, input: {
+  redirectTo: string | null;
+  error: string;
+}) {
+  const url = new URL("/pin/login", request.url);
+  if (input.redirectTo) {
+    url.searchParams.set("redirectTo", input.redirectTo);
+  }
+  url.searchParams.set("error", input.error);
+  return NextResponse.redirect(url, 303);
+}
 
 /** POST /api/auth/credentials/login — email/userId + password login */
 export async function POST(request: NextRequest) {
   const clientIp = resolveRateLimitClientIp(request);
-
-  const body = await request.json();
+  const contentType = request.headers.get("content-type") ?? "";
+  const body = contentType.includes("application/json")
+    ? await request.json()
+    : Object.fromEntries((await request.formData()).entries());
   const { identifier, password } = body as {
     identifier?: string;
     password?: string;
+    redirectTo?: string;
   };
+  const requestedRedirectTo = getRequestedRedirectTo(request, contentType, body);
+  const expectsJson = contentType.includes("application/json");
 
   const normalizedIdentifier = identifier?.trim() ?? "";
   const rateLimitKey = buildRateLimitKey({
@@ -72,21 +106,17 @@ export async function POST(request: NextRequest) {
     );
 
   if (recentAttempts.length >= MAX_PIN_ATTEMPTS) {
-    return NextResponse.json(
-      {
-        error:
-          "試行回数の上限に達しました。24時間後に再度お試しください。",
-        blocked: true,
-      },
-      { status: 429 },
-    );
+    const error = "試行回数の上限に達しました。24時間後に再度お試しください。";
+    return expectsJson
+      ? NextResponse.json({ error, blocked: true }, { status: 429 })
+      : createLoginRedirectResponse(request, { redirectTo: requestedRedirectTo, error });
   }
 
   if (!normalizedIdentifier || !password) {
-    return NextResponse.json(
-      { error: "ユーザーIDまたはメールアドレスとパスワードを入力してください" },
-      { status: 400 },
-    );
+    const error = "ユーザーIDまたはメールアドレスとパスワードを入力してください";
+    return expectsJson
+      ? NextResponse.json({ error }, { status: 400 })
+      : createLoginRedirectResponse(request, { redirectTo: requestedRedirectTo, error });
   }
 
   const user = await db.query.users.findFirst({
@@ -105,24 +135,20 @@ export async function POST(request: NextRequest) {
   // Constant-time failure to prevent user enumeration
   if (!user) {
     await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
-    return NextResponse.json(
-      { error: "ユーザーIDまたはパスワードが正しくありません" },
-      { status: 401 },
-    );
+    const error = "ユーザーIDまたはパスワードが正しくありません";
+    return expectsJson
+      ? NextResponse.json({ error }, { status: 401 })
+      : createLoginRedirectResponse(request, { redirectTo: requestedRedirectTo, error });
   }
 
   const now = new Date().toISOString();
   if (isAccountLocked(user.lockedUntil, now)) {
-    return NextResponse.json(
-      {
-        error: user.passwordHash
-          ? "このアカウントは一時的にロックされています。パスワードを再設定するか、30分後に再度お試しください。"
-          : "このアカウントは一時的にロックされています。Googleでログインし、必要に応じてPIN初期化を利用するか、30分後に再度お試しください。",
-        blocked: true,
-        locked: true,
-      },
-      { status: 423 },
-    );
+    const error = user.passwordHash
+      ? "このアカウントは一時的にロックされています。パスワードを再設定するか、30分後に再度お試しください。"
+      : "このアカウントは一時的にロックされています。Googleでログインし、必要に応じてPIN初期化を利用するか、30分後に再度お試しください。";
+    return expectsJson
+      ? NextResponse.json({ error, blocked: true, locked: true }, { status: 423 })
+      : createLoginRedirectResponse(request, { redirectTo: requestedRedirectTo, error });
   }
 
   if (!user.passwordHash) {
@@ -138,24 +164,16 @@ export async function POST(request: NextRequest) {
       .where(eq(users.id, user.id));
 
     if (failedState.lockedNow) {
-      return NextResponse.json(
-        {
-          error:
-            "Google連携ユーザに対して5回連続でパスワードログインが失敗したため、アカウントを30分間ロックしました。Googleでログインし、必要に応じてPIN初期化を利用するか、30分後に再度お試しください。",
-          blocked: true,
-          locked: true,
-        },
-        { status: 423 },
-      );
+      const error = "Google連携ユーザに対して5回連続でパスワードログインが失敗したため、アカウントを30分間ロックしました。Googleでログインし、必要に応じてPIN初期化を利用するか、30分後に再度お試しください。";
+      return expectsJson
+        ? NextResponse.json({ error, blocked: true, locked: true }, { status: 423 })
+        : createLoginRedirectResponse(request, { redirectTo: requestedRedirectTo, error });
     }
 
-    return NextResponse.json(
-      {
-        error: `当該ユーザはGoogleアカウント連携をしているのでパスワードログインやパスワードリセットはできません。Googleでログインしてください。PINを忘れた場合は、Googleログイン後にPIN初期化を利用してください${failedState.remaining > 0 ? `（残り${failedState.remaining}回でロック）` : ""}`,
-        remaining: failedState.remaining,
-      },
-      { status: 401 },
-    );
+    const error = `当該ユーザはGoogleアカウント連携をしているのでパスワードログインやパスワードリセットはできません。Googleでログインしてください。PINを忘れた場合は、Googleログイン後にPIN初期化を利用してください${failedState.remaining > 0 ? `（残り${failedState.remaining}回でロック）` : ""}`;
+    return expectsJson
+      ? NextResponse.json({ error, remaining: failedState.remaining }, { status: 401 })
+      : createLoginRedirectResponse(request, { redirectTo: requestedRedirectTo, error });
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
@@ -175,24 +193,16 @@ export async function POST(request: NextRequest) {
       .where(eq(users.id, user.id));
 
     if (failedState.lockedNow) {
-      return NextResponse.json(
-        {
-          error:
-            "5回連続で認証に失敗したため、アカウントを30分間ロックしました。パスワード再設定後、または30分後に再度お試しください。",
-          blocked: true,
-          locked: true,
-        },
-        { status: 423 },
-      );
+      const error = "5回連続で認証に失敗したため、アカウントを30分間ロックしました。パスワード再設定後、または30分後に再度お試しください。";
+      return expectsJson
+        ? NextResponse.json({ error, blocked: true, locked: true }, { status: 423 })
+        : createLoginRedirectResponse(request, { redirectTo: requestedRedirectTo, error });
     }
 
-    return NextResponse.json(
-      {
-        error: `ユーザーIDまたはパスワードが正しくありません${failedState.remaining > 0 ? `（残り${failedState.remaining}回）` : ""}`,
-        remaining: failedState.remaining,
-      },
-      { status: 401 },
-    );
+    const error = `ユーザーIDまたはパスワードが正しくありません${failedState.remaining > 0 ? `（残り${failedState.remaining}回）` : ""}`;
+    return expectsJson
+      ? NextResponse.json({ error, remaining: failedState.remaining }, { status: 401 })
+      : createLoginRedirectResponse(request, { redirectTo: requestedRedirectTo, error });
   }
 
   // Clear attempts for the successfully authenticated subject bucket.
@@ -237,6 +247,15 @@ export async function POST(request: NextRequest) {
     acceptLanguage: request.headers.get("accept-language"),
   });
   const webauthnAction = await getWebAuthnPostAuthAction(user);
+  const nextPath = webauthnAction === "register"
+    ? requestedRedirectTo
+      ? `/passkey/setup?redirectTo=${encodeURIComponent(requestedRedirectTo)}`
+      : "/passkey/setup"
+    : webauthnAction === "authenticate"
+      ? requestedRedirectTo
+        ? `/passkey/verify?redirectTo=${encodeURIComponent(requestedRedirectTo)}`
+        : "/passkey/verify"
+      : requestedRedirectTo ?? "/boards";
   const res = NextResponse.json({
     success: true,
     locale,
@@ -247,9 +266,24 @@ export async function POST(request: NextRequest) {
         ? "/passkey/verify"
         : null,
   });
-  res.cookies.set(AUTH_SESSION_COOKIE, sessionToken, buildAuthCookieOptions(SESSION_MAX_AGE));
-  setDeviceAuthCookie(res, deviceToken);
-  setLocaleCookie(res, locale);
-  clearLegacyLastUserCookie(res);
-  return res;
+  const response = expectsJson
+    ? res
+    : new NextResponse(
+        createCookieCommittedNavigationPage({
+          redirectTo: new URL(nextPath, request.url).toString(),
+          title: "Signing in...",
+          message: "サインインを完了しています...",
+        }),
+        {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "no-store",
+          },
+        },
+      );
+  response.cookies.set(AUTH_SESSION_COOKIE, sessionToken, buildAuthCookieOptions(SESSION_MAX_AGE));
+  setDeviceAuthCookie(response, deviceToken);
+  setLocaleCookie(response, locale);
+  clearLegacyLastUserCookie(response);
+  return response;
 }

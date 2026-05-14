@@ -63,6 +63,43 @@ export function buildExpiredAuthCookieOptions() {
   };
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+export function createCookieCommittedNavigationPage(input: {
+  redirectTo: string;
+  title?: string;
+  message?: string;
+}) {
+  const escapedUrl = escapeHtml(input.redirectTo);
+  const serializedUrl = JSON.stringify(input.redirectTo);
+  const title = escapeHtml(input.title ?? "Redirecting...");
+  const message = escapeHtml(input.message ?? "移動しています...");
+
+  return `<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="0;url=${escapedUrl}" />
+    <title>${title}</title>
+  </head>
+  <body>
+    <p>${message}</p>
+    <p><a href="${escapedUrl}">移動しない場合はこちら</a></p>
+    <script>
+      window.location.replace(${serializedUrl});
+    </script>
+  </body>
+</html>`;
+}
+
 /** Default full-auth expiry: 30 days */
 export const DEFAULT_AUTH_EXPIRE_DAYS = 30;
 

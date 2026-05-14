@@ -8,6 +8,7 @@ import {
   AUTH_SESSION_COOKIE,
   SESSION_MAX_AGE,
   buildAuthCookieOptions,
+  createCookieCommittedNavigationPage,
 } from "@/lib/auth";
 import {
   DEVICE_AUTH_COOKIE,
@@ -188,37 +189,6 @@ export async function fetchGoogleUserInfo(input: {
   });
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function createPostAuthRedirectPage(redirectTo: string) {
-  const escapedUrl = escapeHtml(redirectTo);
-  const serializedUrl = JSON.stringify(redirectTo);
-
-  return `<!doctype html>
-<html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta http-equiv="refresh" content="0;url=${escapedUrl}" />
-    <title>Signing in...</title>
-  </head>
-  <body>
-    <p>サインインを完了しています...</p>
-    <p><a href="${escapedUrl}">移動しない場合はこちら</a></p>
-    <script>
-      window.location.replace(${serializedUrl});
-    </script>
-  </body>
-</html>`;
-}
-
 export async function createSignedInResponse(input: {
   requestDeviceToken?: string;
   userId: string;
@@ -246,7 +216,11 @@ export async function createSignedInResponse(input: {
     authenticatedAt: now,
   });
 
-  const response = new NextResponse(createPostAuthRedirectPage(input.redirectTo), {
+  const response = new NextResponse(createCookieCommittedNavigationPage({
+    redirectTo: input.redirectTo,
+    title: "Signing in...",
+    message: "サインインを完了しています...",
+  }), {
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
