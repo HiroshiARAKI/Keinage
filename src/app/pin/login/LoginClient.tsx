@@ -2,31 +2,74 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { KeinageLogo } from "@/components/KeinageLogo";
+import { isSupportedLocale } from "@/lib/i18n";
 
 export default function LoginClient({
   redirectTo,
-  initialError,
   notice,
   showPinLoginLink,
   googleAuthEnabled,
 }: {
   redirectTo?: string | null;
-  initialError?: string | null;
   notice?: "password-reset" | "signup-existing" | null;
   showPinLoginLink: boolean;
   googleAuthEnabled: boolean;
 }) {
-  const { t } = useLocale();
+  const { t, setLocale } = useLocale();
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const loginAction = redirectTo
-    ? `/api/auth/credentials/login?redirectTo=${encodeURIComponent(redirectTo)}`
-    : "/api/auth/credentials/login";
+  const [blocked, setBlocked] = useState(false);
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (submitting || blocked) return;
+      setSubmitting(true);
+      setError("");
+
+      try {
+        const res = await fetch("/api/auth/credentials/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identifier, password }),
+        });
+        const data = await res.json();
+
+        console.log("[LoginClient] Login response", { status: res.status, ok: res.ok, data });
+
+        if (!res.ok) {
+          if (data.blocked || data.locked) setBlocked(true);
+          setError(data.error || t("error.authFailed"));
+          setPassword("");
+          setSubmitting(false);
+          return;
+        }
+
+        if (isSupportedLocale(data.locale)) {
+          setLocale(data.locale);
+        }
+
+        const nextPath =
+          data.redirectTo && redirectTo
+            ? `${data.redirectTo}?redirectTo=${encodeURIComponent(redirectTo)}`
+            : data.redirectTo || redirectTo || "/boards";
+        window.location.assign(nextPath);
+      } catch {
+        setError(t("error.network"));
+        setPassword("");
+        setSubmitting(false);
+      }
+    },
+    [redirectTo, identifier, password, submitting, blocked, t, setLocale],
+  );
 
   const pinLoginHref = redirectTo
     ? `/pin?redirectTo=${encodeURIComponent(redirectTo)}`
@@ -65,12 +108,7 @@ export default function LoginClient({
             </p>
           )}
 
-          <form
-            method="post"
-            action={loginAction}
-            onSubmit={() => setSubmitting(true)}
-            className="space-y-4"
-          >
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label
                 htmlFor="identifier"
@@ -81,11 +119,12 @@ export default function LoginClient({
               <input
                 id="identifier"
                 type="text"
-                name="identifier"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 placeholder={t("auth.login.identifierPlaceholder")}
                 required
                 autoFocus
-                disabled={submitting}
+                disabled={blocked}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50"
               />
             </div>
@@ -99,23 +138,22 @@ export default function LoginClient({
               <input
                 id="password"
                 type="password"
-                name="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder={t("auth.login.passwordPlaceholder")}
                 required
-                disabled={submitting}
+                disabled={blocked}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-50"
               />
             </div>
 
-            {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
-
-            {initialError && (
-              <p className="text-center text-sm text-red-600">{initialError}</p>
+            {error && (
+              <p className="text-center text-sm text-red-600">{error}</p>
             )}
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || blocked}
               className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:bg-gray-300"
             >
               {submitting ? t("auth.login.submitting") : t("auth.login.submit")}

@@ -229,11 +229,11 @@ export async function POST(request: NextRequest) {
         ? "/passkey/verify"
         : null,
   });
-  res.cookies.set(AUTH_SESSION_COOKIE, sessionToken, buildAuthCookieOptions(SESSION_MAX_AGE));
+  res.cookies.set(AUTH_SESSION_COOKIE, sessionToken, buildAuthCookieOptions(SESSION_MAX_AGE, request));
   if (deviceToken) {
-    setDeviceAuthCookie(res, deviceToken);
+    setDeviceAuthCookie(res, deviceToken, request);
   }
   setLocaleCookie(res, locale);
-  clearLegacyLastUserCookie(res);
+  clearLegacyLastUserCookie(res, request);
   return res;
 }

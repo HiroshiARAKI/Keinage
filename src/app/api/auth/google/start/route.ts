@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
   redirectResponse.cookies.set(
     GOOGLE_OAUTH_STATE_COOKIE,
     authorization.state,
-    buildAuthCookieOptions(GOOGLE_OAUTH_STATE_MAX_AGE),
+    buildAuthCookieOptions(GOOGLE_OAUTH_STATE_MAX_AGE, request),
   );
   return redirectResponse;
 }

@@ -9,7 +9,7 @@ import { clearLegacyLastUserCookie } from "@/lib/device-auth";
 import { cookies } from "next/headers";
 
 /** POST /api/auth/pin/logout — clear session */
-export async function POST() {
+export async function POST(request: Request) {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(AUTH_SESSION_COOKIE)?.value;
 
@@ -22,7 +22,7 @@ export async function POST() {
   }
 
   const res = NextResponse.json({ success: true });
-  res.cookies.set(AUTH_SESSION_COOKIE, "", buildExpiredAuthCookieOptions());
-  clearLegacyLastUserCookie(res);
+  res.cookies.set(AUTH_SESSION_COOKIE, "", buildExpiredAuthCookieOptions(request));
+  clearLegacyLastUserCookie(res, request);
   return res;
 }

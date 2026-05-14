@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
   res.cookies.set(
     SIGNUP_REQUEST_COOKIE,
     signupRequest.id,
-    buildAuthCookieOptions(SIGNUP_REQUEST_COOKIE_MAX_AGE),
+    buildAuthCookieOptions(SIGNUP_REQUEST_COOKIE_MAX_AGE, request),
   );
   return res;
 }

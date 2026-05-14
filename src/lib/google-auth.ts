@@ -190,6 +190,7 @@ export async function fetchGoogleUserInfo(input: {
 }
 
 export async function createSignedInResponse(input: {
+  request?: Request;
   requestDeviceToken?: string;
   userId: string;
   redirectTo: string;
@@ -229,9 +230,9 @@ export async function createSignedInResponse(input: {
   response.cookies.set(
     AUTH_SESSION_COOKIE,
     sessionToken,
-    buildAuthCookieOptions(sessionMaxAge),
+    buildAuthCookieOptions(sessionMaxAge, input.request),
   );
-  setDeviceAuthCookie(response, deviceToken);
+  setDeviceAuthCookie(response, deviceToken, input.request);
   setLocaleCookie(
     response,
     resolveAuthenticatedLocale({
@@ -239,7 +240,7 @@ export async function createSignedInResponse(input: {
       acceptLanguage: input.acceptLanguage,
     }),
   );
-  clearLegacyLastUserCookie(response);
+  clearLegacyLastUserCookie(response, input.request);
   return response;
 }
 

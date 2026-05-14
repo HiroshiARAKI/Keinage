@@ -79,8 +79,8 @@ export async function POST(request: NextRequest) {
   }
 
   const response = NextResponse.json({ success: true, summary });
-  response.cookies.set(AUTH_SESSION_COOKIE, "", buildExpiredAuthCookieOptions());
-  clearDeviceAuthCookie(response);
-  clearLegacyLastUserCookie(response);
+  response.cookies.set(AUTH_SESSION_COOKIE, "", buildExpiredAuthCookieOptions(request));
+  clearDeviceAuthCookie(response, request);
+  clearLegacyLastUserCookie(response, request);
   return response;
 }

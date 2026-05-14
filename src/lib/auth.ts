@@ -35,7 +35,13 @@ export async function verifyPassword(
 
 /** Auth session cookie name */
 export const AUTH_SESSION_COOKIE = "auth-session";
-export const AUTH_COOKIE_SECURE = process.env.NODE_ENV === "production";
+
+const COOKIE_INSECURE_HOSTNAMES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "[::1]",
+]);
 
 /**
  * Legacy cookie that stored the last authenticated userId.
@@ -46,19 +52,39 @@ export const LAST_USER_COOKIE = "last-user-id";
 /** PIN session duration: 24 hours (in seconds, for cookie maxAge) */
 export const SESSION_MAX_AGE = 60 * 60 * 24;
 
-export function buildAuthCookieOptions(maxAge: number) {
+function shouldUseSecureAuthCookies(request?: Request) {
+  const candidateUrl = request
+    ? buildRequestHeaderAppUrl(request, "/")
+    : getPublicAppOrigin();
+
+  if (!candidateUrl) {
+    return false;
+  }
+
+  try {
+    const url = new URL(candidateUrl);
+    if (COOKIE_INSECURE_HOSTNAMES.has(url.hostname.toLowerCase())) {
+      return false;
+    }
+    return url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function buildAuthCookieOptions(maxAge: number, request?: Request) {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
     path: "/",
     maxAge,
-    secure: AUTH_COOKIE_SECURE,
+    secure: shouldUseSecureAuthCookies(request),
   };
 }
 
-export function buildExpiredAuthCookieOptions() {
+export function buildExpiredAuthCookieOptions(request?: Request) {
   return {
-    ...buildAuthCookieOptions(0),
+    ...buildAuthCookieOptions(0, request),
     expires: new Date(0),
   };
 }
@@ -100,6 +126,19 @@ export function createCookieCommittedNavigationPage(input: {
 </html>`;
 }
 
+export function buildRelativeAppPath(input: {
+  pathname: string;
+  searchParams?: Record<string, string | null | undefined>;
+}) {
+  const url = new URL(input.pathname, "http://localhost");
+  for (const [key, value] of Object.entries(input.searchParams ?? {})) {
+    if (value) {
+      url.searchParams.set(key, value);
+    }
+  }
+  return `${url.pathname}${url.search}`;
+}
+
 /** Default full-auth expiry: 30 days */
 export const DEFAULT_AUTH_EXPIRE_DAYS = 30;
 
@@ -136,6 +175,10 @@ import { cookies } from "next/headers";
 import { db } from "@/db";
 import { authSessions } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
+import {
+  buildRequestHeaderAppUrl,
+  getPublicAppOrigin,
+} from "@/lib/public-origin";
 
 /**
  * Read the current session from the cookie store and return the

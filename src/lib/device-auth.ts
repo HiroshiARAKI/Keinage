@@ -64,18 +64,22 @@ export async function storeDeviceFullAuth(params: {
   return { deviceToken, lastFullAuthAt };
 }
 
-export function setDeviceAuthCookie(response: NextResponse, deviceToken: string) {
+export function setDeviceAuthCookie(
+  response: NextResponse,
+  deviceToken: string,
+  request?: Request,
+) {
   response.cookies.set(
     DEVICE_AUTH_COOKIE,
     deviceToken,
-    buildAuthCookieOptions(DEVICE_AUTH_COOKIE_MAX_AGE),
+    buildAuthCookieOptions(DEVICE_AUTH_COOKIE_MAX_AGE, request),
   );
 }
 
-export function clearDeviceAuthCookie(response: NextResponse) {
-  response.cookies.set(DEVICE_AUTH_COOKIE, "", buildExpiredAuthCookieOptions());
+export function clearDeviceAuthCookie(response: NextResponse, request?: Request) {
+  response.cookies.set(DEVICE_AUTH_COOKIE, "", buildExpiredAuthCookieOptions(request));
 }
 
-export function clearLegacyLastUserCookie(response: NextResponse) {
-  response.cookies.set(LAST_USER_COOKIE, "", buildExpiredAuthCookieOptions());
+export function clearLegacyLastUserCookie(response: NextResponse, request?: Request) {
+  response.cookies.set(LAST_USER_COOKIE, "", buildExpiredAuthCookieOptions(request));
 }

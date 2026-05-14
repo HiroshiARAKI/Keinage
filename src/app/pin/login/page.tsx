@@ -30,7 +30,6 @@ export default async function LoginPage({
   searchParams: Promise<{
     redirectTo?: string | string[];
     notice?: string | string[];
-    error?: string | string[];
   }>;
 }) {
   console.log("[/pin/login] START");
@@ -39,7 +38,6 @@ export default async function LoginPage({
     typeof params.redirectTo === "string" ? params.redirectTo : null,
   );
   const notice = typeof params.notice === "string" ? params.notice : null;
-  const error = typeof params.error === "string" ? params.error : null;
 
   // If admin user not configured, redirect to setup
   const adminUser = await db.query.users.findFirst();
@@ -133,7 +131,6 @@ export default async function LoginPage({
   return (
     <LoginClient
       redirectTo={redirectTo}
-      initialError={error}
       notice={
         notice === "signup-existing" || notice === "password-reset"
           ? notice
