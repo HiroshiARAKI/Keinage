@@ -72,8 +72,7 @@ export function PasskeyClient({
         }
       }
 
-      router.push(redirectTo || "/boards");
-      router.refresh();
+      window.location.assign(redirectTo || "/boards");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t("auth.passkey.authFailed"));
     } finally {

@@ -3,7 +3,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
@@ -22,7 +21,6 @@ export default function LoginClient({
   showPinLoginLink: boolean;
   googleAuthEnabled: boolean;
 }) {
-  const router = useRouter();
   const { t, setLocale } = useLocale();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -63,14 +61,14 @@ export default function LoginClient({
           data.redirectTo && redirectTo
             ? `${data.redirectTo}?redirectTo=${encodeURIComponent(redirectTo)}`
             : data.redirectTo || redirectTo || "/boards";
-        router.push(nextPath);
+        window.location.assign(nextPath);
       } catch {
         setError(t("error.network"));
         setPassword("");
         setSubmitting(false);
       }
     },
-    [router, redirectTo, identifier, password, submitting, blocked, t, setLocale],
+    [redirectTo, identifier, password, submitting, blocked, t, setLocale],
   );
 
   const pinLoginHref = redirectTo
