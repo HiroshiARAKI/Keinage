@@ -423,6 +423,36 @@ export const superOwnerAuditLogs = pgTable(
   }),
 );
 
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    actorUserId: text("actor_user_id")
+      .references(() => users.id, { onDelete: "set null" }),
+    actorType: text("actor_type").notNull().default("anonymous"),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id"),
+    result: text("result").notNull(),
+    reason: text("reason"),
+    ipHash: text("ip_hash"),
+    userAgent: text("user_agent"),
+    metadataJson: text("metadata_json"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+  },
+  (table) => ({
+    actionIdx: index("audit_logs_action_idx").on(table.action),
+    resultIdx: index("audit_logs_result_idx").on(table.result),
+    actorUserIdx: index("audit_logs_actor_user_id_idx").on(table.actorUserId),
+    targetIdx: index("audit_logs_target_idx").on(table.targetType, table.targetId),
+    createdAtIdx: index("audit_logs_created_at_idx").on(table.createdAt),
+  }),
+);
+
 export const adminAnnouncements = pgTable(
   "admin_announcements",
   {
@@ -630,6 +660,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   ownerSubscriptions: many(ownerSubscriptions),
   boardDisplayDevices: many(boardDisplayDevices),
   superOwnerAuditLogs: many(superOwnerAuditLogs),
+  auditLogs: many(auditLogs),
   createdAdminAnnouncements: many(adminAnnouncements),
   announcementReads: many(announcementReads),
 }));
@@ -708,6 +739,13 @@ export const deviceAuthGrantsRelations = relations(deviceAuthGrants, ({ one }) =
 export const superOwnerAuditLogsRelations = relations(superOwnerAuditLogs, ({ one }) => ({
   user: one(users, {
     fields: [superOwnerAuditLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  actor: one(users, {
+    fields: [auditLogs.actorUserId],
     references: [users.id],
   }),
 }));

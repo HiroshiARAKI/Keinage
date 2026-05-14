@@ -6,6 +6,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { authAccounts, superOwnerAuditLogs, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit-log";
 import { GOOGLE_AUTH_PROVIDER } from "@/lib/google-auth";
 import { isOwnerUser } from "@/lib/ownership";
 import { resolveRateLimitClientIp } from "@/lib/rate-limit";
@@ -93,6 +94,15 @@ export async function recordSuperOwnerAuditLog(input: {
     targetId: input.targetId ?? null,
     ipHash: context.ipHash,
     userAgent: context.userAgent,
+  });
+  await writeAuditLog({
+    actorUserId: input.userId,
+    actorType: "super_owner",
+    action: input.action,
+    targetType: input.targetType ?? "super_owner",
+    targetId: input.targetId ?? null,
+    result: "success",
+    request: input.request,
   });
 }
 

@@ -39,6 +39,7 @@ import {
   getWebAuthnPostAuthAction,
   isWebAuthnVerifiedAtSessionCreation,
 } from "@/lib/webauthn";
+import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 
 /** POST /api/auth/credentials/login — email/userId + password login */
 export async function POST(request: NextRequest) {
@@ -71,6 +72,14 @@ export async function POST(request: NextRequest) {
     );
 
   if (recentAttempts.length >= MAX_PIN_ATTEMPTS) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "denied",
+      reason: "rate_limited",
+      request,
+      metadata: { method: "credentials", identifierPresent: !!normalizedIdentifier },
+    });
     return NextResponse.json(
       {
         error:
@@ -82,6 +91,14 @@ export async function POST(request: NextRequest) {
   }
 
   if (!normalizedIdentifier || !password) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "missing_credentials",
+      request,
+      metadata: { method: "credentials", identifierPresent: !!normalizedIdentifier },
+    });
     return NextResponse.json(
       { error: "ユーザーIDまたはメールアドレスとパスワードを入力してください" },
       { status: 400 },
@@ -103,6 +120,14 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "user",
+      result: "failure",
+      reason: "user_not_found",
+      request,
+      metadata: { method: "credentials", identifierKind: normalizedIdentifier.includes("@") ? "email" : "user_id" },
+    });
     return NextResponse.json(
       { error: "ユーザーIDまたはパスワードが正しくありません" },
       { status: 401 },
@@ -111,6 +136,14 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString();
   if (isAccountLocked(user.lockedUntil, now)) {
+    await writeUserAuditLog({
+      user,
+      action: "login_failed",
+      result: "denied",
+      reason: "account_locked",
+      request,
+      metadata: { method: "credentials" },
+    });
     return NextResponse.json(
       {
         error: user.passwordHash
@@ -136,6 +169,14 @@ export async function POST(request: NextRequest) {
       .where(eq(users.id, user.id));
 
     if (failedState.lockedNow) {
+      await writeUserAuditLog({
+        user,
+        action: "account_locked",
+        result: "success",
+        reason: "password_login_for_google_user",
+        request,
+        metadata: { method: "credentials" },
+      });
       return NextResponse.json(
         {
           error:
@@ -147,6 +188,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await writeUserAuditLog({
+      user,
+      action: "login_failed",
+      result: "failure",
+      reason: "password_auth_unavailable",
+      request,
+      metadata: { method: "credentials", remaining: failedState.remaining },
+    });
     return NextResponse.json(
       {
         error: `当該ユーザはGoogleアカウント連携をしているのでパスワードログインやパスワードリセットはできません。Googleでログインしてください。PINを忘れた場合は、Googleログイン後にPIN初期化を利用してください${failedState.remaining > 0 ? `（残り${failedState.remaining}回でロック）` : ""}`,
@@ -173,6 +222,14 @@ export async function POST(request: NextRequest) {
       .where(eq(users.id, user.id));
 
     if (failedState.lockedNow) {
+      await writeUserAuditLog({
+        user,
+        action: "account_locked",
+        result: "success",
+        reason: "invalid_password",
+        request,
+        metadata: { method: "credentials" },
+      });
       return NextResponse.json(
         {
           error:
@@ -184,6 +241,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await writeUserAuditLog({
+      user,
+      action: "login_failed",
+      result: "failure",
+      reason: "invalid_password",
+      request,
+      metadata: { method: "credentials", remaining: failedState.remaining },
+    });
     return NextResponse.json(
       {
         error: `ユーザーIDまたはパスワードが正しくありません${failedState.remaining > 0 ? `（残り${failedState.remaining}回）` : ""}`,
@@ -210,6 +275,23 @@ export async function POST(request: NextRequest) {
     authenticatedProvider: "credentials",
     request,
   });
+  await writeUserAuditLog({
+    user,
+    action: "login_success",
+    result: "success",
+    request,
+    metadata: { method: "credentials" },
+  });
+  if (user.failedAuthAttempts > 0 || user.lockedUntil) {
+    await writeUserAuditLog({
+      user,
+      action: "account_unlocked",
+      result: "success",
+      reason: "login_success",
+      request,
+      metadata: { method: "credentials" },
+    });
+  }
 
   const { deviceToken } = await storeDeviceFullAuth({
     deviceToken: request.cookies.get(DEVICE_AUTH_COOKIE)?.value,

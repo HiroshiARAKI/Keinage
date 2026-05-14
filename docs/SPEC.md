@@ -88,6 +88,8 @@ Super Ownerは `/announcements` で運営通知を作成できます。通知に
 
 未読の重要通知は管理画面上部にバナー表示されます。確認必須通知は、確認ボタンを押すまで管理画面右下にも表示され、確認後はユーザーごとに `acknowledged_at` が保存されます。`send_email=true` の通知は公開時に既存SMTP設定で対象ユーザーへメール送信を試行します。
 
+Super Owner は監査ログ確認APIから、認証、課金、Stripe webhook、退会、Passkey、運営通知などの重要イベントを確認できます。監査ログにはパスワード、token、secret、カード情報、WebAuthn challenge は保存しません。IPアドレスはハッシュ化して保存します。
+
 ### 3.5 ログイン
 
 | 画面 | 方法 | 用途 |

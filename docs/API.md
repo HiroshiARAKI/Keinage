@@ -200,6 +200,7 @@ S3 storage 利用時の動画アップロードは、ブラウザが `/api/media
 | `PATCH` | `/api/users/<id>` | Shared user のロールなどを更新 | `admin` |
 | `DELETE` | `/api/users/<id>` | Shared user 削除 | `admin` |
 | `GET` | `/api/super-owner/status` | Super Owner認証状態を確認 | `super_owner` |
+| `GET` | `/api/super-owner/audit-logs` | 監査ログ一覧を取得。`action`、`result`、`actor_user_id`、`target_type`、`created_from`、`created_to`、`limit` で絞り込み | `super_owner` |
 | `GET` | `/api/announcements` | 現在ユーザーに公開中の運営通知一覧 | 必要 |
 | `POST` | `/api/announcements/<id>/read` | 運営通知を既読にする | 必要 |
 | `POST` | `/api/announcements/<id>/acknowledge` | 確認必須の運営通知を確認済みにする | 必要 |
@@ -212,6 +213,8 @@ S3 storage 利用時の動画アップロードは、ブラウザが `/api/media
 Owner user は削除できません。
 
 Super Ownerは通常のOwner登録・ログイン経路で認証し、`SUPER_OWNER_*` 環境変数に一致する初回Ownerのみbootstrapされます。Super Owner専用APIは `requireSuperOwner()` によるサーバー側判定を必須とし、アクセスは監査ログに記録されます。
+
+横断的な監査ログは `audit_logs` に保存されます。認証、Passkey、課金、Stripe webhook、退会、Super Owner 操作の主要イベントを記録し、IPアドレスはハッシュ化して保存します。パスワード、token、secret、Stripe署名、WebAuthn challenge は保存しません。
 
 運営通知は `published` かつ公開期間内のものだけが通常ユーザーに返ります。対象プランはサーバー側で effective plan から判定します。`send_email=true` の通知は公開時に対象ユーザーへ `SMTP_HOST` など既存SMTP設定を使って送信を試行し、失敗しても公開自体は維持します。
 

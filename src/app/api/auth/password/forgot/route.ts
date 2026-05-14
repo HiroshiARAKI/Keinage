@@ -12,6 +12,7 @@ import { sendPasswordResetEmail, isSmtpConfigured } from "@/lib/mail";
 import { generateResetToken } from "@/lib/pin";
 import { buildPublicAppUrl } from "@/lib/public-origin";
 import { normalizeSignupEmail } from "@/lib/signup";
+import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 
 /** POST /api/auth/password/forgot — issue a password reset email */
 export async function POST(request: NextRequest) {
@@ -22,6 +23,13 @@ export async function POST(request: NextRequest) {
     : "";
 
   if (!normalizedIdentifier) {
+    await writeAuditLog({
+      action: "password_reset_requested",
+      targetType: "user",
+      result: "failure",
+      reason: "missing_identifier",
+      request,
+    });
     return NextResponse.json(
       { error: "メールアドレスまたはユーザーIDを入力してください" },
       { status: 400 },
@@ -29,6 +37,13 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isSmtpConfigured()) {
+    await writeAuditLog({
+      action: "password_reset_requested",
+      targetType: "user",
+      result: "skipped",
+      reason: "smtp_not_configured",
+      request,
+    });
     return NextResponse.json(
       { error: "この環境ではメールによるパスワード再設定を利用できません" },
       { status: 503 },
@@ -43,10 +58,25 @@ export async function POST(request: NextRequest) {
   });
 
   if (!user) {
+    await writeAuditLog({
+      action: "password_reset_requested",
+      targetType: "user",
+      result: "skipped",
+      reason: "user_not_found",
+      request,
+      metadata: { identifierKind: normalizedIdentifier.includes("@") ? "email" : "user_id" },
+    });
     return NextResponse.json({ success: true });
   }
 
   if (!user.passwordHash) {
+    await writeUserAuditLog({
+      user,
+      action: "password_reset_requested",
+      result: "denied",
+      reason: "password_auth_unavailable",
+      request,
+    });
     return NextResponse.json(
       {
         error:
@@ -59,6 +89,13 @@ export async function POST(request: NextRequest) {
   const token = generateResetToken();
   const resetUrl = buildPublicAppUrl(`/password/reset/${token}`);
   if (!resetUrl) {
+    await writeUserAuditLog({
+      user,
+      action: "password_reset_requested",
+      result: "failure",
+      reason: "public_origin_not_configured",
+      request,
+    });
     return NextResponse.json(
       { error: "APP_PUBLIC_ORIGIN が未設定、または不正です" },
       { status: 503 },
@@ -83,11 +120,24 @@ export async function POST(request: NextRequest) {
   });
 
   if (!mailSent) {
+    await writeUserAuditLog({
+      user,
+      action: "password_reset_requested",
+      result: "failure",
+      reason: "mail_send_failed",
+      request,
+    });
     return NextResponse.json(
       { error: "再設定メールの送信に失敗しました。時間を置いて再度お試しください" },
       { status: 500 },
     );
   }
 
+  await writeUserAuditLog({
+    user,
+    action: "password_reset_requested",
+    result: "success",
+    request,
+  });
   return NextResponse.json({ success: true });
 }

@@ -14,6 +14,7 @@ import {
   resolveRateLimitClientIp,
 } from "@/lib/rate-limit";
 import { normalizeSignupEmail } from "@/lib/signup";
+import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 
 /** POST /api/auth/password/reset — change password using a valid reset token */
 export async function POST(request: NextRequest) {
@@ -21,9 +22,23 @@ export async function POST(request: NextRequest) {
   const { token, password } = body as { token?: string; password?: string };
 
   if (!token) {
+    await writeAuditLog({
+      action: "password_reset_failed",
+      targetType: "password_reset_token",
+      result: "failure",
+      reason: "missing_token",
+      request,
+    });
     return NextResponse.json({ error: "トークンが必要です" }, { status: 400 });
   }
   if (!password || password.length < 8) {
+    await writeAuditLog({
+      action: "password_reset_failed",
+      targetType: "password_reset_token",
+      result: "failure",
+      reason: "invalid_password_format",
+      request,
+    });
     return NextResponse.json(
       { error: "パスワードは8文字以上で入力してください" },
       { status: 400 },
@@ -41,6 +56,13 @@ export async function POST(request: NextRequest) {
   });
 
   if (!resetToken?.user || !resetToken.user.passwordHash) {
+    await writeAuditLog({
+      action: "password_reset_failed",
+      targetType: "password_reset_token",
+      result: "failure",
+      reason: "invalid_or_expired_token",
+      request,
+    });
     return NextResponse.json(
       { error: "無効または期限切れのトークンです" },
       { status: 400 },
@@ -62,6 +84,29 @@ export async function POST(request: NextRequest) {
     .where(eq(passwordResetTokens.id, resetToken.id));
 
   await db.delete(authSessions).where(eq(authSessions.userId, resetToken.user.id));
+  await writeUserAuditLog({
+    user: resetToken.user,
+    action: "password_reset_completed",
+    result: "success",
+    request,
+    metadata: { sessionsRevoked: true },
+  });
+  await writeUserAuditLog({
+    user: resetToken.user,
+    action: "session_revoked",
+    targetType: "session",
+    targetId: resetToken.user.id,
+    result: "success",
+    reason: "password_reset_completed",
+    request,
+  });
+  await writeUserAuditLog({
+    user: resetToken.user,
+    action: "account_unlocked",
+    result: "success",
+    reason: "password_reset_completed",
+    request,
+  });
 
   const clientIp = resolveRateLimitClientIp(request);
   const rateLimitKeys = [

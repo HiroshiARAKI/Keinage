@@ -10,6 +10,7 @@ import {
   isWebAuthnEnabled,
   isWebAuthnOwnerRequired,
 } from "@/lib/webauthn";
+import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 
 export async function GET() {
   if (!isWebAuthnEnabled()) {
@@ -45,19 +46,49 @@ export async function GET() {
 
 export async function DELETE(request: NextRequest) {
   if (!isWebAuthnEnabled()) {
+    await writeAuditLog({
+      action: "passkey_deleted",
+      targetType: "passkey",
+      result: "skipped",
+      reason: "webauthn_disabled",
+      request,
+    });
     return NextResponse.json({ error: "Passkey認証は無効です" }, { status: 404 });
   }
 
   const session = await getSessionUser();
   if (!session) {
+    await writeAuditLog({
+      action: "passkey_deleted",
+      targetType: "passkey",
+      result: "denied",
+      reason: "session_missing_or_passkey_pending",
+      request,
+    });
     return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
   }
   if (!isOwnerUser(session.user)) {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "passkey_deleted",
+      targetType: "passkey",
+      result: "denied",
+      reason: "owner_required",
+      request,
+    });
     return NextResponse.json({ error: "Ownerアカウントのみ利用できます" }, { status: 403 });
   }
 
   const { id } = await request.json() as { id?: string };
   if (!id) {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "passkey_deleted",
+      targetType: "passkey",
+      result: "failure",
+      reason: "missing_passkey_id",
+      request,
+    });
     return NextResponse.json({ error: "Passkey ID が必要です" }, { status: 400 });
   }
 
@@ -67,6 +98,15 @@ export async function DELETE(request: NextRequest) {
     .where(eq(webauthnCredentials.userId, session.user.id));
 
   if (isWebAuthnOwnerRequired() && credentials.length <= 1) {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "passkey_deleted",
+      targetType: "passkey",
+      targetId: id,
+      result: "denied",
+      reason: "last_required_passkey",
+      request,
+    });
     return NextResponse.json(
       { error: "必須設定のため、最後のPasskeyは削除できません。" },
       { status: 400 },
@@ -82,5 +122,13 @@ export async function DELETE(request: NextRequest) {
       ),
     );
 
+  await writeUserAuditLog({
+    user: session.user,
+    action: "passkey_deleted",
+    targetType: "passkey",
+    targetId: id,
+    result: "success",
+    request,
+  });
   return NextResponse.json({ success: true });
 }

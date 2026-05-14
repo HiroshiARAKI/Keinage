@@ -45,6 +45,7 @@ import {
   getWebAuthnPostAuthAction,
   isWebAuthnVerifiedAtSessionCreation,
 } from "@/lib/webauthn";
+import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 
 /** POST /api/auth/pin/verify — verify PIN and issue session */
 export async function POST(request: NextRequest) {
@@ -54,6 +55,14 @@ export async function POST(request: NextRequest) {
   const { pin } = body as { pin?: string };
 
   if (!pin || !/^\d{6}$/.test(pin)) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "invalid_pin_format",
+      request,
+      metadata: { method: "pin" },
+    });
     return NextResponse.json(
       { error: "PINは6桁の数字で入力してください" },
       { status: 400 },
@@ -91,6 +100,17 @@ export async function POST(request: NextRequest) {
     );
 
   if (recentAttempts.length >= MAX_PIN_ATTEMPTS) {
+    await writeAuditLog({
+      actorUserId: adminUser?.id ?? null,
+      actorType: adminUser ? "user" : "anonymous",
+      action: "login_failed",
+      targetType: "user",
+      targetId: adminUser?.id ?? null,
+      result: "denied",
+      reason: "rate_limited",
+      request,
+      metadata: { method: "pin" },
+    });
     return NextResponse.json(
       {
         error:
@@ -102,6 +122,14 @@ export async function POST(request: NextRequest) {
   }
 
   if (!deviceAuthGrant || !adminUser) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "denied",
+      reason: "full_auth_required",
+      request,
+      metadata: { method: "pin" },
+    });
     return NextResponse.json(
       { error: "メールアドレスとパスワードによる認証が必要です", requiresFullAuth: true },
       { status: 403 },
@@ -109,6 +137,14 @@ export async function POST(request: NextRequest) {
   }
 
   if (!adminUser.pinHash) {
+    await writeUserAuditLog({
+      user: adminUser,
+      action: "login_failed",
+      result: "denied",
+      reason: "pin_not_configured",
+      request,
+      metadata: { method: "pin" },
+    });
     return NextResponse.json(
       { error: "PINが設定されていません。メールアドレスでログインしてください。", requiresFullAuth: true },
       { status: 403 },
@@ -125,6 +161,14 @@ export async function POST(request: NextRequest) {
     : DEFAULT_AUTH_EXPIRE_DAYS;
 
   if (!isFullAuthValid(deviceAuthGrant.lastFullAuthAt, expireDays)) {
+    await writeUserAuditLog({
+      user: adminUser,
+      action: "login_failed",
+      result: "denied",
+      reason: "full_auth_expired",
+      request,
+      metadata: { method: "pin" },
+    });
     return NextResponse.json(
       { error: "メールアドレスとパスワードによる認証が必要です", requiresFullAuth: true },
       { status: 403 },
@@ -133,6 +177,14 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString();
   if (isAccountLocked(adminUser.lockedUntil, now)) {
+    await writeUserAuditLog({
+      user: adminUser,
+      action: "login_failed",
+      result: "denied",
+      reason: "account_locked",
+      request,
+      metadata: { method: "pin" },
+    });
     return NextResponse.json(
       {
         error:
@@ -158,6 +210,14 @@ export async function POST(request: NextRequest) {
       .where(eq(users.id, adminUser.id));
 
     if (failedState.lockedNow) {
+      await writeUserAuditLog({
+        user: adminUser,
+        action: "account_locked",
+        result: "success",
+        reason: "invalid_pin",
+        request,
+        metadata: { method: "pin" },
+      });
       return NextResponse.json(
         {
           error:
@@ -172,6 +232,14 @@ export async function POST(request: NextRequest) {
     if (process.env.NODE_ENV !== "production") {
       console.log("[pin/verify] PIN incorrect", { remaining: failedState.remaining });
     }
+    await writeUserAuditLog({
+      user: adminUser,
+      action: "login_failed",
+      result: "failure",
+      reason: "invalid_pin",
+      request,
+      metadata: { method: "pin", remaining: failedState.remaining },
+    });
     return NextResponse.json(
       {
         error: `PINが正しくありません${failedState.remaining > 0 ? `（残り${failedState.remaining}回）` : ""}`,
@@ -198,6 +266,23 @@ export async function POST(request: NextRequest) {
 
   // Success — clear attempts for the verified subject bucket.
   await db.delete(pinAttempts).where(eq(pinAttempts.ipAddress, rateLimitKey));
+  await writeUserAuditLog({
+    user: adminUser,
+    action: "login_success",
+    result: "success",
+    request,
+    metadata: { method: "pin" },
+  });
+  if (adminUser.failedAuthAttempts > 0 || adminUser.lockedUntil) {
+    await writeUserAuditLog({
+      user: adminUser,
+      action: "account_unlocked",
+      result: "success",
+      reason: "login_success",
+      request,
+      metadata: { method: "pin" },
+    });
+  }
 
   if (process.env.NODE_ENV !== "production") {
     console.log("[pin/verify] PIN verified OK");

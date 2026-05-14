@@ -27,6 +27,7 @@ import {
   getWebAuthnPostAuthAction,
   isWebAuthnVerifiedAtSessionCreation,
 } from "@/lib/webauthn";
+import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
 const GOOGLE_USER_ID_FALLBACK = "google-user";
@@ -110,6 +111,14 @@ async function buildUniqueGoogleUserId(email: string) {
 export async function GET(request: NextRequest) {
   const error = request.nextUrl.searchParams.get("error");
   if (error) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "google_cancelled",
+      request,
+      metadata: { method: "google" },
+    });
     return errorRedirect(request, "/pin/login", "google-cancelled");
   }
 
@@ -123,6 +132,14 @@ export async function GET(request: NextRequest) {
       })
     : false;
   if (!code || !state || (stateCookie ? state !== stateCookie : !browserBoundStateValid)) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "invalid_google_state",
+      request,
+      metadata: { method: "google" },
+    });
     return errorRedirect(request, "/pin/login", "invalid-google-state");
   }
 
@@ -135,6 +152,14 @@ export async function GET(request: NextRequest) {
     ),
   });
   if (!flow) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "invalid_google_state",
+      request,
+      metadata: { method: "google" },
+    });
     return errorRedirect(request, "/pin/login", "invalid-google-state");
   }
 
@@ -149,6 +174,14 @@ export async function GET(request: NextRequest) {
     expectedNonce: flow.nonce,
   });
   if (!googleUser || googleUser.email_verified !== true) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "google_email_unverified",
+      request,
+      metadata: { method: "google", mode: flow.mode },
+    });
     return errorRedirect(request, "/pin/login", "google-email-unverified");
   }
 
@@ -170,6 +203,14 @@ export async function GET(request: NextRequest) {
       });
 
       if (!existingGoogleOnlyUser || existingGoogleOnlyUser.passwordHash) {
+        await writeAuditLog({
+          action: "login_failed",
+          targetType: "user",
+          result: "failure",
+          reason: "google_user_not_found",
+          request,
+          metadata: { method: "google" },
+        });
         return errorRedirect(request, "/pin/login", "google-user-not-found");
       }
 
@@ -216,6 +257,13 @@ export async function GET(request: NextRequest) {
       webauthnVerified: user.pinHash
         ? await isWebAuthnVerifiedAtSessionCreation(user)
         : true,
+    });
+    await writeUserAuditLog({
+      user,
+      action: "login_success",
+      result: "success",
+      request,
+      metadata: { method: "google" },
     });
     response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions(request));
     return response;

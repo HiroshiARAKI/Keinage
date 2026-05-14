@@ -12,6 +12,7 @@ import {
 } from "@/lib/device-auth";
 import { isOwnerUser } from "@/lib/ownership";
 import { StripeBillingError } from "@/lib/stripe-billing";
+import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 
 /** POST /api/auth/account-deletion/complete — delete an owner account by email token */
 export async function POST(request: NextRequest) {
@@ -19,6 +20,13 @@ export async function POST(request: NextRequest) {
   const token = body?.token?.trim();
 
   if (!token) {
+    await writeAuditLog({
+      action: "account_delete_failed",
+      targetType: "account_deletion_request",
+      result: "failure",
+      reason: "missing_token",
+      request,
+    });
     return NextResponse.json({ error: "token is required" }, { status: 400 });
   }
 
@@ -32,6 +40,13 @@ export async function POST(request: NextRequest) {
   });
 
   if (!deletionRequest) {
+    await writeAuditLog({
+      action: "account_delete_failed",
+      targetType: "account_deletion_request",
+      result: "failure",
+      reason: "invalid_or_expired_token",
+      request,
+    });
     return NextResponse.json(
       { error: "リンクが無効か、有効期限が切れています" },
       { status: 404 },
@@ -47,6 +62,15 @@ export async function POST(request: NextRequest) {
       .delete(accountDeletionRequests)
       .where(eq(accountDeletionRequests.id, deletionRequest.id));
 
+    await writeAuditLog({
+      actorUserId: deletionRequest.ownerUserId,
+      action: "account_delete_failed",
+      targetType: "user",
+      targetId: deletionRequest.ownerUserId,
+      result: "failure",
+      reason: "owner_not_found",
+      request,
+    });
     return NextResponse.json(
       { error: "削除対象のOwnerアカウントが見つかりません" },
       { status: 404 },
@@ -62,6 +86,20 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof StripeBillingError) {
+      await writeUserAuditLog({
+        user: ownerUser,
+        action: "stripe_cancel_on_delete_failed",
+        result: "failure",
+        reason: error.code,
+        request,
+      });
+      await writeUserAuditLog({
+        user: ownerUser,
+        action: "account_delete_failed",
+        result: "failure",
+        reason: "stripe_cancel_failed",
+        request,
+      });
       return NextResponse.json(
         {
           error: "Stripeサブスクリプションのキャンセルに失敗しました。退会処理は完了していません。",
@@ -72,12 +110,28 @@ export async function POST(request: NextRequest) {
     }
 
     console.error("[account-deletion] Failed to delete owner account", error);
+    await writeUserAuditLog({
+      user: ownerUser,
+      action: "account_delete_failed",
+      result: "failure",
+      reason: "delete_failed",
+      request,
+    });
     return NextResponse.json(
       { error: "アカウント削除に失敗しました" },
       { status: 500 },
     );
   }
 
+  await writeAuditLog({
+    actorType: "owner",
+    action: "account_delete_completed",
+    targetType: "user",
+    targetId: ownerUser.id,
+    result: "success",
+    request,
+    metadata: { summary },
+  });
   const response = NextResponse.json({ success: true, summary });
   response.cookies.set(AUTH_SESSION_COOKIE, "", buildExpiredAuthCookieOptions(request));
   clearDeviceAuthCookie(response, request);

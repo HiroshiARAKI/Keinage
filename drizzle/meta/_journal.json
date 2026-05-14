@@ -176,6 +176,13 @@
       "when": 1778655600000,
       "tag": "0024_webauthn_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1778742000000,
+      "tag": "0025_audit_logs",
+      "breakpoints": true
     }
   ]
 }

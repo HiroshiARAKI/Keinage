@@ -27,6 +27,7 @@ import {
   consumeRateLimit,
   resolveRateLimitClientIp,
 } from "@/lib/rate-limit";
+import { writeUserAuditLog } from "@/lib/audit-log";
 
 const BILLING_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const BILLING_RATE_LIMIT_MAX = 20;
@@ -72,6 +73,15 @@ export async function POST(request: NextRequest) {
     maxAttempts: BILLING_RATE_LIMIT_MAX,
   });
   if (billingRateLimit.limited) {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "checkout_rate_limited",
+      targetType: "billing",
+      targetId: ownerUserId,
+      result: "denied",
+      reason: "rate_limited",
+      request,
+    });
     return NextResponse.json(
       { error: "決済リクエストの上限に達しました", code: "billing_rate_limited" },
       { status: 429 },
@@ -135,8 +145,27 @@ export async function POST(request: NextRequest) {
       cancelUrl,
     });
 
+    await writeUserAuditLog({
+      user: session.user,
+      action: "checkout_session_created",
+      targetType: "billing",
+      targetId: ownerUserId,
+      result: "success",
+      request,
+      metadata: { planCode, interval, priceIdKnown: true },
+    });
     return NextResponse.json({ url });
   } catch (error) {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "checkout_session_created",
+      targetType: "billing",
+      targetId: ownerUserId,
+      result: "failure",
+      reason: error instanceof StripeBillingError ? error.code : "checkout_session_failed",
+      request,
+      metadata: { planCode, interval, priceIdKnown: !!priceId },
+    });
     return errorResponse(error);
   }
 }
