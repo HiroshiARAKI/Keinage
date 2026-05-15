@@ -13,6 +13,7 @@ import {
 import { isOwnerUser } from "@/lib/ownership";
 import { StripeBillingError } from "@/lib/stripe-billing";
 import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 /** POST /api/auth/account-deletion/complete — delete an owner account by email token */
 export async function POST(request: NextRequest) {
@@ -100,6 +101,13 @@ export async function POST(request: NextRequest) {
         reason: "stripe_cancel_failed",
         request,
       });
+      await sendSecurityNotification({
+        user: ownerUser,
+        type: "stripe_cancel_on_delete_failed",
+        recipientEmail: ownerUser.email,
+        request,
+        metadata: { reason: error.code },
+      });
       return NextResponse.json(
         {
           error: "Stripeサブスクリプションのキャンセルに失敗しました。退会処理は完了していません。",
@@ -131,6 +139,13 @@ export async function POST(request: NextRequest) {
     result: "success",
     request,
     metadata: { summary },
+  });
+  await sendSecurityNotification({
+    user: ownerUser,
+    type: "account_deleted",
+    recipientEmail: ownerUser.email,
+    request,
+    metadata: summary,
   });
   const response = NextResponse.json({ success: true, summary });
   response.cookies.set(AUTH_SESSION_COOKIE, "", buildExpiredAuthCookieOptions(request));

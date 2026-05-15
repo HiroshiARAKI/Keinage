@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { hashPin, needsPinRehash, verifyPin } from "@/lib/pin";
 import { AUTH_SESSION_COOKIE } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 /** PATCH /api/auth/pin/change — change PIN or email (requires active session) */
 export async function PATCH(request: NextRequest) {
@@ -138,6 +139,11 @@ export async function PATCH(request: NextRequest) {
       .set({ email: newEmail })
       .where(eq(users.id, adminUserId));
 
+    await sendSecurityNotification({
+      user: adminUser,
+      type: "email_changed",
+      request,
+    });
     return NextResponse.json({ success: true });
   }
 

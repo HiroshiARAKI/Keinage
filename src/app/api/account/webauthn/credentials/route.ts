@@ -11,6 +11,7 @@ import {
   isWebAuthnOwnerRequired,
 } from "@/lib/webauthn";
 import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 export async function GET() {
   if (!isWebAuthnEnabled()) {
@@ -129,6 +130,12 @@ export async function DELETE(request: NextRequest) {
     targetId: id,
     result: "success",
     request,
+  });
+  await sendSecurityNotification({
+    user: session.user,
+    type: "passkey_deleted",
+    request,
+    metadata: { passkeyId: id },
   });
   return NextResponse.json({ success: true });
 }

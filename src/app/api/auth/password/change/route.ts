@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { verifyPassword, hashPassword, AUTH_SESSION_COOKIE } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 /** PATCH /api/auth/password/change — change admin password (requires current password) */
 export async function PATCH(request: NextRequest) {
@@ -129,6 +130,11 @@ export async function PATCH(request: NextRequest) {
     user,
     action: "password_changed",
     result: "success",
+    request,
+  });
+  await sendSecurityNotification({
+    user,
+    type: "password_changed",
     request,
   });
   return NextResponse.json({ success: true });

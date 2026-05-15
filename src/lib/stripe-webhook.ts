@@ -28,6 +28,7 @@ import {
   retrieveStripeSubscription,
   retrieveStripeSubscriptionSchedule,
 } from "@/lib/stripe-billing";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 const SUPPORTED_EVENTS = new Set([
@@ -454,6 +455,87 @@ async function applyFreePlanSelection(existing: typeof ownerSubscriptions.$infer
   });
 }
 
+function isPendingFreeCancellation(input: {
+  pendingPlanCode?: string | null;
+  pendingPlanEffectiveAt?: string | null;
+}) {
+  return input.pendingPlanCode === "free" && isFutureIso(input.pendingPlanEffectiveAt);
+}
+
+function isPendingPlanChange(input: {
+  pendingPlanCode?: string | null;
+  pendingPlanEffectiveAt?: string | null;
+}) {
+  return !!input.pendingPlanCode
+    && input.pendingPlanCode !== "free"
+    && isPlanCode(input.pendingPlanCode)
+    && isFutureIso(input.pendingPlanEffectiveAt);
+}
+
+async function notifySubscriptionStateChange(input: {
+  eventType: string;
+  previous: typeof ownerSubscriptions.$inferSelect | null;
+  state: ResolvedSubscriptionState;
+}) {
+  const previousPlan = normalizeStoredPlanCode(input.previous?.planCode);
+  const currentPlan = input.state.planCode;
+  const planChangedNow = previousPlan !== currentPlan;
+  const pendingChanged =
+    isPendingPlanChange(input.state)
+    && (
+      input.previous?.pendingPlanCode !== input.state.pendingPlanCode
+      || input.previous?.pendingPlanEffectiveAt !== input.state.pendingPlanEffectiveAt
+    );
+  const cancellationScheduled =
+    isPendingFreeCancellation(input.state)
+    && (
+      input.previous?.pendingPlanCode !== "free"
+      || input.previous?.pendingPlanEffectiveAt !== input.state.pendingPlanEffectiveAt
+    );
+
+  if (
+    (input.eventType === "customer.subscription.created" && currentPlan !== "free")
+    || (planChangedNow && currentPlan !== "free")
+  ) {
+    await sendSecurityNotification({
+      userId: input.state.ownerUserId,
+      type: "plan_changed",
+      metadata: {
+        oldPlan: previousPlan,
+        newPlan: currentPlan,
+        effectiveAt: input.state.lastSyncedAt,
+        stripeSubscriptionId: input.state.stripeSubscriptionId,
+      },
+    });
+  }
+
+  if (pendingChanged && input.state.pendingPlanCode) {
+    await sendSecurityNotification({
+      userId: input.state.ownerUserId,
+      type: "plan_changed",
+      metadata: {
+        oldPlan: currentPlan,
+        newPlan: input.state.pendingPlanCode,
+        effectiveAt: input.state.pendingPlanEffectiveAt,
+        stripeSubscriptionId: input.state.stripeSubscriptionId,
+      },
+    });
+  }
+
+  if (cancellationScheduled) {
+    await sendSecurityNotification({
+      userId: input.state.ownerUserId,
+      type: "subscription_cancel_scheduled",
+      metadata: {
+        oldPlan: currentPlan,
+        newPlan: "free",
+        effectiveAt: input.state.pendingPlanEffectiveAt,
+        stripeSubscriptionId: input.state.stripeSubscriptionId,
+      },
+    });
+  }
+}
+
 async function upsertOwnerSubscription(state: ResolvedSubscriptionState) {
   const existing = await db.query.ownerSubscriptions.findFirst({
     where: eq(ownerSubscriptions.ownerUserId, state.ownerUserId),
@@ -843,6 +925,16 @@ async function handleSubscriptionEvent(eventType: string, object: StripeObject) 
           updatedAt: new Date().toISOString(),
         })
         .where(eq(ownerSubscriptions.ownerUserId, existing.ownerUserId));
+      await sendSecurityNotification({
+        userId: existing.ownerUserId,
+        type: "subscription_canceled",
+        metadata: {
+          oldPlan: normalizeStoredPlanCode(existing.planCode),
+          newPlan: "free",
+          effectiveAt: new Date().toISOString(),
+          stripeSubscriptionId: existing.stripeSubscriptionId,
+        },
+      });
       return "processed" as const;
     }
 
@@ -863,12 +955,26 @@ async function handleSubscriptionEvent(eventType: string, object: StripeObject) 
       pendingBillingInterval: null,
       pendingPlanEffectiveAt: null,
     });
+    await sendSecurityNotification({
+      userId: state.ownerUserId,
+      type: "subscription_canceled",
+      metadata: {
+        oldPlan: normalizeStoredPlanCode(existing?.planCode),
+        newPlan: "free",
+        effectiveAt: state.endedAt ?? state.canceledAt ?? state.lastSyncedAt,
+        stripeSubscriptionId: state.stripeSubscriptionId,
+      },
+    });
     return "processed" as const;
   }
 
   if (!state) return "ignored" as const;
 
+  const existing = await db.query.ownerSubscriptions.findFirst({
+    where: eq(ownerSubscriptions.ownerUserId, state.ownerUserId),
+  });
   await upsertOwnerSubscription(state);
+  await notifySubscriptionStateChange({ eventType, previous: existing ?? null, state });
   return "processed" as const;
 }
 
@@ -881,6 +987,17 @@ async function handleInvoiceEvent(eventType: string, object: StripeObject) {
       ...state,
       status: eventType === "invoice.payment_failed" ? "past_due" : state.status,
     });
+    if (eventType === "invoice.payment_failed") {
+      await sendSecurityNotification({
+        userId: state.ownerUserId,
+        type: "payment_failed",
+        metadata: {
+          oldPlan: state.planCode,
+          newPlan: state.planCode,
+          stripeSubscriptionId: state.stripeSubscriptionId,
+        },
+      });
+    }
     return "processed" as const;
   }
 
@@ -894,6 +1011,17 @@ async function handleInvoiceEvent(eventType: string, object: StripeObject) {
         ...state,
         status: eventType === "invoice.payment_failed" ? "past_due" : state.status,
       });
+      if (eventType === "invoice.payment_failed") {
+        await sendSecurityNotification({
+          userId: state.ownerUserId,
+          type: "payment_failed",
+          metadata: {
+            oldPlan: state.planCode,
+            newPlan: state.planCode,
+            stripeSubscriptionId: state.stripeSubscriptionId,
+          },
+        });
+      }
       return "processed" as const;
     }
   }
@@ -955,6 +1083,18 @@ async function handleInvoiceEvent(eventType: string, object: StripeObject) {
     })
     .where(eq(ownerSubscriptions.ownerUserId, existing.ownerUserId));
 
+  if (eventType === "invoice.payment_failed") {
+    await sendSecurityNotification({
+      userId: existing.ownerUserId,
+      type: "payment_failed",
+      metadata: {
+        oldPlan: normalizeStoredPlanCode(existing.planCode),
+        newPlan: normalizeStoredPlanCode(existing.planCode),
+        stripeSubscriptionId: existing.stripeSubscriptionId,
+      },
+    });
+  }
+
   return "processed" as const;
 }
 
@@ -972,7 +1112,15 @@ async function handleSubscriptionScheduleEvent(object: StripeObject) {
   const state = await resolveSubscriptionState(subscription, schedule);
   if (!state) return "ignored" as const;
 
+  const existing = await db.query.ownerSubscriptions.findFirst({
+    where: eq(ownerSubscriptions.ownerUserId, state.ownerUserId),
+  });
   await upsertOwnerSubscription(state);
+  await notifySubscriptionStateChange({
+    eventType: "subscription_schedule.updated",
+    previous: existing ?? null,
+    state,
+  });
   return "processed" as const;
 }
 

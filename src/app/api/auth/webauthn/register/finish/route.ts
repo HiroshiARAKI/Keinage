@@ -16,6 +16,7 @@ import {
   storeRegistrationCredential,
 } from "@/lib/webauthn";
 import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 function readChallenge(response: RegistrationResponseJSON) {
   try {
@@ -160,6 +161,16 @@ export async function POST(request: NextRequest) {
     result: "success",
     request,
     metadata: {
+      deviceType: verification.registrationInfo.credentialDeviceType,
+      backedUp: verification.registrationInfo.credentialBackedUp,
+    },
+  });
+  await sendSecurityNotification({
+    user: session.user,
+    type: "passkey_registered",
+    request,
+    metadata: {
+      passkeyId: verification.registrationInfo.credential.id,
       deviceType: verification.registrationInfo.credentialDeviceType,
       backedUp: verification.registrationInfo.credentialBackedUp,
     },

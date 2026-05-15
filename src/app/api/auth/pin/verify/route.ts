@@ -46,6 +46,7 @@ import {
   isWebAuthnVerifiedAtSessionCreation,
 } from "@/lib/webauthn";
 import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 /** POST /api/auth/pin/verify — verify PIN and issue session */
 export async function POST(request: NextRequest) {
@@ -215,6 +216,12 @@ export async function POST(request: NextRequest) {
         action: "account_locked",
         result: "success",
         reason: "invalid_pin",
+        request,
+        metadata: { method: "pin" },
+      });
+      await sendSecurityNotification({
+        user: adminUser,
+        type: "account_locked",
         request,
         metadata: { method: "pin" },
       });

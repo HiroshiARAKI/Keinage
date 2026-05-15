@@ -40,6 +40,7 @@ import {
   isWebAuthnVerifiedAtSessionCreation,
 } from "@/lib/webauthn";
 import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 /** POST /api/auth/credentials/login — email/userId + password login */
 export async function POST(request: NextRequest) {
@@ -177,6 +178,12 @@ export async function POST(request: NextRequest) {
         request,
         metadata: { method: "credentials" },
       });
+      await sendSecurityNotification({
+        user,
+        type: "account_locked",
+        request,
+        metadata: { method: "credentials" },
+      });
       return NextResponse.json(
         {
           error:
@@ -227,6 +234,12 @@ export async function POST(request: NextRequest) {
         action: "account_locked",
         result: "success",
         reason: "invalid_password",
+        request,
+        metadata: { method: "credentials" },
+      });
+      await sendSecurityNotification({
+        user,
+        type: "account_locked",
         request,
         metadata: { method: "credentials" },
       });

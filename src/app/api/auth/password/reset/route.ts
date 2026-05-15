@@ -15,6 +15,7 @@ import {
 } from "@/lib/rate-limit";
 import { normalizeSignupEmail } from "@/lib/signup";
 import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 /** POST /api/auth/password/reset — change password using a valid reset token */
 export async function POST(request: NextRequest) {
@@ -105,6 +106,11 @@ export async function POST(request: NextRequest) {
     action: "account_unlocked",
     result: "success",
     reason: "password_reset_completed",
+    request,
+  });
+  await sendSecurityNotification({
+    user: resetToken.user,
+    type: "password_reset_completed",
     request,
   });
 
