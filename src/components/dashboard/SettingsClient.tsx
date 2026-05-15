@@ -51,11 +51,13 @@ export function SettingsClient({
   currentUserId,
   initialOrganizationName,
   isOwner,
+  hasPasswordAuth,
 }: {
   role: "admin" | "general";
   currentUserId: string;
   initialOrganizationName: string;
   isOwner: boolean;
+  hasPasswordAuth: boolean;
 }) {
   const router = useRouter();
   const [cityId, setCityId] = useState(DEFAULT_CITY_ID);
@@ -1075,55 +1077,56 @@ export function SettingsClient({
             )}
           </div>
 
-          {/* Password Change */}
-          <div className="border-t pt-4">
-            <h3 className="mb-2 text-sm font-medium">{t("settings.passwordTitle")}</h3>
-            <p className="mb-4 text-sm text-muted-foreground">
-              {t("settings.passwordDescription")}
-            </p>
-            <div className="space-y-3 max-w-sm">
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{t("settings.currentPasswordLabel")}</label>
-                <Input
-                  type="password"
-                  placeholder={t("settings.currentPasswordPlaceholder")}
-                  value={currentPassword}
-                  onChange={(e) => { setCurrentPassword(e.target.value); setPasswordChangeResult(null); }}
-                />
+          {hasPasswordAuth && (
+            <div className="border-t pt-4">
+              <h3 className="mb-2 text-sm font-medium">{t("settings.passwordTitle")}</h3>
+              <p className="mb-4 text-sm text-muted-foreground">
+                {t("settings.passwordDescription")}
+              </p>
+              <div className="space-y-3 max-w-sm">
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">{t("settings.currentPasswordLabel")}</label>
+                  <Input
+                    type="password"
+                    placeholder={t("settings.currentPasswordPlaceholder")}
+                    value={currentPassword}
+                    onChange={(e) => { setCurrentPassword(e.target.value); setPasswordChangeResult(null); }}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">{t("settings.newPasswordLabel")}</label>
+                  <Input
+                    type="password"
+                    placeholder={t("settings.newPasswordPlaceholder")}
+                    value={newPassword}
+                    onChange={(e) => { setNewPassword(e.target.value); setPasswordChangeResult(null); }}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">{t("settings.confirmPasswordLabel")}</label>
+                  <Input
+                    type="password"
+                    placeholder={t("settings.confirmPasswordPlaceholder")}
+                    value={confirmNewPassword}
+                    onChange={(e) => { setConfirmNewPassword(e.target.value); setPasswordChangeResult(null); }}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={handlePasswordChange}
+                    disabled={passwordChanging || !currentPassword || !newPassword || !confirmNewPassword}
+                  >
+                    {passwordChanging ? t("common.loading") : t("settings.passwordChangeButton")}
+                  </Button>
+                </div>
+                {passwordChangeResult && (
+                  <span className={`text-sm ${passwordChangeResult.ok ? "text-green-600" : "text-red-600"}`}>
+                    {passwordChangeResult.msg}
+                  </span>
+                )}
               </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{t("settings.newPasswordLabel")}</label>
-                <Input
-                  type="password"
-                  placeholder={t("settings.newPasswordPlaceholder")}
-                  value={newPassword}
-                  onChange={(e) => { setNewPassword(e.target.value); setPasswordChangeResult(null); }}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{t("settings.confirmPasswordLabel")}</label>
-                <Input
-                  type="password"
-                  placeholder={t("settings.confirmPasswordPlaceholder")}
-                  value={confirmNewPassword}
-                  onChange={(e) => { setConfirmNewPassword(e.target.value); setPasswordChangeResult(null); }}
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  onClick={handlePasswordChange}
-                  disabled={passwordChanging || !currentPassword || !newPassword || !confirmNewPassword}
-                >
-                  {passwordChanging ? t("common.loading") : t("settings.passwordChangeButton")}
-                </Button>
-              </div>
-              {passwordChangeResult && (
-                <span className={`text-sm ${passwordChangeResult.ok ? "text-green-600" : "text-red-600"}`}>
-                  {passwordChangeResult.msg}
-                </span>
-              )}
             </div>
-          </div>
+          )}
 
           {isOwner && passkeyEnabled && (
             <div className="border-t pt-4">
@@ -1344,55 +1347,56 @@ export function SettingsClient({
             )}
           </div>
 
-          {/* Password Change */}
-          <div className="border-t pt-4">
-            <h3 className="mb-2 text-sm font-medium">{t("settings.passwordTitle")}</h3>
-            <p className="mb-4 text-sm text-muted-foreground">
-              {t("settings.passwordDescription")}
-            </p>
-            <div className="space-y-3 max-w-sm">
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{t("settings.currentPasswordLabel")}</label>
-                <Input
-                  type="password"
-                  placeholder={t("settings.currentPasswordPlaceholder")}
-                  value={currentPassword}
-                  onChange={(e) => { setCurrentPassword(e.target.value); setPasswordChangeResult(null); }}
-                />
+          {hasPasswordAuth && (
+            <div className="border-t pt-4">
+              <h3 className="mb-2 text-sm font-medium">{t("settings.passwordTitle")}</h3>
+              <p className="mb-4 text-sm text-muted-foreground">
+                {t("settings.passwordDescription")}
+              </p>
+              <div className="space-y-3 max-w-sm">
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">{t("settings.currentPasswordLabel")}</label>
+                  <Input
+                    type="password"
+                    placeholder={t("settings.currentPasswordPlaceholder")}
+                    value={currentPassword}
+                    onChange={(e) => { setCurrentPassword(e.target.value); setPasswordChangeResult(null); }}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">{t("settings.newPasswordLabel")}</label>
+                  <Input
+                    type="password"
+                    placeholder={t("settings.newPasswordPlaceholder")}
+                    value={newPassword}
+                    onChange={(e) => { setNewPassword(e.target.value); setPasswordChangeResult(null); }}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">{t("settings.confirmPasswordLabel")}</label>
+                  <Input
+                    type="password"
+                    placeholder={t("settings.confirmPasswordPlaceholder")}
+                    value={confirmNewPassword}
+                    onChange={(e) => { setConfirmNewPassword(e.target.value); setPasswordChangeResult(null); }}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={handlePasswordChange}
+                    disabled={passwordChanging || !currentPassword || !newPassword || !confirmNewPassword}
+                  >
+                    {passwordChanging ? t("common.loading") : t("settings.passwordChangeButton")}
+                  </Button>
+                </div>
+                {passwordChangeResult && (
+                  <span className={`text-sm ${passwordChangeResult.ok ? "text-green-600" : "text-red-600"}`}>
+                    {passwordChangeResult.msg}
+                  </span>
+                )}
               </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{t("settings.newPasswordLabel")}</label>
-                <Input
-                  type="password"
-                  placeholder={t("settings.newPasswordPlaceholder")}
-                  value={newPassword}
-                  onChange={(e) => { setNewPassword(e.target.value); setPasswordChangeResult(null); }}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{t("settings.confirmPasswordLabel")}</label>
-                <Input
-                  type="password"
-                  placeholder={t("settings.confirmPasswordPlaceholder")}
-                  value={confirmNewPassword}
-                  onChange={(e) => { setConfirmNewPassword(e.target.value); setPasswordChangeResult(null); }}
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  onClick={handlePasswordChange}
-                  disabled={passwordChanging || !currentPassword || !newPassword || !confirmNewPassword}
-                >
-                  {passwordChanging ? t("common.loading") : t("settings.passwordChangeButton")}
-                </Button>
-              </div>
-              {passwordChangeResult && (
-                <span className={`text-sm ${passwordChangeResult.ok ? "text-green-600" : "text-red-600"}`}>
-                  {passwordChangeResult.msg}
-                </span>
-              )}
             </div>
-          </div>
+          )}
 
           {/* Logout */}
           <div className="mt-6 border-t pt-4">
