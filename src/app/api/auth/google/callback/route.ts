@@ -6,39 +6,77 @@ import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { authAccounts, googleOAuthFlows, sharedSignupRequests, users } from "@/db/schema";
 import {
+  buildRelativeAppPath,
   buildExpiredAuthCookieOptions,
+  createCookieCommittedNavigationPage,
 } from "@/lib/auth";
 import {
   GOOGLE_AUTH_PROVIDER,
   GOOGLE_OAUTH_STATE_COOKIE,
   fetchGoogleUserInfo,
   createSignedInResponse,
+  isGoogleOAuthStateBoundToBrowser,
 } from "@/lib/google-auth";
 import { DEVICE_AUTH_COOKIE } from "@/lib/device-auth";
+import { buildSuccessfulAuthState } from "@/lib/account-security";
 import { sendSignupCompletedEmail } from "@/lib/mail";
 import { buildPublicAppUrl } from "@/lib/public-origin";
+import { buildRequestAppUrl } from "@/lib/public-origin";
 import { maybeBootstrapSuperOwner } from "@/lib/super-owner";
+import {
+  getWebAuthnPostAuthAction,
+  isWebAuthnVerifiedAtSessionCreation,
+} from "@/lib/webauthn";
+import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
 const GOOGLE_USER_ID_FALLBACK = "google-user";
 
 function absoluteUrl(request: NextRequest, pathname: string) {
-  return buildPublicAppUrl(pathname) ?? new URL(pathname, request.nextUrl.origin).toString();
+  return buildPublicAppUrl(pathname) ?? buildRequestAppUrl(request, pathname) ?? pathname;
 }
 
-function errorRedirect(request: NextRequest, pathname: string, message: string) {
-  const url = new URL(absoluteUrl(request, pathname));
-  url.searchParams.set("error", message);
-  const response = NextResponse.redirect(url);
-  response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions());
+function errorRedirect(_request: NextRequest, pathname: string, message: string) {
+  const targetPath = buildRelativeAppPath({
+    pathname,
+    searchParams: { error: message },
+  });
+  const response = new NextResponse(
+    createCookieCommittedNavigationPage({
+      redirectTo: buildRequestAppUrl(_request, targetPath) ?? targetPath,
+      title: "Redirecting...",
+      message: "ログイン画面に戻っています...",
+    }),
+    {
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      },
+    },
+  );
+  response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions(_request));
   return response;
 }
 
-function noticeRedirect(request: NextRequest, pathname: string, notice: string) {
-  const url = new URL(absoluteUrl(request, pathname));
-  url.searchParams.set("notice", notice);
-  const response = NextResponse.redirect(url);
-  response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions());
+function noticeRedirect(_request: NextRequest, pathname: string, notice: string) {
+  const targetPath = buildRelativeAppPath({
+    pathname,
+    searchParams: { notice },
+  });
+  const response = new NextResponse(
+    createCookieCommittedNavigationPage({
+      redirectTo: buildRequestAppUrl(_request, targetPath) ?? targetPath,
+      title: "Redirecting...",
+      message: "ログイン画面に戻っています...",
+    }),
+    {
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      },
+    },
+  );
+  response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions(_request));
   return response;
 }
 
@@ -73,13 +111,35 @@ async function buildUniqueGoogleUserId(email: string) {
 export async function GET(request: NextRequest) {
   const error = request.nextUrl.searchParams.get("error");
   if (error) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "google_cancelled",
+      request,
+      metadata: { method: "google" },
+    });
     return errorRedirect(request, "/pin/login", "google-cancelled");
   }
 
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
   const stateCookie = request.cookies.get(GOOGLE_OAUTH_STATE_COOKIE)?.value;
-  if (!code || !state || !stateCookie || state !== stateCookie) {
+  const browserBoundStateValid = state
+    ? isGoogleOAuthStateBoundToBrowser({
+        state,
+        userAgent: request.headers.get("user-agent"),
+      })
+    : false;
+  if (!code || !state || (stateCookie ? state !== stateCookie : !browserBoundStateValid)) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "invalid_google_state",
+      request,
+      metadata: { method: "google" },
+    });
     return errorRedirect(request, "/pin/login", "invalid-google-state");
   }
 
@@ -92,6 +152,14 @@ export async function GET(request: NextRequest) {
     ),
   });
   if (!flow) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "invalid_google_state",
+      request,
+      metadata: { method: "google" },
+    });
     return errorRedirect(request, "/pin/login", "invalid-google-state");
   }
 
@@ -106,6 +174,14 @@ export async function GET(request: NextRequest) {
     expectedNonce: flow.nonce,
   });
   if (!googleUser || googleUser.email_verified !== true) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "google_email_unverified",
+      request,
+      metadata: { method: "google", mode: flow.mode },
+    });
     return errorRedirect(request, "/pin/login", "google-email-unverified");
   }
 
@@ -127,6 +203,14 @@ export async function GET(request: NextRequest) {
       });
 
       if (!existingGoogleOnlyUser || existingGoogleOnlyUser.passwordHash) {
+        await writeAuditLog({
+          action: "login_failed",
+          targetType: "user",
+          result: "failure",
+          reason: "google_user_not_found",
+          request,
+          metadata: { method: "google" },
+        });
         return errorRedirect(request, "/pin/login", "google-user-not-found");
       }
 
@@ -141,9 +225,7 @@ export async function GET(request: NextRequest) {
 
     await db
       .update(users)
-      .set({
-        lastFullAuthAt: now,
-      })
+      .set(buildSuccessfulAuthState(now))
       .where(eq(users.id, user.id));
 
     await maybeBootstrapSuperOwner({
@@ -153,16 +235,37 @@ export async function GET(request: NextRequest) {
       request,
     });
 
-    const redirectPath = user.pinHash ? (flow.redirectTo ?? "/boards") : "/pin/setup";
+    const webauthnAction = await getWebAuthnPostAuthAction(user);
+    const webauthnRedirectSuffix = flow.redirectTo
+      ? `?redirectTo=${encodeURIComponent(flow.redirectTo)}`
+      : "";
+    const redirectPath = user.pinHash
+      ? webauthnAction === "register"
+        ? `/passkey/setup${webauthnRedirectSuffix}`
+        : webauthnAction === "authenticate"
+          ? `/passkey/verify${webauthnRedirectSuffix}`
+          : (flow.redirectTo ?? "/boards")
+      : "/pin/setup";
     const response = await createSignedInResponse({
+      request,
       requestDeviceToken: deviceToken,
       userId: user.id,
-      redirectTo: absoluteUrl(request, redirectPath),
+      redirectTo: redirectPath,
       setupSessionMaxAge: user.pinHash ? undefined : SETUP_SESSION_MAX_AGE,
       locale: user.locale,
       acceptLanguage: request.headers.get("accept-language"),
+      webauthnVerified: user.pinHash
+        ? await isWebAuthnVerifiedAtSessionCreation(user)
+        : true,
     });
-    response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions());
+    await writeUserAuditLog({
+      user,
+      action: "login_success",
+      result: "success",
+      request,
+      metadata: { method: "google" },
+    });
+    response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions(request));
     return response;
   }
 
@@ -216,14 +319,16 @@ export async function GET(request: NextRequest) {
     });
 
     const response = await createSignedInResponse({
+      request,
       requestDeviceToken: deviceToken,
       userId: createdUser.id,
-      redirectTo: absoluteUrl(request, "/pin/setup"),
+      redirectTo: "/pin/setup",
       setupSessionMaxAge: SETUP_SESSION_MAX_AGE,
       locale: createdUser.locale,
       acceptLanguage: request.headers.get("accept-language"),
+      webauthnVerified: true,
     });
-    response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions());
+    response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions(request));
     return response;
   }
 
@@ -294,14 +399,16 @@ export async function GET(request: NextRequest) {
     });
 
     const response = await createSignedInResponse({
+      request,
       requestDeviceToken: deviceToken,
       userId: createdUser.id,
-      redirectTo: absoluteUrl(request, "/pin/setup"),
+      redirectTo: "/pin/setup",
       setupSessionMaxAge: SETUP_SESSION_MAX_AGE,
       locale: createdUser.locale,
       acceptLanguage: request.headers.get("accept-language"),
+      webauthnVerified: true,
     });
-    response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions());
+    response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", buildExpiredAuthCookieOptions(request));
     return response;
   }
 

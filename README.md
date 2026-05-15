@@ -188,6 +188,20 @@ GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 
 Google 認証で作成したユーザーは Google 認証専用、メールアドレス + パスワードで作成したユーザーはパスワード認証専用です。作成後に認証方式は変更できません。
 
+#### WebAuthn / Passkey 設定 (任意)
+
+Owner アカウントに Passkey 二要素認証を追加できます。`WEBAUTHN_OWNER_REQUIRED=true` の場合、Owner はメールアドレス + パスワード、Google、または PIN の認証後に、登録済み Passkey で追加認証します。初回は `/passkey/setup` に誘導され、登録後にダッシュボードへ進みます。
+
+```bash
+WEBAUTHN_ENABLED=true
+WEBAUTHN_OWNER_REQUIRED=true
+WEBAUTHN_RP_ID=keinage.example.com
+WEBAUTHN_RP_NAME=Keinage
+WEBAUTHN_ORIGIN=https://keinage.example.com
+```
+
+本番環境では HTTPS が必要です。ローカル開発ではブラウザ仕様により `http://localhost:3000` を利用できます。`WEBAUTHN_RP_ID` はブラウザで開くホスト名と一致させてください。
+
 #### Super Owner 設定 (任意)
 
 公式SaaSや公開インスタンスで運営者向けの高権限ユーザーを用意する場合は、初回ログイン前に `.env` で Super Owner bootstrap を設定します。デフォルト管理者アカウントや初期パスワードはありません。Super Owner は1人のみで、作成後に UI/API から任意ユーザーを昇格する機能はありません。
@@ -201,6 +215,18 @@ SUPER_OWNER_REQUIRE_GOOGLE=false
 Self-hosted では必要に応じて `SUPER_OWNER_REQUIRE_GOOGLE=false` を利用できます。公開インスタンスや公式SaaSでは、Google OAuth/OIDC を有効化したうえで `SUPER_OWNER_REQUIRE_GOOGLE=true` にすることを推奨します。Super Owner 作成後は `SUPER_OWNER_BOOTSTRAP_ENABLED=false` に戻しても構いません。
 
 Super Owner が存在する環境では、管理画面の「お知らせ」から運営通知を作成できます。重要通知は管理画面上部に表示され、確認必須通知はユーザーごとに確認状態を保存します。メール送信付き通知を使う場合は、既存の `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` を設定してください。
+
+#### 監査ログ設定 (任意)
+
+認証、課金、Stripe webhook、退会、Passkey、Super Owner 操作などの重要イベントは `audit_logs` に保存されます。IPアドレスは生値ではなくハッシュ化して保存します。
+
+```bash
+AUDIT_LOG_ENABLED=true
+AUDIT_LOG_IP_HASH_SECRET=change-me
+AUDIT_LOG_RETENTION_DAYS=365
+```
+
+`AUDIT_LOG_ENABLED=false` の場合も、重大な失敗はターミナルログに出力されます。パスワード、token、secret、カード情報、WebAuthn challenge は監査ログに保存しません。
 
 ```bash
 # 停止

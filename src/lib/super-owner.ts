@@ -6,13 +6,15 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { authAccounts, superOwnerAuditLogs, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit-log";
 import { GOOGLE_AUTH_PROVIDER } from "@/lib/google-auth";
 import { isOwnerUser } from "@/lib/ownership";
 import { resolveRateLimitClientIp } from "@/lib/rate-limit";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 type UserLike = Pick<
   typeof users.$inferSelect,
-  "id" | "email" | "attribute" | "ownerUserId" | "role" | "isSuperOwner"
+  "id" | "userId" | "email" | "attribute" | "ownerUserId" | "role" | "isSuperOwner" | "locale"
 >;
 
 export class SuperOwnerAuthError extends Error {
@@ -94,6 +96,15 @@ export async function recordSuperOwnerAuditLog(input: {
     ipHash: context.ipHash,
     userAgent: context.userAgent,
   });
+  await writeAuditLog({
+    actorUserId: input.userId,
+    actorType: "super_owner",
+    action: input.action,
+    targetType: input.targetType ?? "super_owner",
+    targetId: input.targetId ?? null,
+    result: "success",
+    request: input.request,
+  });
 }
 
 export async function maybeBootstrapSuperOwner(input: {
@@ -146,6 +157,11 @@ export async function maybeBootstrapSuperOwner(input: {
       action: "super_owner_granted",
       targetType: "user",
       targetId: input.user.id,
+      request: input.request,
+    });
+    await sendSecurityNotification({
+      user: input.user,
+      type: "super_owner_granted",
       request: input.request,
     });
     return true;

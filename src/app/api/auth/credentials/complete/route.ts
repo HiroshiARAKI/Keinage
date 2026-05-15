@@ -134,11 +134,11 @@ export async function POST(request: NextRequest) {
     authenticatedAt: now,
   });
   const res = NextResponse.json({ success: true, userId: createdUser.userId });
-  res.cookies.set(AUTH_SESSION_COOKIE, sessionToken, buildAuthCookieOptions(SETUP_SESSION_MAX_AGE));
-  setDeviceAuthCookie(res, deviceToken);
-  clearLegacyLastUserCookie(res);
+  res.cookies.set(AUTH_SESSION_COOKIE, sessionToken, buildAuthCookieOptions(SETUP_SESSION_MAX_AGE, request));
+  setDeviceAuthCookie(res, deviceToken, request);
+  clearLegacyLastUserCookie(res, request);
   if (cookieStore.get(SIGNUP_REQUEST_COOKIE)) {
-    res.cookies.set(SIGNUP_REQUEST_COOKIE, "", buildExpiredAuthCookieOptions());
+    res.cookies.set(SIGNUP_REQUEST_COOKIE, "", buildExpiredAuthCookieOptions(request));
   }
 
   return res;

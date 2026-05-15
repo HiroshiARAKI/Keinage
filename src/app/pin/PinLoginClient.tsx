@@ -42,7 +42,7 @@ export default function PinLoginClient({
         console.log("[PinLoginClient] Verify response", { status: res.status, ok: res.ok, data });
 
         if (!res.ok) {
-          if (data.blocked) {
+          if (data.blocked || data.locked) {
             setBlocked(true);
           }
           setError(data.error || t("error.authFailed"));
@@ -55,7 +55,11 @@ export default function PinLoginClient({
           setLocale(data.locale);
         }
 
-        router.push(redirectTo || "/boards");
+        const nextPath =
+          data.redirectTo && redirectTo
+            ? `${data.redirectTo}?redirectTo=${encodeURIComponent(redirectTo)}`
+            : data.redirectTo || redirectTo || "/boards";
+        router.push(nextPath);
       } catch {
         setError(t("error.network"));
         setPin("");

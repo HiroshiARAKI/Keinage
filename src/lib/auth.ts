@@ -35,7 +35,13 @@ export async function verifyPassword(
 
 /** Auth session cookie name */
 export const AUTH_SESSION_COOKIE = "auth-session";
-export const AUTH_COOKIE_SECURE = process.env.NODE_ENV === "production";
+
+const COOKIE_INSECURE_HOSTNAMES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "[::1]",
+]);
 
 /**
  * Legacy cookie that stored the last authenticated userId.
@@ -46,21 +52,91 @@ export const LAST_USER_COOKIE = "last-user-id";
 /** PIN session duration: 24 hours (in seconds, for cookie maxAge) */
 export const SESSION_MAX_AGE = 60 * 60 * 24;
 
-export function buildAuthCookieOptions(maxAge: number) {
+function shouldUseSecureAuthCookies(request?: Request) {
+  const candidateUrl = request
+    ? buildRequestHeaderAppUrl(request, "/")
+    : getPublicAppOrigin();
+
+  if (!candidateUrl) {
+    return false;
+  }
+
+  try {
+    const url = new URL(candidateUrl);
+    if (COOKIE_INSECURE_HOSTNAMES.has(url.hostname.toLowerCase())) {
+      return false;
+    }
+    return url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function buildAuthCookieOptions(maxAge: number, request?: Request) {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
     path: "/",
     maxAge,
-    secure: AUTH_COOKIE_SECURE,
+    secure: shouldUseSecureAuthCookies(request),
   };
 }
 
-export function buildExpiredAuthCookieOptions() {
+export function buildExpiredAuthCookieOptions(request?: Request) {
   return {
-    ...buildAuthCookieOptions(0),
+    ...buildAuthCookieOptions(0, request),
     expires: new Date(0),
   };
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+export function createCookieCommittedNavigationPage(input: {
+  redirectTo: string;
+  title?: string;
+  message?: string;
+}) {
+  const escapedUrl = escapeHtml(input.redirectTo);
+  const serializedUrl = JSON.stringify(input.redirectTo);
+  const title = escapeHtml(input.title ?? "Redirecting...");
+  const message = escapeHtml(input.message ?? "移動しています...");
+
+  return `<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="0;url=${escapedUrl}" />
+    <title>${title}</title>
+  </head>
+  <body>
+    <p>${message}</p>
+    <p><a href="${escapedUrl}">移動しない場合はこちら</a></p>
+    <script>
+      window.location.replace(${serializedUrl});
+    </script>
+  </body>
+</html>`;
+}
+
+export function buildRelativeAppPath(input: {
+  pathname: string;
+  searchParams?: Record<string, string | null | undefined>;
+}) {
+  const url = new URL(input.pathname, "http://localhost");
+  for (const [key, value] of Object.entries(input.searchParams ?? {})) {
+    if (value) {
+      url.searchParams.set(key, value);
+    }
+  }
+  return `${url.pathname}${url.search}`;
 }
 
 /** Default full-auth expiry: 30 days */
@@ -99,6 +175,10 @@ import { cookies } from "next/headers";
 import { db } from "@/db";
 import { authSessions } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
+import {
+  buildRequestHeaderAppUrl,
+  getPublicAppOrigin,
+} from "@/lib/public-origin";
 
 /**
  * Read the current session from the cookie store and return the
@@ -106,7 +186,7 @@ import { eq, and, gt } from "drizzle-orm";
  * Only for use inside Next.js request context (Route Handlers / Server
  * Components).
  */
-export async function getSessionUser() {
+export async function getSessionUser(options?: { allowWebAuthnPending?: boolean }) {
   const cookieStore = await cookies();
   const token = cookieStore.get(AUTH_SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -118,7 +198,15 @@ export async function getSessionUser() {
     ),
     with: { user: true },
   });
-  return session ?? null;
+  if (!session) return null;
+  if (!options?.allowWebAuthnPending && !session.webauthnVerified) {
+    return null;
+  }
+  return session;
+}
+
+export async function getSessionUserAllowingWebAuthnPending() {
+  return getSessionUser({ allowWebAuthnPending: true });
 }
 
 /** Return the current session only when the authenticated user is an admin. */

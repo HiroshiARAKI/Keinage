@@ -18,6 +18,7 @@ import {
 import { getOwnerSetting } from "@/lib/owner-settings";
 import { isOwnerUser, resolveOwnerUserId } from "@/lib/ownership";
 import { getBillingConfig } from "@/lib/plans";
+import { getWebAuthnRedirectForSession } from "@/lib/webauthn";
 import { ThemeProvider } from "@/components/dashboard/ThemeProvider";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
@@ -85,6 +86,14 @@ export default async function DashboardLayout({
       console.log("[dashboard/layout] Full auth expired for this device -> /pin/login");
     }
     redirect("/pin/login");
+  }
+
+  const passkeyRedirect = await getWebAuthnRedirectForSession({
+    user: session.user,
+    webauthnVerified: session.webauthnVerified,
+  });
+  if (passkeyRedirect) {
+    redirect(passkeyRedirect);
   }
 
   const { userId, role, colorTheme } = session.user;

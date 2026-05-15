@@ -33,6 +33,7 @@ export default async function SettingsPage() {
         currentUserId={session.user.userId}
         initialOrganizationName={session.user.organizationName ?? ""}
         isOwner={isOwnerUser(session.user)}
+        hasPasswordAuth={!!session.user.passwordHash}
       />
     </div>
   );

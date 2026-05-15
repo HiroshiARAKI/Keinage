@@ -252,6 +252,28 @@ export const pinResetTokens = pgTable("pin_reset_tokens", {
     .default(isoNow),
 });
 
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+  },
+  (table) => ({
+    userIdx: index("password_reset_tokens_user_id_idx").on(table.userId),
+    expiresAtIdx: index("password_reset_tokens_expires_at_idx").on(table.expiresAt),
+  }),
+);
+
 export const pinAttempts = pgTable("pin_attempts", {
   id: text("id")
     .primaryKey()
@@ -356,6 +378,12 @@ export const users = pgTable(
     ownerOnboardingAcknowledgedAt: text("owner_onboarding_acknowledged_at"),
     /** Timestamp of the last successful email+password login */
     lastFullAuthAt: text("last_full_auth_at"),
+    /** Consecutive failed credential or PIN sign-in attempts */
+    failedAuthAttempts: integer("failed_auth_attempts").notNull().default(0),
+    /** Timestamp when the account lock expires */
+    lockedUntil: text("locked_until"),
+    /** Timestamp of the latest failed credential or PIN sign-in */
+    lastFailedAuthAt: text("last_failed_auth_at"),
     createdAt: text("created_at")
       .notNull()
       .default(isoNow),
@@ -392,6 +420,36 @@ export const superOwnerAuditLogs = pgTable(
   (table) => ({
     userIdx: index("super_owner_audit_logs_user_id_idx").on(table.userId),
     createdAtIdx: index("super_owner_audit_logs_created_at_idx").on(table.createdAt),
+  }),
+);
+
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    actorUserId: text("actor_user_id")
+      .references(() => users.id, { onDelete: "set null" }),
+    actorType: text("actor_type").notNull().default("anonymous"),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: text("target_id"),
+    result: text("result").notNull(),
+    reason: text("reason"),
+    ipHash: text("ip_hash"),
+    userAgent: text("user_agent"),
+    metadataJson: text("metadata_json"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+  },
+  (table) => ({
+    actionIdx: index("audit_logs_action_idx").on(table.action),
+    resultIdx: index("audit_logs_result_idx").on(table.result),
+    actorUserIdx: index("audit_logs_actor_user_id_idx").on(table.actorUserId),
+    targetIdx: index("audit_logs_target_idx").on(table.targetType, table.targetId),
+    createdAtIdx: index("audit_logs_created_at_idx").on(table.createdAt),
   }),
 );
 
@@ -507,11 +565,69 @@ export const authSessions = pgTable("auth_sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   sessionToken: text("session_token").notNull().unique(),
+  webauthnVerified: boolean("webauthn_verified").notNull().default(true),
   expiresAt: text("expires_at").notNull(),
   createdAt: text("created_at")
     .notNull()
     .default(isoNow),
 });
+
+export const webauthnCredentials = pgTable(
+  "webauthn_credentials",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    credentialId: text("credential_id").notNull(),
+    publicKey: text("public_key").notNull(),
+    counter: integer("counter").notNull().default(0),
+    transports: text("transports"),
+    deviceType: text("device_type"),
+    backedUp: boolean("backed_up").notNull().default(false),
+    name: text("name").notNull().default("Passkey"),
+    lastUsedAt: text("last_used_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(isoNow)
+      .$onUpdate(() => new Date().toISOString()),
+  },
+  (table) => ({
+    credentialUnique: uniqueIndex("webauthn_credentials_credential_id_unique")
+      .on(table.credentialId),
+    userIdx: index("webauthn_credentials_user_id_idx").on(table.userId),
+  }),
+);
+
+export const webauthnChallenges = pgTable(
+  "webauthn_challenges",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    challenge: text("challenge").notNull(),
+    type: text("type").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+  },
+  (table) => ({
+    userTypeIdx: index("webauthn_challenges_user_type_idx")
+      .on(table.userId, table.type),
+    challengeIdx: index("webauthn_challenges_challenge_idx")
+      .on(table.challenge),
+  }),
+);
 
 export const deviceAuthGrants = pgTable("device_auth_grants", {
   id: text("id")
@@ -536,11 +652,15 @@ export const deviceAuthGrants = pgTable("device_auth_grants", {
 export const usersRelations = relations(users, ({ many }) => ({
   authAccounts: many(authAccounts),
   sessions: many(authSessions),
+  webauthnCredentials: many(webauthnCredentials),
+  webauthnChallenges: many(webauthnChallenges),
   deviceAuthGrants: many(deviceAuthGrants),
   pinResetTokens: many(pinResetTokens),
+  passwordResetTokens: many(passwordResetTokens),
   ownerSubscriptions: many(ownerSubscriptions),
   boardDisplayDevices: many(boardDisplayDevices),
   superOwnerAuditLogs: many(superOwnerAuditLogs),
+  auditLogs: many(auditLogs),
   createdAdminAnnouncements: many(adminAnnouncements),
   announcementReads: many(announcementReads),
 }));
@@ -581,9 +701,30 @@ export const pinResetTokensRelations = relations(pinResetTokens, ({ one }) => ({
   }),
 }));
 
+export const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [passwordResetTokens.userId],
+    references: [users.id],
+  }),
+}));
+
 export const authSessionsRelations = relations(authSessions, ({ one }) => ({
   user: one(users, {
     fields: [authSessions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const webauthnCredentialsRelations = relations(webauthnCredentials, ({ one }) => ({
+  user: one(users, {
+    fields: [webauthnCredentials.userId],
+    references: [users.id],
+  }),
+}));
+
+export const webauthnChallengesRelations = relations(webauthnChallenges, ({ one }) => ({
+  user: one(users, {
+    fields: [webauthnChallenges.userId],
     references: [users.id],
   }),
 }));
@@ -598,6 +739,13 @@ export const deviceAuthGrantsRelations = relations(deviceAuthGrants, ({ one }) =
 export const superOwnerAuditLogsRelations = relations(superOwnerAuditLogs, ({ one }) => ({
   user: one(users, {
     fields: [superOwnerAuditLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  actor: one(users, {
+    fields: [auditLogs.actorUserId],
     references: [users.id],
   }),
 }));

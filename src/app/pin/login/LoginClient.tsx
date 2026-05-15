@@ -3,7 +3,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
@@ -18,11 +17,10 @@ export default function LoginClient({
   googleAuthEnabled,
 }: {
   redirectTo?: string | null;
-  notice?: "signup-existing" | null;
+  notice?: "password-reset" | "signup-existing" | null;
   showPinLoginLink: boolean;
   googleAuthEnabled: boolean;
 }) {
-  const router = useRouter();
   const { t, setLocale } = useLocale();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -48,7 +46,7 @@ export default function LoginClient({
         console.log("[LoginClient] Login response", { status: res.status, ok: res.ok, data });
 
         if (!res.ok) {
-          if (data.blocked) setBlocked(true);
+          if (data.blocked || data.locked) setBlocked(true);
           setError(data.error || t("error.authFailed"));
           setPassword("");
           setSubmitting(false);
@@ -59,14 +57,18 @@ export default function LoginClient({
           setLocale(data.locale);
         }
 
-        router.push(redirectTo || "/boards");
+        const nextPath =
+          data.redirectTo && redirectTo
+            ? `${data.redirectTo}?redirectTo=${encodeURIComponent(redirectTo)}`
+            : data.redirectTo || redirectTo || "/boards";
+        window.location.assign(nextPath);
       } catch {
         setError(t("error.network"));
         setPassword("");
         setSubmitting(false);
       }
     },
-    [router, redirectTo, identifier, password, submitting, blocked, t, setLocale],
+    [redirectTo, identifier, password, submitting, blocked, t, setLocale],
   );
 
   const pinLoginHref = redirectTo
@@ -97,6 +99,12 @@ export default function LoginClient({
           {notice === "signup-existing" && (
             <p className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-center text-sm text-blue-700">
               すでに登録済みのアカウントがあります。ログインしてください。
+            </p>
+          )}
+
+          {notice === "password-reset" && (
+            <p className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-center text-sm text-emerald-700">
+              {t("auth.login.noticePasswordReset")}
             </p>
           )}
 
@@ -174,6 +182,12 @@ export default function LoginClient({
                 {t("auth.login.loginWithPin")}
               </Link>
             )}
+            <Link
+              href="/password/forgot"
+              className="block text-sm text-gray-500 hover:text-blue-600"
+            >
+              {t("auth.login.forgotPassword")}
+            </Link>
             <Link
               href="/signup"
               className="block text-sm text-gray-500 hover:text-blue-600"

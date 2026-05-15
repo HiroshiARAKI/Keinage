@@ -22,16 +22,31 @@ import {
   buildPublicAppUrl,
   isUnauthenticatedSignupPreviewEnabled,
 } from "@/lib/public-origin";
+import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 
 /** POST /api/auth/account-deletion/request — send owner account deletion link */
 export async function POST(request: NextRequest) {
   const session = await getSessionUser();
   if (!session) {
+    await writeAuditLog({
+      action: "account_delete_requested",
+      targetType: "user",
+      result: "denied",
+      reason: "session_missing",
+      request,
+    });
     return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
   }
 
   const body = await request.json().catch(() => null) as { confirmation?: string } | null;
   if (body?.confirmation !== "DELETE") {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "account_delete_requested",
+      result: "failure",
+      reason: "confirmation_mismatch",
+      request,
+    });
     return NextResponse.json(
       { error: "確認入力が一致しません" },
       { status: 400 },
@@ -39,6 +54,13 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isOwnerUser(session.user)) {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "account_delete_requested",
+      result: "denied",
+      reason: "owner_required",
+      request,
+    });
     return NextResponse.json(
       { error: "Ownerアカウントのみ退会できます" },
       { status: 403 },
@@ -56,6 +78,13 @@ export async function POST(request: NextRequest) {
     : null;
 
   if (!isFullAuthValid(deviceAuthLastFullAuthAt, expireDays)) {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "account_delete_requested",
+      result: "denied",
+      reason: "full_auth_required",
+      request,
+    });
     return NextResponse.json(
       { error: "メールアドレスとパスワードによる再認証が必要です" },
       { status: 403 },
@@ -65,6 +94,13 @@ export async function POST(request: NextRequest) {
   const smtpConfigured = isSmtpConfigured();
   const previewEnabled = isUnauthenticatedSignupPreviewEnabled();
   if (!smtpConfigured && !previewEnabled) {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "account_delete_requested",
+      result: "failure",
+      reason: "smtp_not_configured",
+      request,
+    });
     return NextResponse.json(
       { error: "この環境では削除リンクを発行できません。SMTP を設定してください" },
       { status: 503 },
@@ -75,6 +111,13 @@ export async function POST(request: NextRequest) {
   const expiresAt = computeAccountDeletionExpiry();
   const deletionUrl = buildPublicAppUrl(`/deleting-account/${token}`);
   if (!deletionUrl) {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "account_delete_requested",
+      result: "failure",
+      reason: "public_origin_not_configured",
+      request,
+    });
     return NextResponse.json(
       { error: "APP_PUBLIC_ORIGIN が未設定、または不正です" },
       { status: 503 },
@@ -103,12 +146,26 @@ export async function POST(request: NextRequest) {
     : false;
 
   if (!mailSent && smtpConfigured) {
+    await writeUserAuditLog({
+      user: session.user,
+      action: "account_delete_requested",
+      result: "failure",
+      reason: "mail_send_failed",
+      request,
+    });
     return NextResponse.json(
       { error: "削除確認メールの送信に失敗しました。時間を置いて再度お試しください" },
       { status: 500 },
     );
   }
 
+  await writeUserAuditLog({
+    user: session.user,
+    action: "account_delete_requested",
+    result: "success",
+    request,
+    metadata: { previewEnabled, mailSent },
+  });
   return NextResponse.json({
     success: true,
     previewUrl: previewEnabled ? deletionUrl : null,

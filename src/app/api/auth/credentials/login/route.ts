@@ -1,9 +1,9 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
 import { NextRequest, NextResponse } from "next/server";
+import { eq, or, and, gt } from "drizzle-orm";
 import { db } from "@/db";
 import { users, pinAttempts, authSessions } from "@/db/schema";
-import { eq, or, and, gt } from "drizzle-orm";
 import {
   verifyPassword,
   AUTH_SESSION_COOKIE,
@@ -22,6 +22,11 @@ import {
   generateSessionToken,
 } from "@/lib/pin";
 import {
+  buildFailedAuthState,
+  buildSuccessfulAuthState,
+  isAccountLocked,
+} from "@/lib/account-security";
+import {
   buildRateLimitKey,
   resolveRateLimitClientIp,
 } from "@/lib/rate-limit";
@@ -30,6 +35,12 @@ import {
   setLocaleCookie,
 } from "@/lib/locale-cookie";
 import { maybeBootstrapSuperOwner } from "@/lib/super-owner";
+import {
+  getWebAuthnPostAuthAction,
+  isWebAuthnVerifiedAtSessionCreation,
+} from "@/lib/webauthn";
+import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
+import { sendSecurityNotification } from "@/lib/security-notifications";
 
 /** POST /api/auth/credentials/login — email/userId + password login */
 export async function POST(request: NextRequest) {
@@ -48,7 +59,6 @@ export async function POST(request: NextRequest) {
     subject: normalizedIdentifier || "missing-identifier",
   });
 
-  // Rate-limit per client/subject bucket. Proxy headers are trusted only when configured.
   const blockThreshold = new Date(
     Date.now() - IP_BLOCK_DURATION_MS,
   ).toISOString();
@@ -63,6 +73,14 @@ export async function POST(request: NextRequest) {
     );
 
   if (recentAttempts.length >= MAX_PIN_ATTEMPTS) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "denied",
+      reason: "rate_limited",
+      request,
+      metadata: { method: "credentials", identifierPresent: !!normalizedIdentifier },
+    });
     return NextResponse.json(
       {
         error:
@@ -74,6 +92,14 @@ export async function POST(request: NextRequest) {
   }
 
   if (!normalizedIdentifier || !password) {
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "auth",
+      result: "failure",
+      reason: "missing_credentials",
+      request,
+      metadata: { method: "credentials", identifierPresent: !!normalizedIdentifier },
+    });
     return NextResponse.json(
       { error: "ユーザーIDまたはメールアドレスとパスワードを入力してください" },
       { status: 400 },
@@ -93,18 +119,95 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Constant-time failure to prevent user enumeration
   if (!user) {
     await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
+    await writeAuditLog({
+      action: "login_failed",
+      targetType: "user",
+      result: "failure",
+      reason: "user_not_found",
+      request,
+      metadata: { method: "credentials", identifierKind: normalizedIdentifier.includes("@") ? "email" : "user_id" },
+    });
     return NextResponse.json(
       { error: "ユーザーIDまたはパスワードが正しくありません" },
       { status: 401 },
     );
   }
 
-  if (!user.passwordHash) {
+  const now = new Date().toISOString();
+  if (isAccountLocked(user.lockedUntil, now)) {
+    await writeUserAuditLog({
+      user,
+      action: "login_failed",
+      result: "denied",
+      reason: "account_locked",
+      request,
+      metadata: { method: "credentials" },
+    });
     return NextResponse.json(
-      { error: "このユーザーはGoogleアカウントでログインしてください" },
+      {
+        error: user.passwordHash
+          ? "このアカウントは一時的にロックされています。パスワードを再設定するか、30分後に再度お試しください。"
+          : "このアカウントは一時的にロックされています。Googleでログインし、必要に応じてPIN初期化を利用するか、30分後に再度お試しください。",
+        blocked: true,
+        locked: true,
+      },
+      { status: 423 },
+    );
+  }
+
+  if (!user.passwordHash) {
+    await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
+    const failedState = buildFailedAuthState(user.failedAuthAttempts);
+    await db
+      .update(users)
+      .set({
+        failedAuthAttempts: failedState.failedAuthAttempts,
+        lockedUntil: failedState.lockedUntil,
+        lastFailedAuthAt: failedState.lastFailedAuthAt,
+      })
+      .where(eq(users.id, user.id));
+
+    if (failedState.lockedNow) {
+      await writeUserAuditLog({
+        user,
+        action: "account_locked",
+        result: "success",
+        reason: "password_login_for_google_user",
+        request,
+        metadata: { method: "credentials" },
+      });
+      await sendSecurityNotification({
+        user,
+        type: "account_locked",
+        request,
+        metadata: { method: "credentials" },
+      });
+      return NextResponse.json(
+        {
+          error:
+            "Google連携ユーザに対して5回連続でパスワードログインが失敗したため、アカウントを30分間ロックしました。Googleでログインし、必要に応じてPIN初期化を利用するか、30分後に再度お試しください。",
+          blocked: true,
+          locked: true,
+        },
+        { status: 423 },
+      );
+    }
+
+    await writeUserAuditLog({
+      user,
+      action: "login_failed",
+      result: "failure",
+      reason: "password_auth_unavailable",
+      request,
+      metadata: { method: "credentials", remaining: failedState.remaining },
+    });
+    return NextResponse.json(
+      {
+        error: `当該ユーザはGoogleアカウント連携をしているのでパスワードログインやパスワードリセットはできません。Googleでログインしてください。PINを忘れた場合は、Googleログイン後にPIN初期化を利用してください${failedState.remaining > 0 ? `（残り${failedState.remaining}回でロック）` : ""}`,
+        remaining: failedState.remaining,
+      },
       { status: 401 },
     );
   }
@@ -115,29 +218,68 @@ export async function POST(request: NextRequest) {
   }
   if (!valid) {
     await db.insert(pinAttempts).values({ ipAddress: rateLimitKey });
-    const remaining = MAX_PIN_ATTEMPTS - (recentAttempts.length + 1);
+    const failedState = buildFailedAuthState(user.failedAuthAttempts);
+    await db
+      .update(users)
+      .set({
+        failedAuthAttempts: failedState.failedAuthAttempts,
+        lockedUntil: failedState.lockedUntil,
+        lastFailedAuthAt: failedState.lastFailedAuthAt,
+      })
+      .where(eq(users.id, user.id));
+
+    if (failedState.lockedNow) {
+      await writeUserAuditLog({
+        user,
+        action: "account_locked",
+        result: "success",
+        reason: "invalid_password",
+        request,
+        metadata: { method: "credentials" },
+      });
+      await sendSecurityNotification({
+        user,
+        type: "account_locked",
+        request,
+        metadata: { method: "credentials" },
+      });
+      return NextResponse.json(
+        {
+          error:
+            "5回連続で認証に失敗したため、アカウントを30分間ロックしました。パスワード再設定後、または30分後に再度お試しください。",
+          blocked: true,
+          locked: true,
+        },
+        { status: 423 },
+      );
+    }
+
+    await writeUserAuditLog({
+      user,
+      action: "login_failed",
+      result: "failure",
+      reason: "invalid_password",
+      request,
+      metadata: { method: "credentials", remaining: failedState.remaining },
+    });
     return NextResponse.json(
       {
-        error: `ユーザーIDまたはパスワードが正しくありません${remaining > 0 ? `（残り${remaining}回）` : ""}`,
-        remaining,
+        error: `ユーザーIDまたはパスワードが正しくありません${failedState.remaining > 0 ? `（残り${failedState.remaining}回）` : ""}`,
+        remaining: failedState.remaining,
       },
       { status: 401 },
     );
   }
 
-  // Clear attempts for the successfully authenticated subject bucket.
   await db.delete(pinAttempts).where(eq(pinAttempts.ipAddress, rateLimitKey));
 
   if (process.env.NODE_ENV !== "production") {
     console.log("[credentials/login] Password verified OK");
   }
 
-  const now = new Date().toISOString();
-
-  // Record full-auth timestamp
   await db
     .update(users)
-    .set({ lastFullAuthAt: now })
+    .set(buildSuccessfulAuthState(now))
     .where(eq(users.id, user.id));
 
   await maybeBootstrapSuperOwner({
@@ -146,6 +288,23 @@ export async function POST(request: NextRequest) {
     authenticatedProvider: "credentials",
     request,
   });
+  await writeUserAuditLog({
+    user,
+    action: "login_success",
+    result: "success",
+    request,
+    metadata: { method: "credentials" },
+  });
+  if (user.failedAuthAttempts > 0 || user.lockedUntil) {
+    await writeUserAuditLog({
+      user,
+      action: "account_unlocked",
+      result: "success",
+      reason: "login_success",
+      request,
+      metadata: { method: "credentials" },
+    });
+  }
 
   const { deviceToken } = await storeDeviceFullAuth({
     deviceToken: request.cookies.get(DEVICE_AUTH_COOKIE)?.value,
@@ -153,13 +312,13 @@ export async function POST(request: NextRequest) {
     authenticatedAt: now,
   });
 
-  // Create session
   const sessionToken = generateSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000).toISOString();
 
   await db.insert(authSessions).values({
     userId: user.id,
     sessionToken,
+    webauthnVerified: await isWebAuthnVerifiedAtSessionCreation(user),
     expiresAt,
   });
 
@@ -167,10 +326,20 @@ export async function POST(request: NextRequest) {
     storedLocale: user.locale,
     acceptLanguage: request.headers.get("accept-language"),
   });
-  const res = NextResponse.json({ success: true, locale });
-  res.cookies.set(AUTH_SESSION_COOKIE, sessionToken, buildAuthCookieOptions(SESSION_MAX_AGE));
-  setDeviceAuthCookie(res, deviceToken);
+  const webauthnAction = await getWebAuthnPostAuthAction(user);
+  const res = NextResponse.json({
+    success: true,
+    locale,
+    webauthnAction,
+    redirectTo: webauthnAction === "register"
+      ? "/passkey/setup"
+      : webauthnAction === "authenticate"
+        ? "/passkey/verify"
+        : null,
+  });
+  res.cookies.set(AUTH_SESSION_COOKIE, sessionToken, buildAuthCookieOptions(SESSION_MAX_AGE, request));
+  setDeviceAuthCookie(res, deviceToken, request);
   setLocaleCookie(res, locale);
-  clearLegacyLastUserCookie(res);
+  clearLegacyLastUserCookie(res, request);
   return res;
 }
