@@ -270,7 +270,8 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
     board.templateId === "photo-clock" ||
     board.templateId === "restaurant-menu" ||
     board.templateId === "staff-board" ||
-    board.templateId === "split-view";
+    board.templateId === "split-view" ||
+    board.templateId === "floor-guide";
 
   return (
     <div>

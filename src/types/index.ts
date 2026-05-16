@@ -35,6 +35,7 @@ export type TemplateId =
   | "schedule-board"
   | "staff-board"
   | "split-view"
+  | "floor-guide"
   | "clinic-hours"
   | "restaurant-menu"
   | "qr-info";

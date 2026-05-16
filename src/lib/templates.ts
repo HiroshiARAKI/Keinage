@@ -25,6 +25,9 @@ import StaffBoard, {
 import SplitViewBoard, {
   splitViewDefaultConfig,
 } from "@/components/board/templates/SplitViewBoard";
+import FloorGuideBoard, {
+  floorGuideDefaultConfig,
+} from "@/components/board/templates/FloorGuideBoard";
 import ClinicHoursBoard, {
   clinicHoursDefaultConfig,
 } from "@/components/board/templates/ClinicHoursBoard";
@@ -99,6 +102,14 @@ export const templates: Record<TemplateId, BoardTemplate> = {
       "画像・動画・テキストを左右または上下に2分割表示するテンプレート",
     defaultConfig: splitViewDefaultConfig as unknown as Record<string, unknown>,
     component: SplitViewBoard,
+  },
+  "floor-guide": {
+    id: "floor-guide",
+    name: "フロアガイド",
+    description:
+      "階ごとの店舗情報や館内設備、エレベーター案内を表示するテンプレート",
+    defaultConfig: floorGuideDefaultConfig as unknown as Record<string, unknown>,
+    component: FloorGuideBoard,
   },
   "clinic-hours": {
     id: "clinic-hours",

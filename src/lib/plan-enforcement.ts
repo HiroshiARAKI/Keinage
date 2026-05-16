@@ -15,6 +15,10 @@ export const EXTENDED_TEMPLATE_IDS = [
   "qr-info",
 ] as const;
 
+export const PREMIUM_TEMPLATE_IDS = [
+  "floor-guide",
+] as const;
+
 export type OwnerPlanUsage = OwnerUsage;
 export { getOwnerBoardCount, getOwnerUsage };
 export const getOwnerPlanUsage = getOwnerUsage;
@@ -98,11 +102,26 @@ export function isExtendedTemplateId(templateId: string): boolean {
   return EXTENDED_TEMPLATE_IDS.includes(templateId as (typeof EXTENDED_TEMPLATE_IDS)[number]);
 }
 
+export function isPremiumTemplateId(templateId: string): boolean {
+  return PREMIUM_TEMPLATE_IDS.includes(templateId as (typeof PREMIUM_TEMPLATE_IDS)[number]);
+}
+
 export async function assertCanUseTemplate(input: {
   ownerUserId: string;
   templateId: string;
 }) {
   const effectivePlan = await getEffectivePlanForOwner(input.ownerUserId);
+  if (
+    isPremiumTemplateId(input.templateId)
+    && !effectivePlan.plan.limits.premiumTemplates
+  ) {
+    throwLimit(
+      "plan_limit_template_disabled",
+      effectivePlan.plan,
+      true,
+    );
+  }
+
   if (
     isExtendedTemplateId(input.templateId)
     && !effectivePlan.plan.limits.extendedTemplates

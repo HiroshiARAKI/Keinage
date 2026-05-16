@@ -13,6 +13,7 @@ export const templateIdSchema = z.enum([
   "schedule-board",
   "staff-board",
   "split-view",
+  "floor-guide",
   "clinic-hours",
   "restaurant-menu",
   "qr-info",
