@@ -19,6 +19,9 @@ import CallNumberBoard, {
 import ScheduleBoard, {
   scheduleBoardDefaultConfig,
 } from "@/components/board/templates/ScheduleBoard";
+import StaffBoard, {
+  staffBoardDefaultConfig,
+} from "@/components/board/templates/StaffBoard";
 import ClinicHoursBoard, {
   clinicHoursDefaultConfig,
 } from "@/components/board/templates/ClinicHoursBoard";
@@ -77,6 +80,14 @@ export const templates: Record<TemplateId, BoardTemplate> = {
       "1日の予定を縦型タイムラインで表示するテンプレート",
     defaultConfig: scheduleBoardDefaultConfig as unknown as Record<string, unknown>,
     component: ScheduleBoard,
+  },
+  "staff-board": {
+    id: "staff-board",
+    name: "スタッフボード",
+    description:
+      "スタッフ紹介や担当者プロフィールを自動レイアウトで表示するテンプレート",
+    defaultConfig: staffBoardDefaultConfig as unknown as Record<string, unknown>,
+    component: StaffBoard,
   },
   "clinic-hours": {
     id: "clinic-hours",

@@ -33,6 +33,7 @@ export type TemplateId =
   | "message"
   | "call-number"
   | "schedule-board"
+  | "staff-board"
   | "clinic-hours"
   | "restaurant-menu"
   | "qr-info";

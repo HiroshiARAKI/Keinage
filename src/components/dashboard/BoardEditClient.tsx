@@ -268,7 +268,8 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
   const supportsMedia =
     board.templateId === "simple" ||
     board.templateId === "photo-clock" ||
-    board.templateId === "restaurant-menu";
+    board.templateId === "restaurant-menu" ||
+    board.templateId === "staff-board";
 
   return (
     <div>

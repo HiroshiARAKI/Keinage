@@ -8,6 +8,7 @@ import type { PlanCode, PlanDefinition } from "@/lib/plans";
 
 export const EXTENDED_TEMPLATE_IDS = [
   "schedule-board",
+  "staff-board",
   "clinic-hours",
   "restaurant-menu",
   "qr-info",
