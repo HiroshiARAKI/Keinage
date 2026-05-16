@@ -16,6 +16,9 @@ import MessageBoard, {
 import CallNumberBoard, {
   callNumberDefaultConfig,
 } from "@/components/board/templates/CallNumberBoard";
+import ScheduleBoard, {
+  scheduleBoardDefaultConfig,
+} from "@/components/board/templates/ScheduleBoard";
 import ClinicHoursBoard, {
   clinicHoursDefaultConfig,
 } from "@/components/board/templates/ClinicHoursBoard";
@@ -66,6 +69,14 @@ export const templates: Record<TemplateId, BoardTemplate> = {
       "病院や飲食店の呼び出し番号を表示するテンプレート",
     defaultConfig: callNumberDefaultConfig,
     component: CallNumberBoard,
+  },
+  "schedule-board": {
+    id: "schedule-board",
+    name: "スケジュールボード",
+    description:
+      "1日の予定を縦型タイムラインで表示するテンプレート",
+    defaultConfig: scheduleBoardDefaultConfig as unknown as Record<string, unknown>,
+    component: ScheduleBoard,
   },
   "clinic-hours": {
     id: "clinic-hours",

@@ -241,6 +241,11 @@ export function getTemplateCopy(templateId: string, locale: SupportedLocale) {
         name: translate(locale, "template.call-number.name"),
         description: translate(locale, "template.call-number.description"),
       };
+    case "schedule-board":
+      return {
+        name: translate(locale, "template.schedule-board.name"),
+        description: translate(locale, "template.schedule-board.description"),
+      };
     case "clinic-hours":
       return {
         name: translate(locale, "template.clinic-hours.name"),

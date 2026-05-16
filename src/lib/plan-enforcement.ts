@@ -7,6 +7,7 @@ import { PLAN_LIMIT_MESSAGE_KEYS, type PlanLimitCode } from "@/lib/plan-limit";
 import type { PlanCode, PlanDefinition } from "@/lib/plans";
 
 export const EXTENDED_TEMPLATE_IDS = [
+  "schedule-board",
   "clinic-hours",
   "restaurant-menu",
   "qr-info",
