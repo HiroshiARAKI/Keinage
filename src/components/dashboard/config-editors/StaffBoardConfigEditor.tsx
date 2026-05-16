@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { MediaItem } from "@/types";
 import { FontSelect, useLoadAllGoogleFonts } from "./shared";
@@ -81,6 +82,7 @@ export function StaffBoardConfigEditor({
   const { t } = useLocale();
   const profiles = normalizeProfiles(config.profiles);
   const fontFamily = (config.fontFamily as string) ?? "";
+  const showClock = (config.showClock as boolean) ?? false;
   const imageMedia = mediaItems.filter((item) => item.type === "image");
 
   function update(key: string, value: unknown) {
@@ -143,6 +145,15 @@ export function StaffBoardConfigEditor({
           value={(config.body as string) ?? "担当者やスタッフのプロフィールを表示します。"}
           onChange={(e) => update("body", e.target.value)}
         />
+      </div>
+
+      <div className="flex items-center gap-3 rounded-md border p-3">
+        <Switch
+          id="cfg-staff-showClock"
+          checked={showClock}
+          onCheckedChange={(value) => update("showClock", value)}
+        />
+        <Label htmlFor="cfg-staff-showClock">{t("configEditor.showClock")}</Label>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

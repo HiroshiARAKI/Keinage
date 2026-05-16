@@ -1,5 +1,6 @@
 "use client";
 
+import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
 import type { BoardTemplateProps } from "@/types";
 
@@ -15,6 +16,7 @@ interface StaffBoardConfig {
   title: string;
   body: string;
   fontFamily: string;
+  showClock: boolean;
   backgroundColor: string;
   titleColor: string;
   bodyColor: string;
@@ -38,6 +40,7 @@ export const staffBoardDefaultConfig: StaffBoardConfig = {
   title: "スタッフ紹介",
   body: "担当者やスタッフのプロフィールを表示します。",
   fontFamily: "",
+  showClock: false,
   backgroundColor: "#f8fafc",
   titleColor: "#0f172a",
   bodyColor: "#475569",
@@ -193,20 +196,33 @@ export default function StaffBoard({ board }: BoardTemplateProps) {
       }}
     >
       {config.fontFamily && <GoogleFontLoader fonts={[config.fontFamily]} />}
-      <header className="mx-auto mb-8 w-full max-w-[1900px] shrink-0">
-        <h1
-          className="text-balance font-black tracking-tight"
-          style={{ color: config.titleColor, fontSize: "46px", lineHeight: 1.08 }}
-        >
-          {config.title || board.name}
-        </h1>
-        {config.body && (
-          <p
-            className="mt-2 max-w-5xl leading-relaxed"
-            style={{ color: config.bodyColor, fontSize: "20px" }}
+      <header className="mx-auto mb-8 flex w-full max-w-[1900px] shrink-0 items-start justify-between gap-5">
+        <div className="min-w-0 flex-1">
+          <h1
+            className="text-balance font-black tracking-tight"
+            style={{ color: config.titleColor, fontSize: "46px", lineHeight: 1.08 }}
           >
-            {config.body}
-          </p>
+            {config.title || board.name}
+          </h1>
+          {config.body && (
+            <p
+              className="mt-2 max-w-5xl leading-relaxed"
+              style={{ color: config.bodyColor, fontSize: "20px" }}
+            >
+              {config.body}
+            </p>
+          )}
+        </div>
+        {config.showClock && (
+          <div className="shrink-0">
+            <DateTimeClock
+              timeFontSize={28}
+              color={config.titleColor}
+              bgOpacity={0.08}
+              layout="compact"
+              fontFamily={config.fontFamily || undefined}
+            />
+          </div>
         )}
       </header>
 

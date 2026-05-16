@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { MediaItem } from "@/types";
 import { FontSelect, useLoadAllGoogleFonts } from "./shared";
@@ -95,6 +96,7 @@ export function SplitViewConfigEditor({
   const { t } = useLocale();
   const panes = normalizePanes(config.panes);
   const fontFamily = (config.fontFamily as string) ?? "";
+  const showClock = (config.showClock as boolean) ?? false;
   const splitDirection =
     ((config.splitDirection as string) ?? "horizontal") === "vertical"
       ? "vertical"
@@ -152,6 +154,15 @@ export function SplitViewConfigEditor({
           value={(config.dividerColor as string) ?? "#e2e8f0"}
           onChange={(value) => update("dividerColor", value)}
         />
+      </div>
+
+      <div className="flex items-center gap-3 rounded-md border p-3">
+        <Switch
+          id="cfg-split-showClock"
+          checked={showClock}
+          onCheckedChange={(value) => update("showClock", value)}
+        />
+        <Label htmlFor="cfg-split-showClock">{t("configEditor.showClock")}</Label>
       </div>
 
       <div className="space-y-4">

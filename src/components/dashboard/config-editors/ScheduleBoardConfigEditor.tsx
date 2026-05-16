@@ -5,6 +5,7 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { FontSelect, useLoadAllGoogleFonts } from "./shared";
 
@@ -55,6 +56,7 @@ export function ScheduleBoardConfigEditor({
   const { t } = useLocale();
   const entries = normalizeEntries(config.entries);
   const fontFamily = (config.fontFamily as string) ?? "";
+  const showClock = (config.showClock as boolean) ?? false;
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
@@ -137,6 +139,15 @@ export function ScheduleBoardConfigEditor({
           />
           <p className="text-xs text-muted-foreground">最小 1 時間分を表示します。</p>
         </div>
+      </div>
+
+      <div className="flex items-center gap-3 rounded-md border p-3">
+        <Switch
+          id="cfg-schedule-showClock"
+          checked={showClock}
+          onCheckedChange={(value) => update("showClock", value)}
+        />
+        <Label htmlFor="cfg-schedule-showClock">{t("configEditor.showClock")}</Label>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

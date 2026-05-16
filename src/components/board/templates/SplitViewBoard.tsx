@@ -1,5 +1,6 @@
 "use client";
 
+import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { MediaSlider } from "@/components/board/MediaSlider";
 import type { BoardTemplateProps, MediaItem } from "@/types";
 
@@ -19,6 +20,7 @@ interface SplitViewConfig {
   splitDirection: SplitDirection;
   dividerColor: string;
   fontFamily: string;
+  showClock: boolean;
   panes: SplitPaneConfig[];
 }
 
@@ -26,6 +28,7 @@ export const splitViewDefaultConfig: SplitViewConfig = {
   splitDirection: "horizontal",
   dividerColor: "#e2e8f0",
   fontFamily: "",
+  showClock: false,
   panes: [
     {
       type: "text",
@@ -111,6 +114,7 @@ function findPaneMedia(
 export default function SplitViewBoard({ board, mediaItems }: BoardTemplateProps) {
   const config = parseConfig(board.config);
   const isVertical = config.splitDirection === "vertical";
+  const clockColor = config.panes[0]?.textColor || "#ffffff";
 
   return (
     <div
@@ -123,6 +127,17 @@ export default function SplitViewBoard({ board, mediaItems }: BoardTemplateProps
         gap: "2px",
       }}
     >
+      {config.showClock && (
+        <div className="pointer-events-none absolute right-6 top-6 z-20">
+          <DateTimeClock
+            timeFontSize={28}
+            color={clockColor}
+            bgOpacity={0.2}
+            layout="compact"
+            fontFamily={config.fontFamily || undefined}
+          />
+        </div>
+      )}
       {config.panes.map((pane, index) => {
         const paneMedia = findPaneMedia(pane, mediaItems);
 

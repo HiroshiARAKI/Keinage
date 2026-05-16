@@ -1,5 +1,6 @@
 "use client";
 
+import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
 import type { BoardTemplateProps } from "@/types";
 
@@ -17,6 +18,7 @@ interface ScheduleBoardConfig {
   displayStartTime: string;
   displayEndTime: string;
   fontFamily: string;
+  showClock: boolean;
   backgroundColor: string;
   titleColor: string;
   bodyColor: string;
@@ -34,6 +36,9 @@ interface PositionedScheduleEntry extends ScheduleEntryConfig {
 }
 
 const MINUTES_PER_DAY = 24 * 60;
+const DISPLAY_BUFFER_MINUTES = 30;
+const EDGE_PADDING_PERCENT = 5;
+const MAX_PARALLEL_LANES = 3;
 
 export const scheduleBoardDefaultConfig: ScheduleBoardConfig = {
   title: "本日のスケジュール",
@@ -41,6 +46,7 @@ export const scheduleBoardDefaultConfig: ScheduleBoardConfig = {
   displayStartTime: "08:00",
   displayEndTime: "18:00",
   fontFamily: "",
+  showClock: false,
   backgroundColor: "#f8fafc",
   titleColor: "#0f172a",
   bodyColor: "#475569",
@@ -114,6 +120,23 @@ function normalizeDisplayRange(startTime: string, endTime: string) {
     startTime: minutesToTime(start),
     endTime: minutesToTime(end),
   };
+}
+
+function expandDisplayRange(start: number, end: number) {
+  const safeStart = Math.max(0, start - DISPLAY_BUFFER_MINUTES);
+  const safeEnd = Math.min(MINUTES_PER_DAY, end + DISPLAY_BUFFER_MINUTES);
+
+  if (safeEnd - safeStart >= 60) {
+    return { start: safeStart, end: safeEnd };
+  }
+
+  return normalizeDisplayRange(minutesToTime(safeStart), minutesToTime(safeEnd));
+}
+
+function toVerticalPercent(minutes: number, start: number, end: number) {
+  const totalMinutes = Math.max(60, end - start);
+  const ratio = (minutes - start) / totalMinutes;
+  return EDGE_PADDING_PERCENT + ratio * (100 - EDGE_PADDING_PERCENT * 2);
 }
 
 function normalizeEntries(value: unknown): ScheduleEntryConfig[] {
@@ -198,8 +221,15 @@ function layoutEntries(entries: ScheduleEntryConfig[], start: number, end: numbe
     const clusteredEntries: PositionedScheduleEntry[] = cluster.map((entry) => {
       let lane = laneEnds.findIndex((laneEnd) => laneEnd <= entry.visibleStart);
       if (lane === -1) {
-        lane = laneEnds.length;
-        laneEnds.push(entry.visibleEnd);
+        if (laneEnds.length < MAX_PARALLEL_LANES) {
+          lane = laneEnds.length;
+          laneEnds.push(entry.visibleEnd);
+        } else {
+          lane = laneEnds.reduce((bestIndex, laneEnd, laneIndex, source) =>
+            laneEnd < source[bestIndex] ? laneIndex : bestIndex,
+          0);
+          laneEnds[lane] = Math.max(laneEnds[lane], entry.visibleEnd);
+        }
       } else {
         laneEnds[lane] = entry.visibleEnd;
       }
@@ -209,7 +239,7 @@ function layoutEntries(entries: ScheduleEntryConfig[], start: number, end: numbe
         laneCount: 0,
       };
     });
-    const laneCount = Math.max(1, laneEnds.length);
+    const laneCount = Math.max(1, Math.min(MAX_PARALLEL_LANES, laneEnds.length));
     positioned.push(
       ...clusteredEntries.map((entry) => ({
         ...entry,
@@ -238,9 +268,9 @@ function layoutEntries(entries: ScheduleEntryConfig[], start: number, end: numbe
 export default function ScheduleBoard({ board }: BoardTemplateProps) {
   const config = parseConfig(board.config);
   const range = normalizeDisplayRange(config.displayStartTime, config.displayEndTime);
-  const totalMinutes = Math.max(60, range.end - range.start);
-  const timeMarkers = buildTimeMarkers(range.start, range.end);
-  const entries = layoutEntries(config.entries, range.start, range.end);
+  const displayRange = expandDisplayRange(range.start, range.end);
+  const timeMarkers = buildTimeMarkers(displayRange.start, displayRange.end);
+  const entries = layoutEntries(config.entries, displayRange.start, displayRange.end);
 
   return (
     <div
@@ -253,20 +283,33 @@ export default function ScheduleBoard({ board }: BoardTemplateProps) {
       }}
     >
       {config.fontFamily && <GoogleFontLoader fonts={[config.fontFamily]} />}
-      <header className="mb-6 shrink-0">
-        <h1
-          className="text-balance font-black tracking-tight"
-          style={{ color: config.titleColor, fontSize: "44px", lineHeight: 1.08 }}
-        >
-          {config.title || board.name}
-        </h1>
-        {config.body && (
-          <p
-            className="mt-2 max-w-4xl leading-relaxed"
-            style={{ color: config.bodyColor, fontSize: "20px" }}
+      <header className="mb-6 flex shrink-0 items-start justify-between gap-5">
+        <div className="min-w-0 flex-1">
+          <h1
+            className="text-balance font-black tracking-tight"
+            style={{ color: config.titleColor, fontSize: "44px", lineHeight: 1.08 }}
           >
-            {config.body}
-          </p>
+            {config.title || board.name}
+          </h1>
+          {config.body && (
+            <p
+              className="mt-2 max-w-4xl leading-relaxed"
+              style={{ color: config.bodyColor, fontSize: "20px" }}
+            >
+              {config.body}
+            </p>
+          )}
+        </div>
+        {config.showClock && (
+          <div className="shrink-0">
+            <DateTimeClock
+              timeFontSize={28}
+              color={config.titleColor}
+              bgOpacity={0.08}
+              layout="compact"
+              fontFamily={config.fontFamily || undefined}
+            />
+          </div>
         )}
       </header>
 
@@ -274,7 +317,7 @@ export default function ScheduleBoard({ board }: BoardTemplateProps) {
         <div className="flex h-full min-h-0">
           <div className="relative w-24 shrink-0 border-r border-slate-200/80 bg-slate-50/70">
             {timeMarkers.map((minutes) => {
-              const top = ((minutes - range.start) / totalMinutes) * 100;
+              const top = toVerticalPercent(minutes, displayRange.start, displayRange.end);
               return (
                 <div
                   key={minutes}
@@ -294,7 +337,7 @@ export default function ScheduleBoard({ board }: BoardTemplateProps) {
 
           <div className="relative min-h-0 flex-1 overflow-hidden">
             {timeMarkers.map((minutes) => {
-              const top = ((minutes - range.start) / totalMinutes) * 100;
+              const top = toVerticalPercent(minutes, displayRange.start, displayRange.end);
               return (
                 <div
                   key={`line-${minutes}`}
@@ -313,8 +356,9 @@ export default function ScheduleBoard({ board }: BoardTemplateProps) {
               </div>
             ) : (
               entries.map((entry, index) => {
-                const top = ((entry.visibleStart - range.start) / totalMinutes) * 100;
-                const height = ((entry.visibleEnd - entry.visibleStart) / totalMinutes) * 100;
+                const top = toVerticalPercent(entry.visibleStart, displayRange.start, displayRange.end);
+                const bottom = toVerticalPercent(entry.visibleEnd, displayRange.start, displayRange.end);
+                const height = Math.max(4, bottom - top);
                 const laneWidth = 100 / entry.laneCount;
                 const inset = 8;
                 return (
@@ -331,11 +375,11 @@ export default function ScheduleBoard({ board }: BoardTemplateProps) {
                       color: config.cardTextColor,
                     }}
                   >
-                    <div className="flex h-full flex-col justify-between px-4 py-3">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="flex h-full items-start gap-3 px-4 py-3">
+                      <div className="shrink-0 whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-slate-500">
                         {entry.startTime} - {entry.endTime}
                       </div>
-                      <div className="mt-2 text-lg font-bold leading-snug">
+                      <div className="min-w-0 text-lg font-bold leading-snug">
                         {entry.content}
                       </div>
                     </div>

@@ -23,8 +23,7 @@ interface FloorShopConfig {
 }
 
 interface FloorConfig {
-  floorNumber: number;
-  enabled: boolean;
+  floorNumber: number | null;
   shops: FloorShopConfig[];
   hasMensRestroom: boolean;
   hasWomensRestroom: boolean;
@@ -47,8 +46,7 @@ interface FloorGuideConfigEditorProps {
 
 function createDefaultFloors(): FloorConfig[] {
   return Array.from({ length: 10 }, (_, index) => ({
-    floorNumber: index + 1,
-    enabled: index < 4,
+    floorNumber: index < 4 ? index + 1 : null,
     shops: index < 4 ? [{ logoPath: "", text: `フロア ${index + 1} の案内` }] : [],
     hasMensRestroom: index < 3,
     hasWomensRestroom: index < 3,
@@ -79,8 +77,7 @@ function normalizeFloors(value: unknown): FloorConfig[] {
       : fallback.shops;
 
     return {
-      floorNumber: fallback.floorNumber,
-      enabled: typeof raw.enabled === "boolean" ? raw.enabled : fallback.enabled,
+      floorNumber: clampFloor(raw.floorNumber, fallback.floorNumber),
       shops,
       hasMensRestroom:
         typeof raw.hasMensRestroom === "boolean"
@@ -110,8 +107,8 @@ function normalizeElevators(value: unknown): ElevatorConfig[] {
       ? (rawElevators[index] as Partial<ElevatorConfig>)
       : {};
 
-    const first = clampFloor(raw.startFloor, fallback.startFloor);
-    const second = clampFloor(raw.endFloor, fallback.endFloor);
+    const first = clampFloor(raw.startFloor, fallback.startFloor) ?? fallback.startFloor;
+    const second = clampFloor(raw.endFloor, fallback.endFloor) ?? fallback.endFloor;
     const startFloor = Math.min(first, second);
     const endFloor = Math.max(first, second === first ? Math.min(10, first + 1) : second);
 
@@ -124,7 +121,8 @@ function normalizeElevators(value: unknown): ElevatorConfig[] {
   });
 }
 
-function clampFloor(value: unknown, fallback: number) {
+function clampFloor(value: unknown, fallback: number | null) {
+  if (value === "" || value === null || value === undefined) return null;
   const next = Math.round(Number(value));
   if (!Number.isFinite(next)) return fallback;
   return Math.min(10, Math.max(1, next));
@@ -140,6 +138,7 @@ export function FloorGuideConfigEditor({
   const floors = normalizeFloors(config.floors);
   const elevators = normalizeElevators(config.elevators);
   const fontFamily = (config.fontFamily as string) ?? "";
+  const showClock = (config.showClock as boolean) ?? false;
   const imageMedia = mediaItems.filter(
     (item): item is MediaItem & { filePath: string } =>
       item.type === "image" && typeof item.filePath === "string" && item.filePath.length > 0,
@@ -216,6 +215,15 @@ export function FloorGuideConfigEditor({
         />
       </div>
 
+      <div className="flex items-center gap-3 rounded-md border p-3">
+        <Switch
+          id="cfg-floor-showClock"
+          checked={showClock}
+          onCheckedChange={(value) => update("showClock", value)}
+        />
+        <Label htmlFor="cfg-floor-showClock">{t("configEditor.showClock")}</Label>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         <ColorInput
           id="cfg-floor-bg"
@@ -259,57 +267,60 @@ export function FloorGuideConfigEditor({
         <div>
           <h4 className="text-sm font-semibold">フロア設定</h4>
           <p className="text-xs text-muted-foreground">
-            1F から 10F まで設定できます。店舗情報は各階ごとに最大10件です。
+            階数は 1F から 10F まで数値入力できます。空欄の階はボードに表示されません。
           </p>
         </div>
 
         <div className="space-y-3">
-          {[...floors].sort((left, right) => right.floorNumber - left.floorNumber).map((floor) => {
-            const floorIndex = floors.findIndex((item) => item.floorNumber === floor.floorNumber);
+          {floors.map((floor, floorIndex) => {
             return (
-              <details key={floor.floorNumber} className="rounded-md border p-3" open={floor.enabled}>
+              <details key={floorIndex} className="rounded-md border p-3" open={floor.floorNumber !== null}>
                 <summary className="cursor-pointer list-none">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h5 className="text-sm font-semibold">{floor.floorNumber}F</h5>
+                      <h5 className="text-sm font-semibold">{floor.floorNumber ? `${floor.floorNumber}F` : `未設定 #${floorIndex + 1}`}</h5>
                       <p className="text-xs text-muted-foreground">
-                        {floor.enabled ? "表示中" : "非表示"} / 店舗 {floor.shops.length}件
+                        {floor.floorNumber ? "表示対象" : "非表示"} / 店舗 {floor.shops.length}件
                       </p>
                     </div>
                   </div>
                 </summary>
 
                 <div className="mt-4 space-y-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Switch
-                      id={`cfg-floor-enabled-${floor.floorNumber}`}
-                      checked={floor.enabled}
-                      onCheckedChange={(checked) => updateFloor(floorIndex, { enabled: checked })}
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`cfg-floor-number-${floorIndex}`}>階数</Label>
+                    <Input
+                      id={`cfg-floor-number-${floorIndex}`}
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={floor.floorNumber ?? ""}
+                      placeholder="空欄で非表示"
+                      onChange={(e) => updateFloor(floorIndex, { floorNumber: clampFloor(e.target.value, floor.floorNumber) })}
                     />
-                    <Label htmlFor={`cfg-floor-enabled-${floor.floorNumber}`}>この階を表示する</Label>
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <FacilitySwitch
-                      id={`cfg-floor-m-${floor.floorNumber}`}
+                      id={`cfg-floor-m-${floorIndex}`}
                       label="男性トイレ"
                       checked={floor.hasMensRestroom}
                       onCheckedChange={(checked) => updateFloor(floorIndex, { hasMensRestroom: checked })}
                     />
                     <FacilitySwitch
-                      id={`cfg-floor-w-${floor.floorNumber}`}
+                      id={`cfg-floor-w-${floorIndex}`}
                       label="女性トイレ"
                       checked={floor.hasWomensRestroom}
                       onCheckedChange={(checked) => updateFloor(floorIndex, { hasWomensRestroom: checked })}
                     />
                     <FacilitySwitch
-                      id={`cfg-floor-exit-${floor.floorNumber}`}
+                      id={`cfg-floor-exit-${floorIndex}`}
                       label="非常口"
                       checked={floor.hasEmergencyExit}
                       onCheckedChange={(checked) => updateFloor(floorIndex, { hasEmergencyExit: checked })}
                     />
                     <FacilitySwitch
-                      id={`cfg-floor-esc-${floor.floorNumber}`}
+                      id={`cfg-floor-esc-${floorIndex}`}
                       label="エスカレーター"
                       checked={floor.hasEscalator}
                       onCheckedChange={(checked) => updateFloor(floorIndex, { hasEscalator: checked })}
@@ -338,7 +349,7 @@ export function FloorGuideConfigEditor({
                       {floor.shops.map((shop, shopIndex) => (
                         <div key={shopIndex} className="grid gap-3 rounded-md border p-3 md:grid-cols-[220px_1fr_auto] md:items-end">
                           <div className="space-y-1.5">
-                            <Label htmlFor={`cfg-floor-logo-${floor.floorNumber}-${shopIndex}`}>ロゴ</Label>
+                            <Label htmlFor={`cfg-floor-logo-${floorIndex}-${shopIndex}`}>ロゴ</Label>
                             <Select
                               value={shop.logoPath || "__none__"}
                               onValueChange={(value) =>
@@ -347,7 +358,7 @@ export function FloorGuideConfigEditor({
                                 })
                               }
                             >
-                              <SelectTrigger id={`cfg-floor-logo-${floor.floorNumber}-${shopIndex}`}>
+                              <SelectTrigger id={`cfg-floor-logo-${floorIndex}-${shopIndex}`}>
                                 <SelectValue>
                                   {shop.logoPath
                                     ? mediaOptionLabel(shop.logoPath, imageMedia)
@@ -366,9 +377,9 @@ export function FloorGuideConfigEditor({
                           </div>
 
                           <div className="space-y-1.5">
-                            <Label htmlFor={`cfg-floor-text-${floor.floorNumber}-${shopIndex}`}>テキスト</Label>
+                            <Label htmlFor={`cfg-floor-text-${floorIndex}-${shopIndex}`}>テキスト</Label>
                             <Input
-                              id={`cfg-floor-text-${floor.floorNumber}-${shopIndex}`}
+                              id={`cfg-floor-text-${floorIndex}-${shopIndex}`}
                               value={shop.text}
                               maxLength={60}
                               onChange={(e) => updateShop(floorIndex, shopIndex, { text: e.target.value })}
@@ -430,36 +441,26 @@ export function FloorGuideConfigEditor({
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor={`cfg-elevator-start-${index}`}>開始階</Label>
-                  <Select
-                    value={String(elevator.startFloor)}
-                    onValueChange={(value) => updateElevator(index, { startFloor: clampFloor(value, elevator.startFloor) })}
-                  >
-                    <SelectTrigger id={`cfg-elevator-start-${index}`}>
-                      <SelectValue>{elevator.startFloor}F</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {floorOptions().map((floor) => (
-                        <SelectItem key={floor} value={String(floor)}>{floor}F</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    id={`cfg-elevator-start-${index}`}
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={elevator.startFloor}
+                    onChange={(e) => updateElevator(index, { startFloor: clampFloor(e.target.value, elevator.startFloor) ?? elevator.startFloor })}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor={`cfg-elevator-end-${index}`}>終了階</Label>
-                  <Select
-                    value={String(elevator.endFloor)}
-                    onValueChange={(value) => updateElevator(index, { endFloor: clampFloor(value, elevator.endFloor) })}
-                  >
-                    <SelectTrigger id={`cfg-elevator-end-${index}`}>
-                      <SelectValue>{elevator.endFloor}F</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {floorOptions().map((floor) => (
-                        <SelectItem key={floor} value={String(floor)}>{floor}F</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    id={`cfg-elevator-end-${index}`}
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={elevator.endFloor}
+                    onChange={(e) => updateElevator(index, { endFloor: clampFloor(e.target.value, elevator.endFloor) ?? elevator.endFloor })}
+                  />
                 </div>
               </div>
             </div>
@@ -468,10 +469,6 @@ export function FloorGuideConfigEditor({
       </div>
     </div>
   );
-}
-
-function floorOptions() {
-  return Array.from({ length: 10 }, (_, index) => index + 1);
 }
 
 function mediaOptionLabel(filePath: string, items: Array<MediaItem & { filePath: string }>) {
