@@ -15,7 +15,7 @@ interface FloorShopConfig {
 }
 
 interface FloorConfig {
-  floorNumber: number | null;
+  floorNumber: number;
   shops: FloorShopConfig[];
   hasMensRestroom: boolean;
   hasWomensRestroom: boolean;
@@ -35,6 +35,7 @@ interface FloorGuideConfig {
   body: string;
   fontFamily: string;
   themePreset?: FloorGuideThemeKey | "";
+  floorCount: number;
   showClock: boolean;
   backgroundColor: string;
   panelColor: string;
@@ -48,7 +49,7 @@ interface FloorGuideConfig {
 
 function createDefaultFloors(): FloorConfig[] {
   return Array.from({ length: 10 }, (_, index) => {
-    const floorNumber = index < 4 ? index + 1 : null;
+    const floorNumber = index + 1;
     return {
       floorNumber,
       shops:
@@ -61,10 +62,10 @@ function createDefaultFloors(): FloorConfig[] {
               : floorNumber === 4
                 ? [{ logoPath: "", text: "会議室 / オフィス" }]
                 : [],
-      hasMensRestroom: floorNumber !== null && floorNumber <= 3,
-      hasWomensRestroom: floorNumber !== null && floorNumber <= 3,
-      hasEmergencyExit: floorNumber !== null && floorNumber <= 4,
-      hasEscalator: floorNumber !== null && floorNumber <= 4,
+      hasMensRestroom: floorNumber <= 3,
+      hasWomensRestroom: floorNumber <= 3,
+      hasEmergencyExit: floorNumber <= 4,
+      hasEscalator: floorNumber <= 4,
     };
   });
 }
@@ -76,6 +77,7 @@ export const floorGuideDefaultConfig: FloorGuideConfig = {
   body: "会場案内や店舗情報、館内設備をご案内します。",
   fontFamily: "",
   themePreset: "light",
+  floorCount: 4,
   showClock: false,
   backgroundColor: "#f8fafc",
   panelColor: "#ffffff",
@@ -98,6 +100,23 @@ function normalizeFloorNumber(value: unknown, fallback: number | null) {
   return Math.min(10, Math.max(1, next));
 }
 
+function inferFloorCount(value: unknown) {
+  if (!Array.isArray(value)) return floorGuideDefaultConfig.floorCount;
+  const maxFloor = value.reduce<number>((result, item) => {
+    const next = item && typeof item === "object"
+      ? normalizeFloorNumber((item as Partial<FloorConfig>).floorNumber, null)
+      : null;
+    return next !== null ? Math.max(result, next) : result;
+  }, 0);
+  return maxFloor > 0 ? maxFloor : floorGuideDefaultConfig.floorCount;
+}
+
+function normalizeFloorCount(value: unknown, fallback: number) {
+  const next = Math.round(Number(value));
+  if (!Number.isFinite(next)) return fallback;
+  return Math.min(10, Math.max(1, next));
+}
+
 function normalizeFloors(value: unknown): FloorConfig[] {
   const rawFloors = Array.isArray(value) ? value : defaultFloors;
 
@@ -113,7 +132,7 @@ function normalizeFloors(value: unknown): FloorConfig[] {
       : fallback.shops;
 
     return {
-      floorNumber: normalizeFloorNumber(raw.floorNumber, fallback.floorNumber),
+      floorNumber: index + 1,
       shops,
       hasMensRestroom:
         typeof raw.hasMensRestroom === "boolean"
@@ -135,17 +154,23 @@ function normalizeFloors(value: unknown): FloorConfig[] {
   });
 }
 
-function normalizeElevators(value: unknown): ElevatorConfig[] {
+function normalizeElevators(value: unknown, floorCount: number): ElevatorConfig[] {
   const rawElevators = Array.isArray(value) ? value : floorGuideDefaultConfig.elevators;
 
   return floorGuideDefaultConfig.elevators.map((fallback, index) => {
     const raw = rawElevators[index] && typeof rawElevators[index] === "object"
       ? (rawElevators[index] as Partial<ElevatorConfig>)
       : {};
-    const first = normalizeFloorNumber(raw.startFloor, fallback.startFloor) ?? fallback.startFloor;
-    const second = normalizeFloorNumber(raw.endFloor, fallback.endFloor) ?? fallback.endFloor;
+    const first = Math.min(
+      floorCount,
+      normalizeFloorNumber(raw.startFloor, Math.min(fallback.startFloor, floorCount)) ?? Math.min(fallback.startFloor, floorCount),
+    );
+    const second = Math.min(
+      floorCount,
+      normalizeFloorNumber(raw.endFloor, Math.min(fallback.endFloor, floorCount)) ?? Math.min(fallback.endFloor, floorCount),
+    );
     const startFloor = Math.min(first, second);
-    const endFloor = Math.max(first, second === first ? Math.min(10, first + 1) : second);
+    const endFloor = Math.max(first, second === first ? Math.min(floorCount, first + 1) : second);
 
     return {
       enabled: typeof raw.enabled === "boolean" ? raw.enabled : fallback.enabled,
@@ -160,12 +185,14 @@ function parseConfig(raw: unknown): FloorGuideConfig {
   const config = (raw && typeof raw === "object"
     ? raw
     : {}) as Partial<FloorGuideConfig>;
+  const floorCount = normalizeFloorCount(config.floorCount, inferFloorCount(config.floors));
 
   return {
     ...floorGuideDefaultConfig,
     ...config,
+    floorCount,
     floors: normalizeFloors(config.floors),
-    elevators: normalizeElevators(config.elevators),
+    elevators: normalizeElevators(config.elevators, floorCount),
   };
 }
 
@@ -182,7 +209,7 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
   const config = parseConfig(board.config);
   const theme = resolveFloorGuideTheme(config);
   const floors = config.floors
-    .filter((floor): floor is FloorConfig & { floorNumber: number } => floor.floorNumber !== null)
+    .slice(0, config.floorCount)
     .sort((left, right) => right.floorNumber - left.floorNumber);
   const elevators = config.elevators.filter((elevator) => elevator.enabled);
   const rowCount = Math.max(1, floors.length);
@@ -262,7 +289,7 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                     <div className="flex items-center justify-center">
                       <div
                         className="flex h-full w-full items-center justify-center rounded-xl font-black text-white"
-                        style={{ backgroundColor: config.floorBadgeColor, fontSize: "28px" }}
+                        style={{ backgroundColor: theme.floorBadgeColor, fontSize: "28px" }}
                       >
                         {floor.floorNumber}F
                       </div>

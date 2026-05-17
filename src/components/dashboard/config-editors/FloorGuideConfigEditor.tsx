@@ -29,7 +29,7 @@ interface FloorShopConfig {
 }
 
 interface FloorConfig {
-  floorNumber: number | null;
+  floorNumber: number;
   shops: FloorShopConfig[];
   hasMensRestroom: boolean;
   hasWomensRestroom: boolean;
@@ -52,7 +52,7 @@ interface FloorGuideConfigEditorProps {
 
 function createDefaultFloors(): FloorConfig[] {
   return Array.from({ length: 10 }, (_, index) => ({
-    floorNumber: index < 4 ? index + 1 : null,
+    floorNumber: index + 1,
     shops: index < 4 ? [{ logoPath: "", text: `フロア ${index + 1} の案内` }] : [],
     hasMensRestroom: index < 3,
     hasWomensRestroom: index < 3,
@@ -67,6 +67,23 @@ const defaultElevators: ElevatorConfig[] = [
   { enabled: false, label: "EV B", startFloor: 1, endFloor: 4 },
   { enabled: false, label: "EV C", startFloor: 1, endFloor: 4 },
 ];
+
+function clampFloorCount(value: unknown, fallback = 4) {
+  const next = Math.round(Number(value));
+  if (!Number.isFinite(next)) return fallback;
+  return Math.min(10, Math.max(1, next));
+}
+
+function inferFloorCount(value: unknown) {
+  if (!Array.isArray(value)) return 4;
+  const maxFloor = value.reduce<number>((result, item) => {
+    const next = item && typeof item === "object"
+      ? clampFloor((item as Partial<FloorConfig>).floorNumber, null)
+      : null;
+    return next !== null ? Math.max(result, next) : result;
+  }, 0);
+  return maxFloor > 0 ? maxFloor : 4;
+}
 
 function normalizeFloors(value: unknown): FloorConfig[] {
   const rawFloors = Array.isArray(value) ? value : defaultFloors;
@@ -83,7 +100,7 @@ function normalizeFloors(value: unknown): FloorConfig[] {
       : fallback.shops;
 
     return {
-      floorNumber: clampFloor(raw.floorNumber, fallback.floorNumber),
+      floorNumber: index + 1,
       shops,
       hasMensRestroom:
         typeof raw.hasMensRestroom === "boolean"
@@ -105,7 +122,7 @@ function normalizeFloors(value: unknown): FloorConfig[] {
   });
 }
 
-function normalizeElevators(value: unknown): ElevatorConfig[] {
+function normalizeElevators(value: unknown, floorCount: number): ElevatorConfig[] {
   const rawElevators = Array.isArray(value) ? value : defaultElevators;
 
   return defaultElevators.map((fallback, index) => {
@@ -113,10 +130,16 @@ function normalizeElevators(value: unknown): ElevatorConfig[] {
       ? (rawElevators[index] as Partial<ElevatorConfig>)
       : {};
 
-    const first = clampFloor(raw.startFloor, fallback.startFloor) ?? fallback.startFloor;
-    const second = clampFloor(raw.endFloor, fallback.endFloor) ?? fallback.endFloor;
+    const first = Math.min(
+      floorCount,
+      clampFloor(raw.startFloor, Math.min(fallback.startFloor, floorCount)) ?? Math.min(fallback.startFloor, floorCount),
+    );
+    const second = Math.min(
+      floorCount,
+      clampFloor(raw.endFloor, Math.min(fallback.endFloor, floorCount)) ?? Math.min(fallback.endFloor, floorCount),
+    );
     const startFloor = Math.min(first, second);
-    const endFloor = Math.max(first, second === first ? Math.min(10, first + 1) : second);
+    const endFloor = Math.max(first, second === first ? Math.min(floorCount, first + 1) : second);
 
     return {
       enabled: typeof raw.enabled === "boolean" ? raw.enabled : fallback.enabled,
@@ -141,8 +164,10 @@ export function FloorGuideConfigEditor({
 }: FloorGuideConfigEditorProps) {
   useLoadAllGoogleFonts();
   const { t } = useLocale();
+  const floorCount = clampFloorCount(config.floorCount, inferFloorCount(config.floors));
   const floors = normalizeFloors(config.floors);
-  const elevators = normalizeElevators(config.elevators);
+  const visibleFloors = floors.slice(0, floorCount);
+  const elevators = normalizeElevators(config.elevators, floorCount);
   const fontFamily = (config.fontFamily as string) ?? "";
   const showClock = (config.showClock as boolean) ?? false;
   const activeTheme = detectFloorGuideThemePreset(config) ??
@@ -156,6 +181,13 @@ export function FloorGuideConfigEditor({
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
+  }
+
+  function updateFloorCount(value: unknown) {
+    onChange({
+      ...config,
+      floorCount: clampFloorCount(value, floorCount),
+    });
   }
 
   function applyPreset(presetKey: (typeof FLOOR_GUIDE_THEME_PRESETS)[number]["key"]) {
@@ -312,39 +344,38 @@ export function FloorGuideConfigEditor({
         <div>
           <h4 className="text-sm font-semibold">フロア設定</h4>
           <p className="text-xs text-muted-foreground">
-            階数は 1F から 10F まで数値入力できます。空欄の階はボードに表示されません。
+            表示する階数を 1 から 10 まで指定できます。指定した階数に応じて、1F からその階までの編集項目だけを表示します。
           </p>
         </div>
 
+        <div className="max-w-xs space-y-1.5">
+          <Label htmlFor="cfg-floor-count">表示階数</Label>
+          <Input
+            id="cfg-floor-count"
+            type="number"
+            min={1}
+            max={10}
+            value={floorCount}
+            onChange={(e) => updateFloorCount(e.target.value)}
+          />
+        </div>
+
         <div className="space-y-3">
-          {floors.map((floor, floorIndex) => {
+          {visibleFloors.map((floor, floorIndex) => {
             return (
-              <details key={floorIndex} className="rounded-md border p-3" open={floor.floorNumber !== null}>
+              <details key={floor.floorNumber} className="rounded-md border p-3" open>
                 <summary className="cursor-pointer list-none">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h5 className="text-sm font-semibold">{floor.floorNumber ? `${floor.floorNumber}F` : `未設定 #${floorIndex + 1}`}</h5>
+                      <h5 className="text-sm font-semibold">{floor.floorNumber}F</h5>
                       <p className="text-xs text-muted-foreground">
-                        {floor.floorNumber ? "表示対象" : "非表示"} / 店舗 {floor.shops.length}件
+                        表示対象 / 店舗 {floor.shops.length}件
                       </p>
                     </div>
                   </div>
                 </summary>
 
                 <div className="mt-4 space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor={`cfg-floor-number-${floorIndex}`}>階数</Label>
-                    <Input
-                      id={`cfg-floor-number-${floorIndex}`}
-                      type="number"
-                      min={1}
-                      max={10}
-                      value={floor.floorNumber ?? ""}
-                      placeholder="空欄で非表示"
-                      onChange={(e) => updateFloor(floorIndex, { floorNumber: clampFloor(e.target.value, floor.floorNumber) })}
-                    />
-                  </div>
-
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <FacilitySwitch
                       id={`cfg-floor-m-${floorIndex}`}
@@ -490,7 +521,7 @@ export function FloorGuideConfigEditor({
                     id={`cfg-elevator-start-${index}`}
                     type="number"
                     min={1}
-                    max={10}
+                    max={floorCount}
                     value={elevator.startFloor}
                     onChange={(e) => updateElevator(index, { startFloor: clampFloor(e.target.value, elevator.startFloor) ?? elevator.startFloor })}
                   />
@@ -502,7 +533,7 @@ export function FloorGuideConfigEditor({
                     id={`cfg-elevator-end-${index}`}
                     type="number"
                     min={1}
-                    max={10}
+                    max={floorCount}
                     value={elevator.endFloor}
                     onChange={(e) => updateElevator(index, { endFloor: clampFloor(e.target.value, elevator.endFloor) ?? elevator.endFloor })}
                   />
