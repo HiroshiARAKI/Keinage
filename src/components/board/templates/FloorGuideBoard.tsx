@@ -214,6 +214,23 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
   const elevators = config.elevators.filter((elevator) => elevator.enabled);
   const rowCount = Math.max(1, floors.length);
   const floorIndexMap = new Map(floors.map((floor, index) => [floor.floorNumber, index]));
+  const compactRows = rowCount >= 6;
+  const denseRows = rowCount >= 8;
+  const boardPaddingRight = denseRows ? 88 : compactRows ? 108 : 144;
+  const badgeColumn = denseRows ? "84px" : compactRows ? "92px" : "110px";
+  const facilityColumn = denseRows ? "88px" : compactRows ? "100px" : "120px";
+  const rowGap = denseRows ? "8px" : compactRows ? "10px" : "12px";
+  const rowPaddingX = denseRows ? "12px" : compactRows ? "14px" : "16px";
+  const rowPaddingY = denseRows ? "8px" : compactRows ? "10px" : "12px";
+  const badgeFontSize = denseRows ? "22px" : compactRows ? "24px" : "28px";
+  const shopGridColumns = denseRows ? 1 : 2;
+  const shopCardPaddingX = denseRows ? "10px" : compactRows ? "11px" : "12px";
+  const shopCardPaddingY = denseRows ? "6px" : compactRows ? "7px" : "8px";
+  const shopTextSize = denseRows ? "13px" : compactRows ? "14px" : "16px";
+  const shopLogoSize = denseRows ? "32px" : compactRows ? "36px" : "40px";
+  const facilitySize = denseRows ? 30 : compactRows ? 34 : 40;
+  const facilityIconSize = denseRows ? 18 : compactRows ? 20 : 28;
+  const emptyTextSize = denseRows ? "12px" : "14px";
 
   return (
     <div
@@ -271,8 +288,12 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
         ) : (
           <>
             <div
-              className="grid h-full gap-3 pr-36"
-              style={{ gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))` }}
+              className="grid h-full"
+              style={{
+                gap: rowGap,
+                paddingRight: `${boardPaddingRight}px`,
+                gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))`,
+              }}
             >
               {floors.map((floor) => {
                 const shops = enabledShops(floor);
@@ -280,8 +301,11 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                 return (
                   <section
                     key={floor.floorNumber}
-                    className="grid min-h-0 grid-cols-[110px_minmax(0,1fr)_120px] gap-4 rounded-2xl border px-4 py-3 shadow-sm"
+                    className="grid min-h-0 rounded-2xl border shadow-sm"
                     style={{
+                      gridTemplateColumns: `${badgeColumn} minmax(0,1fr) ${facilityColumn}`,
+                      gap: rowGap,
+                      padding: `${rowPaddingY} ${rowPaddingX}`,
                       backgroundColor: theme.rowBackgroundColor,
                       borderColor: theme.rowBorderColor,
                     }}
@@ -289,7 +313,7 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                     <div className="flex items-center justify-center">
                       <div
                         className="flex h-full w-full items-center justify-center rounded-xl font-black text-white"
-                        style={{ backgroundColor: theme.floorBadgeColor, fontSize: "28px" }}
+                        style={{ backgroundColor: theme.floorBadgeColor, fontSize: badgeFontSize }}
                       >
                         {floor.floorNumber}F
                       </div>
@@ -297,14 +321,22 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
 
                     <div className="min-w-0 overflow-hidden">
                       {shops.length > 0 ? (
-                        <div className="grid h-full grid-cols-2 gap-2 overflow-hidden">
+                        <div
+                          className="grid h-full overflow-hidden"
+                          style={{
+                            gridTemplateColumns: `repeat(${shopGridColumns}, minmax(0, 1fr))`,
+                            gap: rowGap,
+                          }}
+                        >
                           {shops.map((shop, index) => {
                             const logo = findLogoMedia(mediaItems, shop.logoPath);
                             return (
                               <div
                                 key={`${shop.text}-${index}`}
-                                className="flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2"
+                                className="flex min-w-0 items-center rounded-xl border"
                                 style={{
+                                  gap: denseRows ? "6px" : "8px",
+                                  padding: `${shopCardPaddingY} ${shopCardPaddingX}`,
                                   backgroundColor: theme.shopCardColor,
                                   borderColor: theme.rowBorderColor,
                                 }}
@@ -313,12 +345,15 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                                   <img
                                     src={logo.filePath ?? undefined}
                                     alt=""
-                                    className="size-10 shrink-0 rounded-lg object-cover"
+                                    className="shrink-0 rounded-lg object-cover"
+                                    style={{ width: shopLogoSize, height: shopLogoSize }}
                                   />
                                 ) : shop.logoPath ? (
                                   <div
-                                    className="flex size-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
+                                    className="flex shrink-0 items-center justify-center rounded-lg text-xs font-bold"
                                     style={{
+                                      width: shopLogoSize,
+                                      height: shopLogoSize,
                                       backgroundColor: theme.shopPlaceholderBackgroundColor,
                                       color: theme.shopPlaceholderColor,
                                     }}
@@ -328,7 +363,11 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                                 ) : null}
                                 <span
                                   className="min-w-0 truncate text-base font-semibold"
-                                  style={{ color: theme.textColor }}
+                                  style={{
+                                    color: theme.textColor,
+                                    fontSize: shopTextSize,
+                                    lineHeight: 1.2,
+                                  }}
                                 >
                                   {shop.text || "店舗情報未設定"}
                                 </span>
@@ -338,26 +377,35 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                         </div>
                       ) : (
                         <div
-                          className="flex h-full items-center text-sm"
-                          style={{ color: theme.mutedTextColor }}
+                          className="flex h-full items-center"
+                          style={{ color: theme.mutedTextColor, fontSize: emptyTextSize }}
                         >
                           店舗情報はありません
                         </div>
                       )}
                     </div>
 
-                    <div className="flex flex-wrap content-center items-center justify-end gap-2">
-                      {floor.hasMensRestroom && <FacilityBadge iconSrc={malePict.src} alt="男性トイレ" theme={theme} />}
-                      {floor.hasWomensRestroom && <FacilityBadge iconSrc={femalePict.src} alt="女性トイレ" theme={theme} />}
-                      {floor.hasEscalator && <FacilityBadge iconSrc={escPict.src} alt="エスカレーター" theme={theme} />}
-                      {floor.hasEmergencyExit && <FacilityBadge iconSrc={exitPict.src} alt="非常口" theme={theme} />}
+                    <div
+                      className="flex flex-wrap content-center items-center justify-end"
+                      style={{ gap: denseRows ? "6px" : "8px" }}
+                    >
+                      {floor.hasMensRestroom && <FacilityBadge iconSrc={malePict.src} alt="男性トイレ" theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
+                      {floor.hasWomensRestroom && <FacilityBadge iconSrc={femalePict.src} alt="女性トイレ" theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
+                      {floor.hasEscalator && <FacilityBadge iconSrc={escPict.src} alt="エスカレーター" theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
+                      {floor.hasEmergencyExit && <FacilityBadge iconSrc={exitPict.src} alt="非常口" theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
                     </div>
                   </section>
                 );
               })}
             </div>
 
-            <div className="pointer-events-none absolute inset-y-4 right-6 w-24">
+            <div
+              className="pointer-events-none absolute inset-y-4"
+              style={{
+                right: denseRows ? "14px" : compactRows ? "18px" : "24px",
+                width: denseRows ? "64px" : compactRows ? "76px" : "96px",
+              }}
+            >
               {elevators.map((elevator, index) => (
                 <ElevatorOverlay
                   key={`${elevator.label}-${index}`}
@@ -366,6 +414,8 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                   totalRows={rowCount}
                   laneIndex={index}
                   theme={theme}
+                  compact={compactRows}
+                  dense={denseRows}
                 />
               ))}
             </div>
@@ -380,20 +430,26 @@ function FacilityBadge({
   iconSrc,
   alt,
   theme,
+  size,
+  iconSize,
 }: {
   iconSrc: string;
   alt: string;
   theme: FloorGuideThemePalette;
+  size: number;
+  iconSize: number;
 }) {
   return (
     <span
-      className="inline-flex size-10 items-center justify-center rounded-full border shadow-sm"
+      className="inline-flex items-center justify-center rounded-full border shadow-sm"
       style={{
+        width: `${size}px`,
+        height: `${size}px`,
         backgroundColor: theme.facilityBadgeBackgroundColor,
         borderColor: theme.facilityBadgeBorderColor,
       }}
     >
-      <img src={iconSrc} alt={alt} className="size-7 object-contain" />
+      <img src={iconSrc} alt={alt} className="object-contain" style={{ width: `${iconSize}px`, height: `${iconSize}px` }} />
     </span>
   );
 }
@@ -404,12 +460,16 @@ function ElevatorOverlay({
   totalRows,
   laneIndex,
   theme,
+  compact,
+  dense,
 }: {
   elevator: ElevatorConfig;
   floorIndexMap: Map<number, number>;
   totalRows: number;
   laneIndex: number;
   theme: FloorGuideThemePalette;
+  compact: boolean;
+  dense: boolean;
 }) {
   const coveredFloors = Array.from(floorIndexMap.keys())
     .filter((floor) => floor >= elevator.startFloor && floor <= elevator.endFloor)
@@ -423,11 +483,18 @@ function ElevatorOverlay({
   const bottomIndex = floorIndexMap.get(lowestFloor);
   if (topIndex === undefined || bottomIndex === undefined) return null;
 
-  const laneLeft = 6 + laneIndex * 26;
+  const laneWidth = dense ? 22 : compact ? 26 : 30;
+  const laneGap = dense ? 2 : compact ? 4 : 6;
+  const laneLeft = laneIndex * (laneWidth + laneGap);
   const rowHeight = 100 / totalRows;
   const top = topIndex * rowHeight + rowHeight * 0.16;
   const bottom = (bottomIndex + 1) * rowHeight - rowHeight * 0.16;
   const height = Math.max(12, bottom - top);
+  const labelFontSize = dense ? "8px" : compact ? "9px" : "10px";
+  const railInset = dense ? 7 : compact ? 8 : 10;
+  const carWidthInset = dense ? 1 : compact ? 1 : 2;
+  const carHeight = dense ? 24 : compact ? 28 : 34;
+  const carRadius = dense ? 8 : compact ? 10 : 12;
 
   return (
     <div
@@ -436,13 +503,14 @@ function ElevatorOverlay({
         left: `${laneLeft}px`,
         top: `${top}%`,
         height: `${height}%`,
-        width: "20px",
+        width: `${laneWidth}px`,
       }}
     >
       <div className="absolute inset-x-0 top-0 flex justify-center">
         <span
-          className="rounded-full px-2 py-0.5 text-[10px] font-bold shadow-sm"
+          className="rounded-full px-2 py-0.5 font-bold shadow-sm"
           style={{
+            fontSize: labelFontSize,
             backgroundColor: theme.elevatorLabelBackgroundColor,
             color: theme.elevatorLabelTextColor,
           }}
@@ -451,19 +519,31 @@ function ElevatorOverlay({
         </span>
       </div>
       <div
-        className="absolute inset-x-[7px] top-6 bottom-6 rounded-full"
-        style={{ backgroundColor: theme.elevatorRailColor }}
+        className="absolute rounded-full"
+        style={{
+          left: `${railInset}px`,
+          right: `${railInset}px`,
+          top: dense ? "18px" : compact ? "20px" : "24px",
+          bottom: dense ? "14px" : compact ? "16px" : "20px",
+          backgroundColor: theme.elevatorRailColor,
+        }}
       />
       <div
-        className="absolute inset-x-[4px] top-1/2 h-8 -translate-y-1/2 rounded-md border shadow-sm"
+        className="absolute top-1/2 -translate-y-1/2 border shadow-sm"
         style={{
+          left: `${carWidthInset}px`,
+          right: `${carWidthInset}px`,
+          height: `${carHeight}px`,
+          borderRadius: `${carRadius}px`,
           backgroundColor: theme.panelColor,
           borderColor: theme.elevatorCabBorderColor,
         }}
       >
         <div
-          className="flex h-full items-center justify-center rounded-md text-[10px] font-black"
+          className="flex h-full items-center justify-center font-black"
           style={{
+            borderRadius: `${Math.max(6, carRadius - 2)}px`,
+            fontSize: dense ? "10px" : compact ? "11px" : "12px",
             backgroundColor: theme.elevatorCabColor,
             color: theme.elevatorCabTextColor,
           }}
@@ -473,14 +553,15 @@ function ElevatorOverlay({
       </div>
       <div className="absolute inset-x-[2px] bottom-0 flex justify-center">
         <span
-          className="rounded-full border px-2 py-0.5 text-[10px] font-semibold shadow-sm"
+          className="rounded-full border px-2 py-0.5 font-semibold shadow-sm"
           style={{
+            fontSize: labelFontSize,
             backgroundColor: theme.elevatorRangeBackgroundColor,
             color: theme.elevatorRangeTextColor,
             borderColor: theme.elevatorRangeBorderColor,
           }}
         >
-          {elevator.startFloor}F-{elevator.endFloor}F
+          EV
         </span>
       </div>
     </div>
