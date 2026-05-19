@@ -1,5 +1,6 @@
 "use client";
 
+import type { Dispatch, SetStateAction } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Button } from "@/components/ui/button";
@@ -164,6 +165,7 @@ export function FloorGuideConfigEditor({
 }: FloorGuideConfigEditorProps) {
   useLoadAllGoogleFonts();
   const { t } = useLocale();
+  const updateConfig = onChange as Dispatch<SetStateAction<Record<string, unknown>>>;
   const floorCount = clampFloorCount(config.floorCount, inferFloorCount(config.floors));
   const floors = normalizeFloors(config.floors);
   const visibleFloors = floors.slice(0, floorCount);
@@ -180,57 +182,115 @@ export function FloorGuideConfigEditor({
   );
 
   function update(key: string, value: unknown) {
-    onChange({ ...config, [key]: value });
+    updateConfig((currentConfig) => ({ ...currentConfig, [key]: value }));
   }
 
   function updateFloorCount(value: unknown) {
-    onChange({
-      ...config,
-      floorCount: clampFloorCount(value, floorCount),
+    updateConfig((currentConfig) => {
+      const currentFloorCount = clampFloorCount(
+        currentConfig.floorCount,
+        inferFloorCount(currentConfig.floors),
+      );
+      const nextFloorCount = clampFloorCount(value, currentFloorCount);
+
+      return {
+        ...currentConfig,
+        floorCount: nextFloorCount,
+        elevators: normalizeElevators(currentConfig.elevators, nextFloorCount),
+      };
     });
   }
 
   function applyPreset(presetKey: (typeof FLOOR_GUIDE_THEME_PRESETS)[number]["key"]) {
-    onChange(applyFloorGuideThemePreset(config, presetKey));
+    updateConfig((currentConfig) => applyFloorGuideThemePreset(currentConfig, presetKey));
   }
 
   function updateFloor(index: number, patch: Partial<FloorConfig>) {
-    update(
-      "floors",
-      floors.map((floor, floorIndex) =>
-        floorIndex === index ? { ...floor, ...patch } : floor,
-      ),
-    );
+    updateConfig((currentConfig) => {
+      const currentFloors = normalizeFloors(currentConfig.floors);
+
+      return {
+        ...currentConfig,
+        floors: currentFloors.map((floor, floorIndex) =>
+          floorIndex === index ? { ...floor, ...patch } : floor,
+        ),
+      };
+    });
   }
 
   function updateShop(floorIndex: number, shopIndex: number, patch: Partial<FloorShopConfig>) {
-    updateFloor(floorIndex, {
-      shops: floors[floorIndex].shops.map((shop, index) =>
-        index === shopIndex ? { ...shop, ...patch } : shop,
-      ),
+    updateConfig((currentConfig) => {
+      const currentFloors = normalizeFloors(currentConfig.floors);
+
+      return {
+        ...currentConfig,
+        floors: currentFloors.map((floor, index) =>
+          index === floorIndex
+            ? {
+                ...floor,
+                shops: floor.shops.map((shop, currentShopIndex) =>
+                  currentShopIndex === shopIndex ? { ...shop, ...patch } : shop,
+                ),
+              }
+            : floor,
+        ),
+      };
     });
   }
 
   function addShop(floorIndex: number) {
-    if (floors[floorIndex].shops.length >= 10) return;
-    updateFloor(floorIndex, {
-      shops: [...floors[floorIndex].shops, { logoPath: "", text: "" }],
+    updateConfig((currentConfig) => {
+      const currentFloors = normalizeFloors(currentConfig.floors);
+      if (currentFloors[floorIndex].shops.length >= 10) return currentConfig;
+
+      return {
+        ...currentConfig,
+        floors: currentFloors.map((floor, index) =>
+          index === floorIndex
+            ? {
+                ...floor,
+                shops: [...floor.shops, { logoPath: "", text: "" }],
+              }
+            : floor,
+        ),
+      };
     });
   }
 
   function removeShop(floorIndex: number, shopIndex: number) {
-    updateFloor(floorIndex, {
-      shops: floors[floorIndex].shops.filter((_, index) => index !== shopIndex),
+    updateConfig((currentConfig) => {
+      const currentFloors = normalizeFloors(currentConfig.floors);
+
+      return {
+        ...currentConfig,
+        floors: currentFloors.map((floor, index) =>
+          index === floorIndex
+            ? {
+                ...floor,
+                shops: floor.shops.filter((_, currentShopIndex) => currentShopIndex !== shopIndex),
+              }
+            : floor,
+        ),
+      };
     });
   }
 
   function updateElevator(index: number, patch: Partial<ElevatorConfig>) {
-    update(
-      "elevators",
-      elevators.map((elevator, elevatorIndex) =>
+    updateConfig((currentConfig) => {
+      const currentFloorCount = clampFloorCount(
+        currentConfig.floorCount,
+        inferFloorCount(currentConfig.floors),
+      );
+      const currentElevators = normalizeElevators(currentConfig.elevators, currentFloorCount);
+      const nextElevators = currentElevators.map((elevator, elevatorIndex) =>
         elevatorIndex === index ? { ...elevator, ...patch } : elevator,
-      ),
-    );
+      );
+
+      return {
+        ...currentConfig,
+        elevators: normalizeElevators(nextElevators, currentFloorCount),
+      };
+    });
   }
 
   return (
