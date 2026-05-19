@@ -217,10 +217,10 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
   const elevatorCount = Math.max(1, elevators.length);
   const compactRows = rowCount >= 6;
   const denseRows = rowCount >= 8;
-  const elevatorLaneWidth = denseRows ? 28 : compactRows ? 34 : 40;
-  const elevatorLaneGap = denseRows ? 4 : compactRows ? 6 : 8;
-  const elevatorAreaWidth = elevatorCount * elevatorLaneWidth + Math.max(0, elevatorCount - 1) * elevatorLaneGap + (denseRows ? 20 : compactRows ? 24 : 28);
-  const boardPaddingRight = elevatorAreaWidth + (denseRows ? 16 : compactRows ? 20 : 24);
+  const elevatorLaneWidth = denseRows ? 36 : compactRows ? 44 : 52;
+  const elevatorLaneGap = denseRows ? 6 : compactRows ? 8 : 10;
+  const elevatorAreaWidth = elevatorCount * elevatorLaneWidth + Math.max(0, elevatorCount - 1) * elevatorLaneGap + (denseRows ? 20 : compactRows ? 24 : 30);
+  const boardPaddingRight = elevatorAreaWidth + (denseRows ? 18 : compactRows ? 22 : 28);
   const badgeColumn = denseRows ? "84px" : compactRows ? "92px" : "110px";
   const facilityColumn = denseRows ? "88px" : compactRows ? "100px" : "120px";
   const rowGap = denseRows ? "8px" : compactRows ? "10px" : "12px";
@@ -329,7 +329,7 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                           style={{
                             gridTemplateColumns:
                               shops.length > 1
-                                ? "repeat(2, minmax(0, 1fr))"
+                                ? `repeat(${Math.min(3, shops.length)}, minmax(0, 1fr))`
                                 : "minmax(0, 1fr)",
                             gap: rowGap,
                           }}
@@ -497,14 +497,16 @@ function ElevatorOverlay({
 
   const laneLeft = laneIndex * (laneWidth + laneGap);
   const rowHeight = 100 / totalRows;
-  const top = topIndex * rowHeight + rowHeight * 0.16;
-  const bottom = (bottomIndex + 1) * rowHeight - rowHeight * 0.16;
+  const top = topIndex * rowHeight + rowHeight * 0.08;
+  const bottom = (bottomIndex + 1) * rowHeight - rowHeight * 0.08;
   const height = Math.max(12, bottom - top);
-  const labelFontSize = dense ? "8px" : compact ? "9px" : "10px";
-  const railInset = dense ? 9 : compact ? 10 : 12;
-  const carWidthInset = dense ? 2 : compact ? 2 : 3;
-  const carHeight = dense ? 26 : compact ? 30 : 38;
-  const carRadius = dense ? 9 : compact ? 11 : 14;
+  const shaftInsetX = dense ? 4 : compact ? 5 : 6;
+  const shaftRadius = dense ? 16 : compact ? 18 : 22;
+  const labelInsetX = dense ? 1 : compact ? 2 : 3;
+  const labelHeight = dense ? 28 : compact ? 34 : 42;
+  const labelRadius = dense ? 10 : compact ? 12 : 16;
+  const labelFontSize = dense ? "10px" : compact ? "11px" : "13px";
+  const labelPaddingX = dense ? "4px" : compact ? "6px" : "8px";
 
   return (
     <div
@@ -516,36 +518,25 @@ function ElevatorOverlay({
         width: `${laneWidth}px`,
       }}
     >
-      <div className="absolute inset-x-0 top-0 flex justify-center">
-        <span
-          className="rounded-full px-2 py-0.5 font-bold shadow-sm"
-          style={{
-            fontSize: labelFontSize,
-            whiteSpace: "nowrap",
-            backgroundColor: theme.elevatorLabelBackgroundColor,
-            color: theme.elevatorLabelTextColor,
-          }}
-        >
-          {elevator.label}
-        </span>
-      </div>
       <div
-        className="absolute rounded-full"
+        className="absolute border shadow-sm"
         style={{
-          left: `${railInset}px`,
-          right: `${railInset}px`,
-          top: dense ? "18px" : compact ? "20px" : "24px",
-          bottom: dense ? "14px" : compact ? "16px" : "20px",
+          left: `${shaftInsetX}px`,
+          right: `${shaftInsetX}px`,
+          top: 0,
+          bottom: 0,
+          borderRadius: `${shaftRadius}px`,
+          borderColor: theme.elevatorCabBorderColor,
           backgroundColor: theme.elevatorRailColor,
         }}
       />
       <div
         className="absolute top-1/2 -translate-y-1/2 border shadow-sm"
         style={{
-          left: `${carWidthInset}px`,
-          right: `${carWidthInset}px`,
-          height: `${carHeight}px`,
-          borderRadius: `${carRadius}px`,
+          left: `${labelInsetX}px`,
+          right: `${labelInsetX}px`,
+          height: `${labelHeight}px`,
+          borderRadius: `${labelRadius}px`,
           backgroundColor: theme.panelColor,
           borderColor: theme.elevatorCabBorderColor,
         }}
@@ -553,27 +544,16 @@ function ElevatorOverlay({
         <div
           className="flex h-full items-center justify-center font-black"
           style={{
-            borderRadius: `${Math.max(6, carRadius - 2)}px`,
-            fontSize: dense ? "10px" : compact ? "11px" : "12px",
+            borderRadius: `${Math.max(8, labelRadius - 2)}px`,
+            fontSize: labelFontSize,
+            padding: `0 ${labelPaddingX}`,
+            whiteSpace: "nowrap",
             backgroundColor: theme.elevatorCabColor,
             color: theme.elevatorCabTextColor,
           }}
         >
-          EV
+          {elevator.label}
         </div>
-      </div>
-      <div className="absolute inset-x-[2px] bottom-0 flex justify-center">
-        <span
-          className="rounded-full border px-2 py-0.5 font-semibold shadow-sm"
-          style={{
-            fontSize: labelFontSize,
-            backgroundColor: theme.elevatorRangeBackgroundColor,
-            color: theme.elevatorRangeTextColor,
-            borderColor: theme.elevatorRangeBorderColor,
-          }}
-        >
-          EV
-        </span>
       </div>
     </div>
   );
