@@ -217,7 +217,7 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
   const elevatorCount = Math.max(1, elevators.length);
   const compactRows = rowCount >= 6;
   const denseRows = rowCount >= 8;
-  const elevatorLaneWidth = denseRows ? 44 : compactRows ? 52 : 60;
+  const elevatorLaneWidth = denseRows ? 50 : compactRows ? 58 : 68;
   const elevatorLaneGap = denseRows ? 8 : compactRows ? 10 : 12;
   const elevatorAreaWidth = elevatorCount * elevatorLaneWidth + Math.max(0, elevatorCount - 1) * elevatorLaneGap + (denseRows ? 24 : compactRows ? 28 : 36);
   const boardPaddingRight = elevatorAreaWidth + (denseRows ? 20 : compactRows ? 24 : 30);
@@ -500,9 +500,9 @@ function ElevatorOverlay({
   const topCenter = topIndex * rowHeight + rowHeight / 2;
   const bottomCenter = bottomIndex * rowHeight + rowHeight / 2;
   const markerSize = dense ? 12 : compact ? 14 : 16;
-  const topLabelHeight = dense ? 20 : compact ? 24 : 28;
+  const topLabelHeight = dense ? 22 : compact ? 28 : 32;
   const topLabelGap = dense ? 4 : 6;
-  const bottomLabelHeight = dense ? 18 : compact ? 20 : 22;
+  const bottomLabelHeight = dense ? 20 : compact ? 24 : 28;
   const bottomLabelGap = dense ? 4 : 6;
   const topPadding = topLabelHeight + topLabelGap + markerSize / 2;
   const bottomPadding = bottomLabelHeight + bottomLabelGap + markerSize / 2;
@@ -516,12 +516,12 @@ function ElevatorOverlay({
   const markerBorderWidth = dense ? 1.5 : 2;
   const topMarkerTop = topPadding - markerSize / 2;
   const bottomMarkerBottom = bottomPadding - markerSize / 2;
-  const topLabelRadius = dense ? 11 : compact ? 14 : 16;
-  const bottomLabelRadius = dense ? 10 : compact ? 12 : 14;
-  const topLabelFontSize = dense ? "10px" : compact ? "11px" : "12px";
-  const bottomLabelFontSize = dense ? "9px" : compact ? "10px" : "11px";
-  const topLabelPaddingX = dense ? "7px" : compact ? "9px" : "11px";
-  const bottomLabelPaddingX = dense ? "6px" : compact ? "7px" : "9px";
+  const topLabelRadius = dense ? 12 : compact ? 15 : 18;
+  const bottomLabelRadius = dense ? 11 : compact ? 13 : 16;
+  const topLabelFontSize = dense ? "11px" : compact ? "12px" : "14px";
+  const bottomLabelFontSize = dense ? "10px" : compact ? "11px" : "13px";
+  const topLabelPaddingX = dense ? "8px" : compact ? "10px" : "12px";
+  const bottomLabelPaddingX = dense ? "7px" : compact ? "9px" : "11px";
   const labelShadow = dense
     ? "0 3px 8px rgba(15, 23, 42, 0.08)"
     : "0 5px 12px rgba(15, 23, 42, 0.10)";
@@ -552,7 +552,7 @@ function ElevatorOverlay({
         <span
           className="inline-flex items-center justify-center border text-center font-semibold"
           style={{
-            minWidth: dense ? "34px" : compact ? "42px" : "50px",
+            minWidth: dense ? "40px" : compact ? "50px" : "60px",
             height: `${topLabelHeight}px`,
             padding: `0 ${topLabelPaddingX}`,
             borderRadius: `${topLabelRadius}px`,
@@ -601,7 +601,7 @@ function ElevatorOverlay({
         <span
           className="inline-flex items-center justify-center border text-center font-medium"
           style={{
-            minWidth: dense ? "38px" : compact ? "44px" : "52px",
+            minWidth: dense ? "44px" : compact ? "54px" : "66px",
             height: `${bottomLabelHeight}px`,
             padding: `0 ${bottomLabelPaddingX}`,
             borderRadius: `${bottomLabelRadius}px`,
