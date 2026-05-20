@@ -217,10 +217,10 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
   const elevatorCount = Math.max(1, elevators.length);
   const compactRows = rowCount >= 6;
   const denseRows = rowCount >= 8;
-  const elevatorLaneWidth = denseRows ? 36 : compactRows ? 44 : 52;
-  const elevatorLaneGap = denseRows ? 6 : compactRows ? 8 : 10;
-  const elevatorAreaWidth = elevatorCount * elevatorLaneWidth + Math.max(0, elevatorCount - 1) * elevatorLaneGap + (denseRows ? 20 : compactRows ? 24 : 30);
-  const boardPaddingRight = elevatorAreaWidth + (denseRows ? 18 : compactRows ? 22 : 28);
+  const elevatorLaneWidth = denseRows ? 44 : compactRows ? 52 : 60;
+  const elevatorLaneGap = denseRows ? 8 : compactRows ? 10 : 12;
+  const elevatorAreaWidth = elevatorCount * elevatorLaneWidth + Math.max(0, elevatorCount - 1) * elevatorLaneGap + (denseRows ? 24 : compactRows ? 28 : 36);
+  const boardPaddingRight = elevatorAreaWidth + (denseRows ? 20 : compactRows ? 24 : 30);
   const badgeColumn = denseRows ? "84px" : compactRows ? "92px" : "110px";
   const facilityColumn = denseRows ? "88px" : compactRows ? "100px" : "120px";
   const rowGap = denseRows ? "8px" : compactRows ? "10px" : "12px";
@@ -497,63 +497,147 @@ function ElevatorOverlay({
 
   const laneLeft = laneIndex * (laneWidth + laneGap);
   const rowHeight = 100 / totalRows;
-  const top = topIndex * rowHeight + rowHeight * 0.08;
-  const bottom = (bottomIndex + 1) * rowHeight - rowHeight * 0.08;
-  const height = Math.max(12, bottom - top);
-  const shaftInsetX = dense ? 4 : compact ? 5 : 6;
-  const shaftRadius = dense ? 16 : compact ? 18 : 22;
-  const labelInsetX = dense ? 1 : compact ? 2 : 3;
-  const labelHeight = dense ? 28 : compact ? 34 : 42;
-  const labelRadius = dense ? 10 : compact ? 12 : 16;
-  const labelFontSize = dense ? "10px" : compact ? "11px" : "13px";
-  const labelPaddingX = dense ? "4px" : compact ? "6px" : "8px";
+  const topCenter = topIndex * rowHeight + rowHeight / 2;
+  const bottomCenter = bottomIndex * rowHeight + rowHeight / 2;
+  const markerSize = dense ? 12 : compact ? 14 : 16;
+  const markerInnerSize = dense ? 4 : compact ? 5 : 6;
+  const topLabelHeight = dense ? 18 : compact ? 20 : 22;
+  const topLabelGap = dense ? 4 : 6;
+  const bottomLabelHeight = dense ? 18 : compact ? 20 : 22;
+  const bottomLabelGap = dense ? 4 : 6;
+  const topPadding = topLabelHeight + topLabelGap + markerSize / 2;
+  const bottomPadding = bottomLabelHeight + bottomLabelGap + markerSize / 2;
+  const overlayTop = `calc(${topCenter}% - ${topPadding}px)`;
+  const overlayHeight = `calc(${Math.max(rowHeight, bottomCenter - topCenter)}% + ${topPadding + bottomPadding}px)`;
+  const shaftWidth = dense ? 2 : compact ? 2 : 3;
+  const shaftTop = topPadding;
+  const shaftBottom = bottomPadding;
+  const lineLeft = (laneWidth - shaftWidth) / 2;
+  const markerLeft = (laneWidth - markerSize) / 2;
+  const markerInnerLeft = (markerSize - markerInnerSize) / 2;
+  const markerBorderWidth = dense ? 1.5 : 2;
+  const topMarkerTop = topPadding - markerSize / 2;
+  const bottomMarkerBottom = bottomPadding - markerSize / 2;
+  const topLabelRadius = dense ? 10 : compact ? 12 : 14;
+  const bottomLabelRadius = dense ? 10 : compact ? 12 : 14;
+  const topLabelFontSize = dense ? "9px" : compact ? "10px" : "11px";
+  const bottomLabelFontSize = dense ? "9px" : compact ? "10px" : "11px";
+  const labelPaddingX = dense ? "6px" : compact ? "7px" : "9px";
+  const labelShadow = dense
+    ? "0 3px 8px rgba(15, 23, 42, 0.08)"
+    : "0 5px 12px rgba(15, 23, 42, 0.10)";
+  const rangeLabel = `${elevator.startFloor}F-${elevator.endFloor}F`;
 
   return (
     <div
       className="absolute"
       style={{
         left: `${laneLeft}px`,
-        top: `${top}%`,
-        height: `${height}%`,
+        top: overlayTop,
+        height: overlayHeight,
         width: `${laneWidth}px`,
       }}
     >
       <div
-        className="absolute border shadow-sm"
+        className="absolute rounded-full"
         style={{
-          left: `${shaftInsetX}px`,
-          right: `${shaftInsetX}px`,
-          top: 0,
-          bottom: 0,
-          borderRadius: `${shaftRadius}px`,
-          borderColor: theme.elevatorCabBorderColor,
+          left: `${lineLeft}px`,
+          width: `${shaftWidth}px`,
+          top: `${shaftTop}px`,
+          bottom: `${shaftBottom}px`,
           backgroundColor: theme.elevatorRailColor,
         }}
       />
-      <div
-        className="absolute top-1/2 -translate-y-1/2 border shadow-sm"
-        style={{
-          left: `${labelInsetX}px`,
-          right: `${labelInsetX}px`,
-          height: `${labelHeight}px`,
-          borderRadius: `${labelRadius}px`,
-          backgroundColor: theme.panelColor,
-          borderColor: theme.elevatorCabBorderColor,
-        }}
-      >
-        <div
-          className="flex h-full items-center justify-center font-black"
+
+      <div className="absolute inset-x-0 top-0 flex justify-center">
+        <span
+          className="inline-flex items-center justify-center border text-center font-semibold"
           style={{
-            borderRadius: `${Math.max(8, labelRadius - 2)}px`,
-            fontSize: labelFontSize,
+            minWidth: dense ? "30px" : compact ? "36px" : "42px",
+            height: `${topLabelHeight}px`,
             padding: `0 ${labelPaddingX}`,
+            borderRadius: `${topLabelRadius}px`,
+            borderColor: theme.rowBorderColor,
+            backgroundColor: theme.panelColor,
+            color: theme.titleColor,
+            fontSize: topLabelFontSize,
             whiteSpace: "nowrap",
-            backgroundColor: theme.elevatorCabColor,
-            color: theme.elevatorCabTextColor,
+            boxShadow: labelShadow,
+            letterSpacing: "0.04em",
           }}
         >
           {elevator.label}
-        </div>
+        </span>
+      </div>
+
+      <div
+        className="absolute rounded-full border shadow-sm"
+        style={{
+          left: `${markerLeft}px`,
+          top: `${topMarkerTop}px`,
+          width: `${markerSize}px`,
+          height: `${markerSize}px`,
+          borderWidth: `${markerBorderWidth}px`,
+          borderColor: theme.elevatorCabBorderColor,
+          backgroundColor: theme.panelColor,
+          boxShadow: "0 2px 6px rgba(15, 23, 42, 0.08)",
+        }}
+      >
+        <div
+          className="absolute rounded-full"
+          style={{
+            left: `${markerInnerLeft}px`,
+            top: `${markerInnerLeft}px`,
+            width: `${markerInnerSize}px`,
+            height: `${markerInnerSize}px`,
+            backgroundColor: theme.elevatorCabColor,
+          }}
+        />
+      </div>
+
+      <div
+        className="absolute rounded-full border shadow-sm"
+        style={{
+          left: `${markerLeft}px`,
+          bottom: `${bottomMarkerBottom}px`,
+          width: `${markerSize}px`,
+          height: `${markerSize}px`,
+          borderWidth: `${markerBorderWidth}px`,
+          borderColor: theme.elevatorCabBorderColor,
+          backgroundColor: theme.panelColor,
+          boxShadow: "0 2px 6px rgba(15, 23, 42, 0.08)",
+        }}
+      >
+        <div
+          className="absolute rounded-full"
+          style={{
+            left: `${markerInnerLeft}px`,
+            top: `${markerInnerLeft}px`,
+            width: `${markerInnerSize}px`,
+            height: `${markerInnerSize}px`,
+            backgroundColor: theme.elevatorCabColor,
+          }}
+        />
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 flex justify-center">
+        <span
+          className="inline-flex items-center justify-center border text-center font-medium"
+          style={{
+            minWidth: dense ? "38px" : compact ? "44px" : "52px",
+            height: `${bottomLabelHeight}px`,
+            padding: `0 ${labelPaddingX}`,
+            borderRadius: `${bottomLabelRadius}px`,
+            borderColor: theme.elevatorRangeBorderColor,
+            backgroundColor: theme.elevatorRangeBackgroundColor,
+            color: theme.elevatorRangeTextColor,
+            fontSize: bottomLabelFontSize,
+            whiteSpace: "nowrap",
+            boxShadow: labelShadow,
+          }}
+        >
+          {rangeLabel}
+        </span>
       </div>
     </div>
   );
