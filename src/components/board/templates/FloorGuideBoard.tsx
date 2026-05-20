@@ -500,8 +500,7 @@ function ElevatorOverlay({
   const topCenter = topIndex * rowHeight + rowHeight / 2;
   const bottomCenter = bottomIndex * rowHeight + rowHeight / 2;
   const markerSize = dense ? 12 : compact ? 14 : 16;
-  const markerInnerSize = dense ? 4 : compact ? 5 : 6;
-  const topLabelHeight = dense ? 18 : compact ? 20 : 22;
+  const topLabelHeight = dense ? 20 : compact ? 24 : 28;
   const topLabelGap = dense ? 4 : 6;
   const bottomLabelHeight = dense ? 18 : compact ? 20 : 22;
   const bottomLabelGap = dense ? 4 : 6;
@@ -514,15 +513,15 @@ function ElevatorOverlay({
   const shaftBottom = bottomPadding;
   const lineLeft = (laneWidth - shaftWidth) / 2;
   const markerLeft = (laneWidth - markerSize) / 2;
-  const markerInnerLeft = (markerSize - markerInnerSize) / 2;
   const markerBorderWidth = dense ? 1.5 : 2;
   const topMarkerTop = topPadding - markerSize / 2;
   const bottomMarkerBottom = bottomPadding - markerSize / 2;
-  const topLabelRadius = dense ? 10 : compact ? 12 : 14;
+  const topLabelRadius = dense ? 11 : compact ? 14 : 16;
   const bottomLabelRadius = dense ? 10 : compact ? 12 : 14;
-  const topLabelFontSize = dense ? "9px" : compact ? "10px" : "11px";
+  const topLabelFontSize = dense ? "10px" : compact ? "11px" : "12px";
   const bottomLabelFontSize = dense ? "9px" : compact ? "10px" : "11px";
-  const labelPaddingX = dense ? "6px" : compact ? "7px" : "9px";
+  const topLabelPaddingX = dense ? "7px" : compact ? "9px" : "11px";
+  const bottomLabelPaddingX = dense ? "6px" : compact ? "7px" : "9px";
   const labelShadow = dense
     ? "0 3px 8px rgba(15, 23, 42, 0.08)"
     : "0 5px 12px rgba(15, 23, 42, 0.10)";
@@ -553,9 +552,9 @@ function ElevatorOverlay({
         <span
           className="inline-flex items-center justify-center border text-center font-semibold"
           style={{
-            minWidth: dense ? "30px" : compact ? "36px" : "42px",
+            minWidth: dense ? "34px" : compact ? "42px" : "50px",
             height: `${topLabelHeight}px`,
-            padding: `0 ${labelPaddingX}`,
+            padding: `0 ${topLabelPaddingX}`,
             borderRadius: `${topLabelRadius}px`,
             borderColor: theme.rowBorderColor,
             backgroundColor: theme.panelColor,
@@ -582,18 +581,7 @@ function ElevatorOverlay({
           backgroundColor: theme.panelColor,
           boxShadow: "0 2px 6px rgba(15, 23, 42, 0.08)",
         }}
-      >
-        <div
-          className="absolute rounded-full"
-          style={{
-            left: `${markerInnerLeft}px`,
-            top: `${markerInnerLeft}px`,
-            width: `${markerInnerSize}px`,
-            height: `${markerInnerSize}px`,
-            backgroundColor: theme.elevatorCabColor,
-          }}
-        />
-      </div>
+      />
 
       <div
         className="absolute rounded-full border shadow-sm"
@@ -607,18 +595,7 @@ function ElevatorOverlay({
           backgroundColor: theme.panelColor,
           boxShadow: "0 2px 6px rgba(15, 23, 42, 0.08)",
         }}
-      >
-        <div
-          className="absolute rounded-full"
-          style={{
-            left: `${markerInnerLeft}px`,
-            top: `${markerInnerLeft}px`,
-            width: `${markerInnerSize}px`,
-            height: `${markerInnerSize}px`,
-            backgroundColor: theme.elevatorCabColor,
-          }}
-        />
-      </div>
+      />
 
       <div className="absolute inset-x-0 bottom-0 flex justify-center">
         <span
@@ -626,7 +603,7 @@ function ElevatorOverlay({
           style={{
             minWidth: dense ? "38px" : compact ? "44px" : "52px",
             height: `${bottomLabelHeight}px`,
-            padding: `0 ${labelPaddingX}`,
+            padding: `0 ${bottomLabelPaddingX}`,
             borderRadius: `${bottomLabelRadius}px`,
             borderColor: theme.elevatorRangeBorderColor,
             backgroundColor: theme.elevatorRangeBackgroundColor,
