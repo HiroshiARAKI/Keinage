@@ -173,7 +173,7 @@ function getLayout(profileCount: number) {
   return {
     columns: 4,
     maxWidthClassName: "max-w-[1900px]",
-    imageHeight: "150px",
+    imageHeight: "48%",
     titleSize: "21px",
     roleSize: "14px",
     descriptionSize: "14px",
