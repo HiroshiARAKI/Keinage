@@ -70,12 +70,17 @@ export function DateTimeClock({
   const dateFontSize = Math.max(14, Math.round(timeFontSize * 0.35));
 
   const fontStyle = fontFamily || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  const hasBackground = bgOpacity > 0;
 
   if (layout === "compact") {
     return (
       <div
-        className="inline-flex items-center gap-4 rounded-lg px-5 py-2"
-        style={{ backgroundColor: `rgba(0, 0, 0, ${bgOpacity})`, color, fontFamily: fontStyle }}
+        className={`inline-flex items-center gap-4 ${hasBackground ? "rounded-lg px-5 py-2" : ""}`}
+        style={{
+          backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
+          color,
+          fontFamily: fontStyle,
+        }}
       >
         <span
           className="font-bold tabular-nums tracking-wider"
@@ -96,8 +101,12 @@ export function DateTimeClock({
   if (layout === "large-time") {
     return (
       <div
-        className="inline-flex flex-col items-center rounded-lg px-8 py-4"
-        style={{ backgroundColor: `rgba(0, 0, 0, ${bgOpacity})`, color, fontFamily: fontStyle }}
+        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-8 py-4" : ""}`}
+        style={{
+          backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
+          color,
+          fontFamily: fontStyle,
+        }}
       >
         <span
           className="font-bold tabular-nums tracking-wider"
@@ -124,8 +133,12 @@ export function DateTimeClock({
   if (layout === "date-top") {
     return (
       <div
-        className="inline-flex flex-col items-center rounded-lg px-6 py-3"
-        style={{ backgroundColor: `rgba(0, 0, 0, ${bgOpacity})`, color, fontFamily: fontStyle }}
+        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""}`}
+        style={{
+          backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
+          color,
+          fontFamily: fontStyle,
+        }}
       >
         <span
           className="font-medium opacity-90"
@@ -146,8 +159,12 @@ export function DateTimeClock({
   // "standard" layout (default)
   return (
     <div
-      className="inline-flex flex-col items-center rounded-lg px-6 py-3"
-      style={{ backgroundColor: `rgba(0, 0, 0, ${bgOpacity})`, color, fontFamily: fontStyle }}
+      className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""}`}
+      style={{
+        backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
+        color,
+        fontFamily: fontStyle,
+      }}
     >
       <span
         className="font-bold tabular-nums tracking-wider"

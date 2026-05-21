@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,12 +84,17 @@ export function StaffBoardConfigEditor({
   useLoadAllGoogleFonts();
   const { t } = useLocale();
   const profiles = normalizeProfiles(config.profiles);
+  const [collapsedProfiles, setCollapsedProfiles] = useState<number[]>([]);
   const fontFamily = (config.fontFamily as string) ?? "";
   const showClock = (config.showClock as boolean) ?? false;
   const objectFit = (config.objectFit as StaffImageObjectFit) === "contain"
     ? "contain"
     : "cover";
   const imageMedia = mediaItems.filter((item) => item.type === "image");
+
+  useEffect(() => {
+    setCollapsedProfiles((current) => current.filter((index) => index < profiles.length));
+  }, [profiles.length]);
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
@@ -118,9 +124,23 @@ export function StaffBoardConfigEditor({
   }
 
   function removeProfile(index: number) {
+    setCollapsedProfiles((current) =>
+      current
+        .filter((currentIndex) => currentIndex !== index)
+        .map((currentIndex) => (currentIndex > index ? currentIndex - 1 : currentIndex)),
+    );
+
     update(
       "profiles",
       profiles.filter((_, profileIndex) => profileIndex !== index),
+    );
+  }
+
+  function toggleProfile(index: number) {
+    setCollapsedProfiles((current) =>
+      current.includes(index)
+        ? current.filter((currentIndex) => currentIndex !== index)
+        : [...current, index],
     );
   }
 
@@ -227,6 +247,8 @@ export function StaffBoardConfigEditor({
 
         <div className="space-y-3">
           {profiles.map((profile, index) => {
+            const isCollapsed = collapsedProfiles.includes(index);
+            const profileName = profile.name.trim();
             const selectedImageLabel = profile.imageUrl
               ? imageOptionLabel(profile.imageUrl, imageMedia, t)
               : "画像なし";
@@ -234,80 +256,106 @@ export function StaffBoardConfigEditor({
             return (
               <div key={index} className="space-y-3 rounded-md border p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <h5 className="text-sm font-semibold">スタッフ {index + 1}</h5>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => removeProfile(index)}
-                    disabled={profiles.length <= 1}
-                  >
-                    <Trash2 className="size-4 text-destructive" />
-                  </Button>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor={`cfg-staff-image-${index}`}>画像</Label>
-                    <Select
-                      value={profile.imageUrl || "__none__"}
-                      onValueChange={(value) => {
-                        if (!value) return;
-                        updateProfile(index, { imageUrl: value === "__none__" ? "" : value });
-                      }}
+                  <div className="flex min-w-0 items-center gap-2">
+                    <h5 className="shrink-0 text-sm font-semibold">スタッフ {index + 1}</h5>
+                    {profileName && (
+                      <span className="truncate text-sm text-muted-foreground">
+                        {profileName}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => toggleProfile(index)}
+                      aria-label={
+                        isCollapsed
+                          ? t("schedule.details.expand")
+                          : t("schedule.details.collapse")
+                      }
                     >
-                      <SelectTrigger id={`cfg-staff-image-${index}`}>
-                        <SelectValue>{selectedImageLabel}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">画像なし</SelectItem>
-                        {imageMedia.map((media) => (
-                          <SelectItem key={media.id} value={media.filePath}>
-                            {imageOptionLabel(media.filePath, imageMedia, t)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <ColorInput
-                    id={`cfg-staff-accent-${index}`}
-                    label="アクセント色"
-                    value={profile.accentColor}
-                    onChange={(value) => updateProfile(index, { accentColor: value })}
-                  />
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor={`cfg-staff-name-${index}`}>スタッフ名</Label>
-                    <Input
-                      id={`cfg-staff-name-${index}`}
-                      value={profile.name}
-                      maxLength={60}
-                      onChange={(e) => updateProfile(index, { name: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor={`cfg-staff-role-${index}`}>肩書き</Label>
-                    <Input
-                      id={`cfg-staff-role-${index}`}
-                      value={profile.role}
-                      maxLength={60}
-                      onChange={(e) => updateProfile(index, { role: e.target.value })}
-                    />
+                      {isCollapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => removeProfile(index)}
+                      disabled={profiles.length <= 1}
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </Button>
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor={`cfg-staff-description-${index}`}>説明</Label>
-                  <Textarea
-                    id={`cfg-staff-description-${index}`}
-                    rows={3}
-                    maxLength={240}
-                    value={profile.description}
-                    onChange={(e) => updateProfile(index, { description: e.target.value })}
-                  />
-                </div>
+                {!isCollapsed && (
+                  <>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`cfg-staff-image-${index}`}>画像</Label>
+                        <Select
+                          value={profile.imageUrl || "__none__"}
+                          onValueChange={(value) => {
+                            if (!value) return;
+                            updateProfile(index, { imageUrl: value === "__none__" ? "" : value });
+                          }}
+                        >
+                          <SelectTrigger id={`cfg-staff-image-${index}`}>
+                            <SelectValue>{selectedImageLabel}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">画像なし</SelectItem>
+                            {imageMedia.map((media) => (
+                              <SelectItem key={media.id} value={media.filePath}>
+                                {imageOptionLabel(media.filePath, imageMedia, t)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <ColorInput
+                        id={`cfg-staff-accent-${index}`}
+                        label="アクセント色"
+                        value={profile.accentColor}
+                        onChange={(value) => updateProfile(index, { accentColor: value })}
+                      />
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`cfg-staff-name-${index}`}>スタッフ名</Label>
+                        <Input
+                          id={`cfg-staff-name-${index}`}
+                          value={profile.name}
+                          maxLength={60}
+                          onChange={(e) => updateProfile(index, { name: e.target.value })}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`cfg-staff-role-${index}`}>肩書き</Label>
+                        <Input
+                          id={`cfg-staff-role-${index}`}
+                          value={profile.role}
+                          maxLength={60}
+                          onChange={(e) => updateProfile(index, { role: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`cfg-staff-description-${index}`}>説明</Label>
+                      <Textarea
+                        id={`cfg-staff-description-${index}`}
+                        rows={3}
+                        maxLength={240}
+                        value={profile.description}
+                        onChange={(e) => updateProfile(index, { description: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             );
           })}
@@ -325,11 +373,7 @@ function imageOptionLabel(
   const index = imageMedia.findIndex((media) => media.filePath === filePath);
   if (index < 0) return filePath.split("/").pop() ?? filePath;
 
-  const media = imageMedia[index];
-  return t("schedule.imageOption", {
-    number: index + 1,
-    name: media.filePath.split("/").pop() ?? media.id,
-  });
+  return t("schedule.imageNumber", { number: index + 1 });
 }
 
 function ColorInput({

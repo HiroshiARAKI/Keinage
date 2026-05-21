@@ -225,7 +225,7 @@ export default function StaffBoard({ board }: BoardTemplateProps) {
             <DateTimeClock
               timeFontSize={28}
               color={config.titleColor}
-              bgOpacity={0.08}
+              bgOpacity={0}
               layout="compact"
               fontFamily={config.fontFamily || undefined}
             />
@@ -270,10 +270,6 @@ export default function StaffBoard({ board }: BoardTemplateProps) {
                       {getInitials(profile)}
                     </div>
                   )}
-                  <div
-                    className="absolute inset-x-0 top-0 h-2"
-                    style={{ backgroundColor: profile.accentColor }}
-                  />
                 </div>
 
                 <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-5">
