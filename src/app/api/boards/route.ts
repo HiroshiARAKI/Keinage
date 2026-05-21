@@ -6,7 +6,9 @@ import { boards } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { createBoardSchema } from "@/lib/validators";
+import { resolveAuthenticatedLocale } from "@/lib/locale-cookie";
 import { resolveOwnerUserId } from "@/lib/ownership";
+import { createLocalizedTemplateDefaultConfig } from "@/lib/template-default-configs";
 import { templates } from "@/lib/templates";
 import {
   assertCanCreateBoard,
@@ -65,7 +67,13 @@ export async function POST(request: NextRequest) {
 
   // Apply default config from template if no config provided
   const template = templates[templateId as keyof typeof templates];
-  const mergedConfig = Object.keys(config).length > 0 ? config : (template?.defaultConfig ?? {});
+  const locale = resolveAuthenticatedLocale({
+    storedLocale: session.user.locale,
+    acceptLanguage: request.headers.get("accept-language"),
+  });
+  const mergedConfig = Object.keys(config).length > 0
+    ? config
+    : (createLocalizedTemplateDefaultConfig(templateId, locale) ?? template?.defaultConfig ?? {});
 
   const [inserted] = await db
     .insert(boards)

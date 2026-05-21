@@ -2,6 +2,8 @@
 
 import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
+import { useLocale } from "@/components/i18n/LocaleProvider";
+import { createStaffBoardDefaultConfig } from "@/lib/template-default-configs";
 import type { BoardTemplateProps } from "@/types";
 
 interface StaffProfileConfig {
@@ -37,44 +39,10 @@ const defaultAccentColors = [
   "#fde68a",
 ];
 
-export const staffBoardDefaultConfig: StaffBoardConfig = {
-  title: "スタッフ紹介",
-  body: "担当者やスタッフのプロフィールを表示します。",
-  fontFamily: "",
-  showClock: false,
-  objectFit: "cover",
-  backgroundColor: "#f8fafc",
-  titleColor: "#0f172a",
-  bodyColor: "#475569",
-  cardBackgroundColor: "#ffffff",
-  cardTextColor: "#0f172a",
-  profiles: [
-    {
-      imageUrl: "",
-      name: "山田 花子",
-      role: "店長",
-      description: "接客全般を担当しています。お気軽にお声がけください。",
-      accentColor: defaultAccentColors[0],
-    },
-    {
-      imageUrl: "",
-      name: "佐藤 太郎",
-      role: "フロアスタッフ",
-      description: "おすすめ商品のご案内や会場誘導を担当しています。",
-      accentColor: defaultAccentColors[1],
-    },
-    {
-      imageUrl: "",
-      name: "鈴木 美咲",
-      role: "受付",
-      description: "受付やご予約確認を担当しています。",
-      accentColor: defaultAccentColors[2],
-    },
-  ],
-};
+export const staffBoardDefaultConfig: StaffBoardConfig = createStaffBoardDefaultConfig();
 
-function normalizeProfiles(value: unknown): StaffProfileConfig[] {
-  if (!Array.isArray(value)) return staffBoardDefaultConfig.profiles;
+function normalizeProfiles(value: unknown, defaultProfiles: StaffProfileConfig[]): StaffProfileConfig[] {
+  if (!Array.isArray(value)) return defaultProfiles;
   const profiles = value.slice(0, 8).map((profile, index) => {
     const raw = profile && typeof profile === "object"
       ? (profile as Partial<StaffProfileConfig>)
@@ -92,10 +60,10 @@ function normalizeProfiles(value: unknown): StaffProfileConfig[] {
     };
   });
 
-  return profiles.length > 0 ? profiles : staffBoardDefaultConfig.profiles;
+  return profiles.length > 0 ? profiles : defaultProfiles;
 }
 
-function parseConfig(raw: unknown): StaffBoardConfig {
+function parseConfig(raw: unknown, defaultConfig: StaffBoardConfig): StaffBoardConfig {
   const config = (raw && typeof raw === "object"
     ? raw
     : {}) as Partial<StaffBoardConfig>;
@@ -103,10 +71,10 @@ function parseConfig(raw: unknown): StaffBoardConfig {
   const objectFit = config.objectFit === "contain" ? "contain" : "cover";
 
   return {
-    ...staffBoardDefaultConfig,
+    ...defaultConfig,
     ...config,
     objectFit,
-    profiles: normalizeProfiles(config.profiles),
+    profiles: normalizeProfiles(config.profiles, defaultConfig.profiles),
   };
 }
 
@@ -124,7 +92,7 @@ function getLayout(profileCount: number) {
     return {
       columns: 1,
       maxWidthClassName: "max-w-4xl",
-      imageHeight: "320px",
+      imageHeight: "40%",
       titleSize: "38px",
       roleSize: "20px",
       descriptionSize: "20px",
@@ -134,7 +102,7 @@ function getLayout(profileCount: number) {
     return {
       columns: 2,
       maxWidthClassName: "max-w-7xl",
-      imageHeight: "260px",
+      imageHeight: "36%",
       titleSize: "30px",
       roleSize: "18px",
       descriptionSize: "18px",
@@ -144,7 +112,7 @@ function getLayout(profileCount: number) {
     return {
       columns: 3,
       maxWidthClassName: "max-w-[1800px]",
-      imageHeight: "220px",
+      imageHeight: "34%",
       titleSize: "26px",
       roleSize: "16px",
       descriptionSize: "16px",
@@ -186,7 +154,9 @@ function getInitials(profile: StaffProfileConfig) {
 }
 
 export default function StaffBoard({ board }: BoardTemplateProps) {
-  const config = parseConfig(board.config);
+  const { t } = useLocale();
+  const defaultConfig = createStaffBoardDefaultConfig(t);
+  const config = parseConfig(board.config, defaultConfig);
   const profiles = config.profiles.filter(hasProfileContent);
   const layout = getLayout(Math.max(1, profiles.length));
   const imageObjectFitClassName =
@@ -236,7 +206,7 @@ export default function StaffBoard({ board }: BoardTemplateProps) {
       <div className={`mx-auto flex min-h-0 w-full flex-1 ${layout.maxWidthClassName}`}>
         {profiles.length === 0 ? (
           <div className="flex h-full w-full items-center justify-center rounded-[28px] border border-slate-200/70 bg-white/80 px-8 text-center text-slate-500 shadow-sm">
-            スタッフ情報が登録されていません
+            {t("board.staff.empty")}
           </div>
         ) : (
           <div
@@ -262,7 +232,7 @@ export default function StaffBoard({ board }: BoardTemplateProps) {
                   {profile.imageUrl ? (
                     <img
                       src={profile.imageUrl}
-                      alt={profile.name || "staff"}
+                      alt={profile.name || t("template.staff-board.name")}
                       className={`h-full w-full ${imageObjectFitClassName}`}
                     />
                   ) : (
@@ -278,7 +248,7 @@ export default function StaffBoard({ board }: BoardTemplateProps) {
                       className="text-balance font-black tracking-tight"
                       style={{ fontSize: layout.titleSize, lineHeight: 1.12 }}
                     >
-                      {profile.name || "スタッフ名未設定"}
+                      {profile.name || t("board.staff.nameUnset")}
                     </h2>
                     {profile.role && (
                       <p
@@ -294,7 +264,7 @@ export default function StaffBoard({ board }: BoardTemplateProps) {
                     className="min-h-0 leading-relaxed text-slate-600"
                     style={{ fontSize: layout.descriptionSize }}
                   >
-                    {profile.description || "紹介文を入力するとここに表示されます。"}
+                    {profile.description || t("board.staff.descriptionPlaceholder")}
                   </p>
                 </div>
               </article>

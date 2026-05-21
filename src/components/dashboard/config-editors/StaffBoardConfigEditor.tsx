@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { createStaffBoardDefaultConfig } from "@/lib/template-default-configs";
 import type { MediaItem } from "@/types";
 import { FontSelect, useLoadAllGoogleFonts } from "./shared";
 
@@ -45,17 +46,7 @@ const defaultAccentColors = [
   "#fde68a",
 ];
 
-const defaultProfiles: StaffProfileConfig[] = [
-  {
-    imageUrl: "",
-    name: "山田 花子",
-    role: "店長",
-    description: "接客全般を担当しています。お気軽にお声がけください。",
-    accentColor: defaultAccentColors[0],
-  },
-];
-
-function normalizeProfiles(value: unknown) {
+function normalizeProfiles(value: unknown, defaultProfiles: StaffProfileConfig[]) {
   if (!Array.isArray(value)) return defaultProfiles;
   const profiles = value.slice(0, 8).map((profile, index) => {
     const raw = profile && typeof profile === "object"
@@ -83,7 +74,8 @@ export function StaffBoardConfigEditor({
 }: StaffBoardConfigEditorProps) {
   useLoadAllGoogleFonts();
   const { t } = useLocale();
-  const profiles = normalizeProfiles(config.profiles);
+  const defaultConfig = createStaffBoardDefaultConfig(t);
+  const profiles = normalizeProfiles(config.profiles, defaultConfig.profiles);
   const [collapsedProfiles, setCollapsedProfiles] = useState<number[]>([]);
   const fontFamily = (config.fontFamily as string) ?? "";
   const showClock = (config.showClock as boolean) ?? false;
@@ -151,7 +143,7 @@ export function StaffBoardConfigEditor({
           <Label htmlFor="cfg-staff-title">{t("configEditor.titleText")}</Label>
           <Input
             id="cfg-staff-title"
-            value={(config.title as string) ?? "スタッフ紹介"}
+            value={(config.title as string) ?? defaultConfig.title}
             onChange={(e) => update("title", e.target.value)}
           />
         </div>
@@ -167,7 +159,7 @@ export function StaffBoardConfigEditor({
         <Textarea
           id="cfg-staff-body"
           rows={3}
-          value={(config.body as string) ?? "担当者やスタッフのプロフィールを表示します。"}
+          value={(config.body as string) ?? defaultConfig.body}
           onChange={(e) => update("body", e.target.value)}
         />
       </div>
@@ -201,13 +193,13 @@ export function StaffBoardConfigEditor({
       <div className="grid gap-4 md:grid-cols-2">
         <ColorInput
           id="cfg-staff-background"
-          label="背景色"
+          label={t("configEditor.backgroundColor")}
           value={(config.backgroundColor as string) ?? "#f8fafc"}
           onChange={(value) => update("backgroundColor", value)}
         />
         <ColorInput
           id="cfg-staff-card"
-          label="カード背景色"
+          label={t("configEditor.staff.cardBackgroundColor")}
           value={(config.cardBackgroundColor as string) ?? "#ffffff"}
           onChange={(value) => update("cardBackgroundColor", value)}
         />
@@ -225,7 +217,7 @@ export function StaffBoardConfigEditor({
         />
         <ColorInput
           id="cfg-staff-card-text-color"
-          label="カード文字色"
+          label={t("configEditor.staff.cardTextColor")}
           value={(config.cardTextColor as string) ?? "#0f172a"}
           onChange={(value) => update("cardTextColor", value)}
         />
@@ -234,14 +226,14 @@ export function StaffBoardConfigEditor({
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h4 className="text-sm font-semibold">スタッフカード</h4>
+            <h4 className="text-sm font-semibold">{t("configEditor.staff.cards")}</h4>
             <p className="text-xs text-muted-foreground">
-              最大8人まで登録できます。画像・名前・肩書き・説明のいずれかを入力すると表示されます。
+              {t("configEditor.staff.cardsHint")}
             </p>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={addProfile} disabled={profiles.length >= 8}>
             <Plus className="size-4" />
-            スタッフを追加
+            {t("configEditor.staff.addProfile")}
           </Button>
         </div>
 
@@ -251,13 +243,13 @@ export function StaffBoardConfigEditor({
             const profileName = profile.name.trim();
             const selectedImageLabel = profile.imageUrl
               ? imageOptionLabel(profile.imageUrl, imageMedia, t)
-              : "画像なし";
+              : t("configEditor.itemImageNone");
 
             return (
               <div key={index} className="space-y-3 rounded-md border p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
-                    <h5 className="shrink-0 text-sm font-semibold">スタッフ {index + 1}</h5>
+                    <h5 className="shrink-0 text-sm font-semibold">{t("configEditor.staff.profile", { number: index + 1 })}</h5>
                     {profileName && (
                       <span className="truncate text-sm text-muted-foreground">
                         {profileName}
@@ -294,7 +286,7 @@ export function StaffBoardConfigEditor({
                   <>
                     <div className="grid gap-3 md:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label htmlFor={`cfg-staff-image-${index}`}>画像</Label>
+                        <Label htmlFor={`cfg-staff-image-${index}`}>{t("common.image")}</Label>
                         <Select
                           value={profile.imageUrl || "__none__"}
                           onValueChange={(value) => {
@@ -306,7 +298,7 @@ export function StaffBoardConfigEditor({
                             <SelectValue>{selectedImageLabel}</SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__">画像なし</SelectItem>
+                            <SelectItem value="__none__">{t("configEditor.itemImageNone")}</SelectItem>
                             {imageMedia.map((media) => (
                               <SelectItem key={media.id} value={media.filePath}>
                                 {imageOptionLabel(media.filePath, imageMedia, t)}
@@ -318,13 +310,13 @@ export function StaffBoardConfigEditor({
 
                       <ColorInput
                         id={`cfg-staff-accent-${index}`}
-                        label="アクセント色"
+                        label={t("configEditor.accentColor")}
                         value={profile.accentColor}
                         onChange={(value) => updateProfile(index, { accentColor: value })}
                       />
 
                       <div className="space-y-1.5">
-                        <Label htmlFor={`cfg-staff-name-${index}`}>スタッフ名</Label>
+                        <Label htmlFor={`cfg-staff-name-${index}`}>{t("configEditor.staff.name")}</Label>
                         <Input
                           id={`cfg-staff-name-${index}`}
                           value={profile.name}
@@ -334,7 +326,7 @@ export function StaffBoardConfigEditor({
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label htmlFor={`cfg-staff-role-${index}`}>肩書き</Label>
+                        <Label htmlFor={`cfg-staff-role-${index}`}>{t("configEditor.staff.role")}</Label>
                         <Input
                           id={`cfg-staff-role-${index}`}
                           value={profile.role}
@@ -345,7 +337,7 @@ export function StaffBoardConfigEditor({
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor={`cfg-staff-description-${index}`}>説明</Label>
+                      <Label htmlFor={`cfg-staff-description-${index}`}>{t("configEditor.staff.description")}</Label>
                       <Textarea
                         id={`cfg-staff-description-${index}`}
                         rows={3}

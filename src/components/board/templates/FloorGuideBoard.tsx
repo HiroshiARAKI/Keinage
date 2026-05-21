@@ -2,7 +2,9 @@
 
 import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { resolveFloorGuideTheme, type FloorGuideThemeKey, type FloorGuideThemePalette } from "@/lib/floor-guide-theme";
+import { createFloorGuideDefaultConfig } from "@/lib/template-default-configs";
 import escPict from "@/resources/esc-pict.svg";
 import exitPict from "@/resources/exit-pict.svg";
 import femalePict from "@/resources/female-pict.svg";
@@ -47,51 +49,7 @@ interface FloorGuideConfig {
   elevators: ElevatorConfig[];
 }
 
-function createDefaultFloors(): FloorConfig[] {
-  return Array.from({ length: 10 }, (_, index) => {
-    const floorNumber = index + 1;
-    return {
-      floorNumber,
-      shops:
-        floorNumber === 1
-          ? [{ logoPath: "", text: "受付 / 総合案内" }]
-          : floorNumber === 2
-            ? [{ logoPath: "", text: "クリニックA / 診察室" }]
-            : floorNumber === 3
-              ? [{ logoPath: "", text: "クリニックB / 検査室" }]
-              : floorNumber === 4
-                ? [{ logoPath: "", text: "会議室 / オフィス" }]
-                : [],
-      hasMensRestroom: floorNumber <= 3,
-      hasWomensRestroom: floorNumber <= 3,
-      hasEmergencyExit: floorNumber <= 4,
-      hasEscalator: floorNumber <= 4,
-    };
-  });
-}
-
-const defaultFloors = createDefaultFloors();
-
-export const floorGuideDefaultConfig: FloorGuideConfig = {
-  title: "フロアガイド",
-  body: "会場案内や店舗情報、館内設備をご案内します。",
-  fontFamily: "",
-  themePreset: "light",
-  floorCount: 4,
-  showClock: false,
-  backgroundColor: "#f8fafc",
-  panelColor: "#ffffff",
-  titleColor: "#0f172a",
-  bodyColor: "#475569",
-  textColor: "#0f172a",
-  floorBadgeColor: "#0f172a",
-  floors: defaultFloors,
-  elevators: [
-    { enabled: true, label: "EV A", startFloor: 1, endFloor: 4 },
-    { enabled: false, label: "EV B", startFloor: 1, endFloor: 4 },
-    { enabled: false, label: "EV C", startFloor: 1, endFloor: 4 },
-  ],
-};
+export const floorGuideDefaultConfig: FloorGuideConfig = createFloorGuideDefaultConfig();
 
 function normalizeFloorNumber(value: unknown, fallback: number | null) {
   if (value === "" || value === null || value === undefined) return null;
@@ -117,7 +75,7 @@ function normalizeFloorCount(value: unknown, fallback: number) {
   return Math.min(10, Math.max(1, next));
 }
 
-function normalizeFloors(value: unknown): FloorConfig[] {
+function normalizeFloors(value: unknown, defaultFloors: FloorConfig[]): FloorConfig[] {
   const rawFloors = Array.isArray(value) ? value : defaultFloors;
 
   return defaultFloors.map((fallback, index) => {
@@ -154,10 +112,10 @@ function normalizeFloors(value: unknown): FloorConfig[] {
   });
 }
 
-function normalizeElevators(value: unknown, floorCount: number): ElevatorConfig[] {
-  const rawElevators = Array.isArray(value) ? value : floorGuideDefaultConfig.elevators;
+function normalizeElevators(value: unknown, floorCount: number, defaultElevators: ElevatorConfig[]): ElevatorConfig[] {
+  const rawElevators = Array.isArray(value) ? value : defaultElevators;
 
-  return floorGuideDefaultConfig.elevators.map((fallback, index) => {
+  return defaultElevators.map((fallback, index) => {
     const raw = rawElevators[index] && typeof rawElevators[index] === "object"
       ? (rawElevators[index] as Partial<ElevatorConfig>)
       : {};
@@ -181,18 +139,18 @@ function normalizeElevators(value: unknown, floorCount: number): ElevatorConfig[
   });
 }
 
-function parseConfig(raw: unknown): FloorGuideConfig {
+function parseConfig(raw: unknown, defaultConfig: FloorGuideConfig): FloorGuideConfig {
   const config = (raw && typeof raw === "object"
     ? raw
     : {}) as Partial<FloorGuideConfig>;
   const floorCount = normalizeFloorCount(config.floorCount, inferFloorCount(config.floors));
 
   return {
-    ...floorGuideDefaultConfig,
+    ...defaultConfig,
     ...config,
     floorCount,
-    floors: normalizeFloors(config.floors),
-    elevators: normalizeElevators(config.elevators, floorCount),
+    floors: normalizeFloors(config.floors, defaultConfig.floors),
+    elevators: normalizeElevators(config.elevators, floorCount, defaultConfig.elevators),
   };
 }
 
@@ -206,7 +164,9 @@ function findLogoMedia(mediaItems: MediaItem[], logoPath: string) {
 }
 
 export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProps) {
-  const config = parseConfig(board.config);
+  const { t } = useLocale();
+  const defaultConfig = createFloorGuideDefaultConfig(t);
+  const config = parseConfig(board.config, defaultConfig);
   const theme = resolveFloorGuideTheme(config);
   const floors = config.floors
     .slice(0, config.floorCount)
@@ -286,7 +246,7 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
             className="flex h-full items-center justify-center text-center"
             style={{ color: theme.emptyTextColor }}
           >
-            表示する階数が設定されていません
+            {t("board.floorGuide.noFloors")}
           </div>
         ) : (
           <>
@@ -364,7 +324,7 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                                       color: theme.shopPlaceholderColor,
                                     }}
                                   >
-                                    LOGO
+                                    {t("board.floorGuide.logoPlaceholder")}
                                   </div>
                                 ) : null}
                                 <span
@@ -375,7 +335,7 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                                     lineHeight: 1.2,
                                   }}
                                 >
-                                  {shop.text || "店舗情報未設定"}
+                                  {shop.text || t("board.floorGuide.shopUnset")}
                                 </span>
                               </div>
                             );
@@ -386,7 +346,7 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                           className="flex h-full items-center"
                           style={{ color: theme.mutedTextColor, fontSize: emptyTextSize }}
                         >
-                          店舗情報はありません
+                          {t("board.floorGuide.noShops")}
                         </div>
                       )}
                     </div>
@@ -395,10 +355,10 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
                       className="flex flex-wrap content-center items-center justify-end"
                       style={{ gap: denseRows ? "6px" : "8px" }}
                     >
-                      {floor.hasMensRestroom && <FacilityBadge iconSrc={malePict.src} alt="男性トイレ" theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
-                      {floor.hasWomensRestroom && <FacilityBadge iconSrc={femalePict.src} alt="女性トイレ" theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
-                      {floor.hasEscalator && <FacilityBadge iconSrc={escPict.src} alt="エスカレーター" theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
-                      {floor.hasEmergencyExit && <FacilityBadge iconSrc={exitPict.src} alt="非常口" theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
+                      {floor.hasMensRestroom && <FacilityBadge iconSrc={malePict.src} alt={t("board.floorGuide.mensRestroom")} theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
+                      {floor.hasWomensRestroom && <FacilityBadge iconSrc={femalePict.src} alt={t("board.floorGuide.womensRestroom")} theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
+                      {floor.hasEscalator && <FacilityBadge iconSrc={escPict.src} alt={t("board.floorGuide.escalator")} theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
+                      {floor.hasEmergencyExit && <FacilityBadge iconSrc={exitPict.src} alt={t("board.floorGuide.emergencyExit")} theme={theme} size={facilitySize} iconSize={facilityIconSize} />}
                     </div>
                   </section>
                 );

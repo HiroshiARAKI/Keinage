@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { createSplitViewDefaultConfig } from "@/lib/template-default-configs";
 import type { MediaItem } from "@/types";
 import { FontSelect, useLoadAllGoogleFonts } from "./shared";
 
@@ -33,31 +34,12 @@ interface SplitViewConfigEditorProps {
   mediaItems?: MediaItem[];
 }
 
-const defaultPanes: SplitPaneConfig[] = [
-  {
-    type: "text",
-    title: "お知らせ",
-    body: "画像・動画・テキストを2分割で自由に表示できます。",
-    mediaPath: "",
-    backgroundColor: "#0f172a",
-    textColor: "#f8fafc",
-  },
-  {
-    type: "image",
-    title: "",
-    body: "",
-    mediaPath: "",
-    backgroundColor: "#e2e8f0",
-    textColor: "#0f172a",
-  },
-];
-
 function normalizePaneType(value: unknown): SplitPaneType {
   if (value === "image" || value === "video") return value;
   return "text";
 }
 
-function normalizePanes(value: unknown): SplitPaneConfig[] {
+function normalizePanes(value: unknown, defaultPanes: SplitPaneConfig[]): SplitPaneConfig[] {
   const rawPanes = Array.isArray(value) ? value : defaultPanes;
   const panes = rawPanes.slice(0, 2).map((pane, index) => {
     const raw = pane && typeof pane === "object"
@@ -94,7 +76,8 @@ export function SplitViewConfigEditor({
 }: SplitViewConfigEditorProps) {
   useLoadAllGoogleFonts();
   const { t } = useLocale();
-  const panes = normalizePanes(config.panes);
+  const defaultConfig = createSplitViewDefaultConfig(t);
+  const panes = normalizePanes(config.panes, defaultConfig.panes);
   const fontFamily = (config.fontFamily as string) ?? "";
   const showClock = (config.showClock as boolean) ?? false;
   const splitDirection =
@@ -127,19 +110,21 @@ export function SplitViewConfigEditor({
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="cfg-split-direction">分割方向</Label>
+          <Label htmlFor="cfg-split-direction">{t("configEditor.split.direction")}</Label>
           <Select
             value={splitDirection}
             onValueChange={(value) => update("splitDirection", value as SplitDirection)}
           >
             <SelectTrigger id="cfg-split-direction">
               <SelectValue>
-                {splitDirection === "vertical" ? "上下" : "左右"}
+                {splitDirection === "vertical"
+                  ? t("configEditor.split.directionVertical")
+                  : t("configEditor.split.directionHorizontal")}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="horizontal">左右</SelectItem>
-              <SelectItem value="vertical">上下</SelectItem>
+              <SelectItem value="horizontal">{t("configEditor.split.directionHorizontal")}</SelectItem>
+              <SelectItem value="vertical">{t("configEditor.split.directionVertical")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -150,7 +135,7 @@ export function SplitViewConfigEditor({
         />
         <ColorInput
           id="cfg-split-divider"
-          label="境界線色"
+          label={t("configEditor.split.dividerColor")}
           value={(config.dividerColor as string) ?? "#e2e8f0"}
           onChange={(value) => update("dividerColor", value)}
         />
@@ -171,21 +156,23 @@ export function SplitViewConfigEditor({
           const mediaLabel = pane.mediaPath
             ? mediaOptionLabel(pane.mediaPath, mediaChoices)
             : pane.type === "video"
-              ? "動画なし"
-              : "画像なし";
+              ? t("configEditor.split.noneVideo")
+              : t("configEditor.itemImageNone");
 
           return (
             <div key={index} className="space-y-3 rounded-md border p-3">
               <div className="flex items-center justify-between gap-3">
-                <h4 className="text-sm font-semibold">ペイン {index + 1}</h4>
+                <h4 className="text-sm font-semibold">{t("configEditor.split.pane", { number: index + 1 })}</h4>
                 <span className="text-xs text-muted-foreground">
-                  {index === 0 ? "左または上" : "右または下"}
+                  {index === 0
+                    ? t("configEditor.split.primaryHint")
+                    : t("configEditor.split.secondaryHint")}
                 </span>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor={`cfg-split-type-${index}`}>表示タイプ</Label>
+                  <Label htmlFor={`cfg-split-type-${index}`}>{t("configEditor.split.type")}</Label>
                   <Select
                     value={pane.type}
                     onValueChange={(value) =>
@@ -196,26 +183,26 @@ export function SplitViewConfigEditor({
                     }
                   >
                     <SelectTrigger id={`cfg-split-type-${index}`}>
-                      <SelectValue>{paneTypeLabel(pane.type)}</SelectValue>
+                      <SelectValue>{paneTypeLabel(pane.type, t)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="text">テキスト</SelectItem>
-                      <SelectItem value="image">画像</SelectItem>
-                      <SelectItem value="video">動画</SelectItem>
+                      <SelectItem value="text">{t("configEditor.split.typeText")}</SelectItem>
+                      <SelectItem value="image">{t("common.image")}</SelectItem>
+                      <SelectItem value="video">{t("common.video")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <ColorInput
                   id={`cfg-split-bg-${index}`}
-                  label="背景色"
+                  label={t("configEditor.backgroundColor")}
                   value={pane.backgroundColor}
                   onChange={(value) => updatePane(index, { backgroundColor: value })}
                 />
 
                 <ColorInput
                   id={`cfg-split-text-${index}`}
-                  label="文字色"
+                  label={t("configEditor.textColor")}
                   value={pane.textColor}
                   onChange={(value) => updatePane(index, { textColor: value })}
                 />
@@ -224,7 +211,7 @@ export function SplitViewConfigEditor({
               {pane.type === "text" ? (
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor={`cfg-split-title-${index}`}>見出し</Label>
+                    <Label htmlFor={`cfg-split-title-${index}`}>{t("configEditor.titleText")}</Label>
                     <Input
                       id={`cfg-split-title-${index}`}
                       value={pane.title}
@@ -233,7 +220,7 @@ export function SplitViewConfigEditor({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor={`cfg-split-body-${index}`}>本文</Label>
+                    <Label htmlFor={`cfg-split-body-${index}`}>{t("configEditor.bodyText")}</Label>
                     <Textarea
                       id={`cfg-split-body-${index}`}
                       rows={4}
@@ -246,7 +233,7 @@ export function SplitViewConfigEditor({
               ) : (
                 <div className="space-y-1.5">
                   <Label htmlFor={`cfg-split-media-${index}`}>
-                    {pane.type === "video" ? "動画" : "画像"}
+                    {pane.type === "video" ? t("common.video") : t("common.image")}
                   </Label>
                   <Select
                     value={pane.mediaPath || "__none__"}
@@ -261,7 +248,7 @@ export function SplitViewConfigEditor({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">
-                        {pane.type === "video" ? "動画なし" : "画像なし"}
+                        {pane.type === "video" ? t("configEditor.split.noneVideo") : t("configEditor.itemImageNone")}
                       </SelectItem>
                       {mediaChoices.map((media) => (
                         <SelectItem key={media.id} value={media.filePath}>
@@ -272,8 +259,8 @@ export function SplitViewConfigEditor({
                   </Select>
                   <p className="text-xs text-muted-foreground">
                     {pane.type === "video"
-                      ? "動画はこのペイン内でループ再生されます。"
-                      : "画像は cover 表示で余白なく表示されます。"}
+                      ? t("configEditor.split.videoHint")
+                      : t("configEditor.split.imageHint")}
                   </p>
                 </div>
               )}
@@ -285,10 +272,13 @@ export function SplitViewConfigEditor({
   );
 }
 
-function paneTypeLabel(type: SplitPaneType) {
-  if (type === "image") return "画像";
-  if (type === "video") return "動画";
-  return "テキスト";
+function paneTypeLabel(
+  type: SplitPaneType,
+  t: ReturnType<typeof useLocale>["t"],
+) {
+  if (type === "image") return t("common.image");
+  if (type === "video") return t("common.video");
+  return t("configEditor.split.typeText");
 }
 
 function mediaOptionLabel(filePath: string, items: MediaItem[]) {

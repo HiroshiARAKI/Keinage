@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { createScheduleBoardDefaultConfig } from "@/lib/template-default-configs";
 import { FontSelect, useLoadAllGoogleFonts } from "./shared";
 
 interface ScheduleEntryConfig {
@@ -22,16 +23,7 @@ interface ScheduleBoardConfigEditorProps {
   onChange: (config: Record<string, unknown>) => void;
 }
 
-const defaultEntries: ScheduleEntryConfig[] = [
-  {
-    content: "朝礼",
-    startTime: "09:00",
-    endTime: "09:30",
-    color: "#dbeafe",
-  },
-];
-
-function normalizeEntries(value: unknown) {
+function normalizeEntries(value: unknown, defaultEntries: ScheduleEntryConfig[]) {
   if (!Array.isArray(value)) return defaultEntries;
   const entries = value.slice(0, 20).map((entry) => {
     const raw = entry && typeof entry === "object"
@@ -54,7 +46,8 @@ export function ScheduleBoardConfigEditor({
 }: ScheduleBoardConfigEditorProps) {
   useLoadAllGoogleFonts();
   const { t } = useLocale();
-  const entries = normalizeEntries(config.entries);
+  const defaultConfig = createScheduleBoardDefaultConfig(t);
+  const entries = normalizeEntries(config.entries, defaultConfig.entries);
   const fontFamily = (config.fontFamily as string) ?? "";
   const showClock = (config.showClock as boolean) ?? false;
 
@@ -98,7 +91,7 @@ export function ScheduleBoardConfigEditor({
           <Label htmlFor="cfg-schedule-title">{t("configEditor.titleText")}</Label>
           <Input
             id="cfg-schedule-title"
-            value={(config.title as string) ?? "本日のスケジュール"}
+            value={(config.title as string) ?? defaultConfig.title}
             onChange={(e) => update("title", e.target.value)}
           />
         </div>
@@ -114,14 +107,14 @@ export function ScheduleBoardConfigEditor({
         <Textarea
           id="cfg-schedule-body"
           rows={3}
-          value={(config.body as string) ?? "時間に沿って本日の予定を表示します。"}
+          value={(config.body as string) ?? defaultConfig.body}
           onChange={(e) => update("body", e.target.value)}
         />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="cfg-schedule-start">表示開始時刻</Label>
+          <Label htmlFor="cfg-schedule-start">{t("configEditor.schedule.displayStartTime")}</Label>
           <Input
             id="cfg-schedule-start"
             type="time"
@@ -130,14 +123,14 @@ export function ScheduleBoardConfigEditor({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="cfg-schedule-end">表示終了時刻</Label>
+          <Label htmlFor="cfg-schedule-end">{t("configEditor.schedule.displayEndTime")}</Label>
           <Input
             id="cfg-schedule-end"
             type="time"
             value={(config.displayEndTime as string) ?? "18:00"}
             onChange={(e) => update("displayEndTime", e.target.value)}
           />
-          <p className="text-xs text-muted-foreground">最小 1 時間分を表示します。</p>
+          <p className="text-xs text-muted-foreground">{t("configEditor.schedule.displayMinimumHint")}</p>
         </div>
       </div>
 
@@ -153,7 +146,7 @@ export function ScheduleBoardConfigEditor({
       <div className="grid gap-4 md:grid-cols-2">
         <ColorInput
           id="cfg-schedule-background"
-          label="背景色"
+          label={t("configEditor.backgroundColor")}
           value={(config.backgroundColor as string) ?? "#f8fafc"}
           onChange={(value) => update("backgroundColor", value)}
         />
@@ -171,7 +164,7 @@ export function ScheduleBoardConfigEditor({
         />
         <ColorInput
           id="cfg-schedule-timeColor"
-          label="時刻ラベル色"
+          label={t("configEditor.schedule.timeLabelColor")}
           value={(config.timeLabelColor as string) ?? "#334155"}
           onChange={(value) => update("timeLabelColor", value)}
         />
@@ -180,12 +173,12 @@ export function ScheduleBoardConfigEditor({
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h4 className="text-sm font-semibold">予定カード</h4>
-            <p className="text-xs text-muted-foreground">1分単位で最大20件まで登録できます。</p>
+            <h4 className="text-sm font-semibold">{t("configEditor.schedule.entries")}</h4>
+            <p className="text-xs text-muted-foreground">{t("configEditor.schedule.entriesHint")}</p>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={addEntry} disabled={entries.length >= 20}>
             <Plus className="size-4" />
-            予定を追加
+            {t("configEditor.schedule.addEntry")}
           </Button>
         </div>
 
@@ -194,17 +187,17 @@ export function ScheduleBoardConfigEditor({
             <div key={index} className="space-y-3 rounded-md border p-3">
               <div className="grid gap-3 md:grid-cols-[1fr_132px_132px_90px_auto] md:items-end">
                 <div className="space-y-1.5">
-                  <Label htmlFor={`cfg-schedule-entry-content-${index}`}>内容</Label>
+                  <Label htmlFor={`cfg-schedule-entry-content-${index}`}>{t("configEditor.schedule.content")}</Label>
                   <Input
                     id={`cfg-schedule-entry-content-${index}`}
                     value={entry.content}
                     maxLength={120}
-                    placeholder="予定内容を入力"
+                    placeholder={t("configEditor.schedule.contentPlaceholder")}
                     onChange={(e) => updateEntry(index, { content: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor={`cfg-schedule-entry-start-${index}`}>開始</Label>
+                  <Label htmlFor={`cfg-schedule-entry-start-${index}`}>{t("configEditor.schedule.start")}</Label>
                   <Input
                     id={`cfg-schedule-entry-start-${index}`}
                     type="time"
@@ -213,7 +206,7 @@ export function ScheduleBoardConfigEditor({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor={`cfg-schedule-entry-end-${index}`}>終了</Label>
+                  <Label htmlFor={`cfg-schedule-entry-end-${index}`}>{t("configEditor.schedule.end")}</Label>
                   <Input
                     id={`cfg-schedule-entry-end-${index}`}
                     type="time"
@@ -223,7 +216,7 @@ export function ScheduleBoardConfigEditor({
                 </div>
                 <ColorInput
                   id={`cfg-schedule-entry-color-${index}`}
-                  label="色"
+                  label={t("configEditor.schedule.color")}
                   value={entry.color}
                   onChange={(value) => updateEntry(index, { color: value })}
                 />

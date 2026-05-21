@@ -2,6 +2,8 @@
 
 import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
+import { useLocale } from "@/components/i18n/LocaleProvider";
+import { createScheduleBoardDefaultConfig } from "@/lib/template-default-configs";
 import type { BoardTemplateProps } from "@/types";
 
 interface ScheduleEntryConfig {
@@ -40,40 +42,7 @@ const DISPLAY_BUFFER_MINUTES = 30;
 const EDGE_PADDING_PERCENT = 5;
 const MAX_PARALLEL_LANES = 3;
 
-export const scheduleBoardDefaultConfig: ScheduleBoardConfig = {
-  title: "本日のスケジュール",
-  body: "時間に沿って本日の予定を表示します。",
-  displayStartTime: "08:00",
-  displayEndTime: "18:00",
-  fontFamily: "",
-  showClock: false,
-  backgroundColor: "#f8fafc",
-  titleColor: "#0f172a",
-  bodyColor: "#475569",
-  timeLabelColor: "#334155",
-  gridColor: "#cbd5e1",
-  cardTextColor: "#0f172a",
-  entries: [
-    {
-      content: "朝礼",
-      startTime: "09:00",
-      endTime: "09:30",
-      color: "#dbeafe",
-    },
-    {
-      content: "定例ミーティング",
-      startTime: "10:00",
-      endTime: "11:00",
-      color: "#dcfce7",
-    },
-    {
-      content: "来客対応",
-      startTime: "13:30",
-      endTime: "14:30",
-      color: "#fef3c7",
-    },
-  ],
-};
+export const scheduleBoardDefaultConfig: ScheduleBoardConfig = createScheduleBoardDefaultConfig();
 
 function normalizeTimeString(value: unknown, fallback: string) {
   if (typeof value !== "string") return fallback;
@@ -139,8 +108,8 @@ function toVerticalPercent(minutes: number, start: number, end: number) {
   return EDGE_PADDING_PERCENT + ratio * (100 - EDGE_PADDING_PERCENT * 2);
 }
 
-function normalizeEntries(value: unknown): ScheduleEntryConfig[] {
-  if (!Array.isArray(value)) return scheduleBoardDefaultConfig.entries;
+function normalizeEntries(value: unknown, defaultEntries: ScheduleEntryConfig[]): ScheduleEntryConfig[] {
+  if (!Array.isArray(value)) return defaultEntries;
   return value
     .slice(0, 20)
     .map((entry) => {
@@ -156,21 +125,21 @@ function normalizeEntries(value: unknown): ScheduleEntryConfig[] {
     });
 }
 
-function parseConfig(raw: unknown): ScheduleBoardConfig {
+function parseConfig(raw: unknown, defaultConfig: ScheduleBoardConfig): ScheduleBoardConfig {
   const config = (raw && typeof raw === "object"
     ? raw
     : {}) as Partial<ScheduleBoardConfig>;
   const range = normalizeDisplayRange(
-    normalizeTimeString(config.displayStartTime, scheduleBoardDefaultConfig.displayStartTime),
-    normalizeTimeString(config.displayEndTime, scheduleBoardDefaultConfig.displayEndTime),
+    normalizeTimeString(config.displayStartTime, defaultConfig.displayStartTime),
+    normalizeTimeString(config.displayEndTime, defaultConfig.displayEndTime),
   );
 
   return {
-    ...scheduleBoardDefaultConfig,
+    ...defaultConfig,
     ...config,
     displayStartTime: range.startTime,
     displayEndTime: range.endTime,
-    entries: normalizeEntries(config.entries),
+    entries: normalizeEntries(config.entries, defaultConfig.entries),
   };
 }
 
@@ -266,7 +235,9 @@ function layoutEntries(entries: ScheduleEntryConfig[], start: number, end: numbe
 }
 
 export default function ScheduleBoard({ board }: BoardTemplateProps) {
-  const config = parseConfig(board.config);
+  const { t } = useLocale();
+  const defaultConfig = createScheduleBoardDefaultConfig(t);
+  const config = parseConfig(board.config, defaultConfig);
   const range = normalizeDisplayRange(config.displayStartTime, config.displayEndTime);
   const displayRange = expandDisplayRange(range.start, range.end);
   const timeMarkers = buildTimeMarkers(displayRange.start, displayRange.end);
@@ -352,7 +323,7 @@ export default function ScheduleBoard({ board }: BoardTemplateProps) {
 
             {entries.length === 0 ? (
               <div className="flex h-full items-center justify-center px-8 text-center text-slate-500">
-                予定が登録されていません
+                {t("board.schedule.empty")}
               </div>
             ) : (
               entries.map((entry, index) => {

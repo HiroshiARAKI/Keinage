@@ -2,6 +2,8 @@
 
 import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { MediaSlider } from "@/components/board/MediaSlider";
+import { useLocale } from "@/components/i18n/LocaleProvider";
+import { createSplitViewDefaultConfig } from "@/lib/template-default-configs";
 import type { BoardTemplateProps, MediaItem } from "@/types";
 
 type SplitPaneType = "text" | "image" | "video";
@@ -24,30 +26,7 @@ interface SplitViewConfig {
   panes: SplitPaneConfig[];
 }
 
-export const splitViewDefaultConfig: SplitViewConfig = {
-  splitDirection: "horizontal",
-  dividerColor: "#e2e8f0",
-  fontFamily: "",
-  showClock: false,
-  panes: [
-    {
-      type: "text",
-      title: "お知らせ",
-      body: "画像・動画・テキストを2分割で自由に表示できます。",
-      mediaPath: "",
-      backgroundColor: "#0f172a",
-      textColor: "#f8fafc",
-    },
-    {
-      type: "image",
-      title: "",
-      body: "",
-      mediaPath: "",
-      backgroundColor: "#e2e8f0",
-      textColor: "#0f172a",
-    },
-  ],
-};
+export const splitViewDefaultConfig: SplitViewConfig = createSplitViewDefaultConfig();
 
 function normalizePaneType(value: unknown): SplitPaneType {
   if (value === "image" || value === "video") return value;
@@ -58,13 +37,13 @@ function normalizeSplitDirection(value: unknown): SplitDirection {
   return value === "vertical" ? "vertical" : "horizontal";
 }
 
-function normalizePanes(value: unknown): SplitPaneConfig[] {
-  const rawPanes = Array.isArray(value) ? value : splitViewDefaultConfig.panes;
+function normalizePanes(value: unknown, defaultPanes: SplitPaneConfig[]): SplitPaneConfig[] {
+  const rawPanes = Array.isArray(value) ? value : defaultPanes;
   const panes = rawPanes.slice(0, 2).map((pane, index) => {
     const raw = pane && typeof pane === "object"
       ? (pane as Partial<SplitPaneConfig>)
       : {};
-    const fallback = splitViewDefaultConfig.panes[index] ?? splitViewDefaultConfig.panes[0];
+    const fallback = defaultPanes[index] ?? defaultPanes[0];
     return {
       type: normalizePaneType(raw.type ?? fallback.type),
       title: typeof raw.title === "string" ? raw.title.slice(0, 80) : fallback.title,
@@ -82,22 +61,22 @@ function normalizePanes(value: unknown): SplitPaneConfig[] {
   });
 
   while (panes.length < 2) {
-    panes.push(splitViewDefaultConfig.panes[panes.length]);
+    panes.push(defaultPanes[panes.length]);
   }
 
   return panes;
 }
 
-function parseConfig(raw: unknown): SplitViewConfig {
+function parseConfig(raw: unknown, defaultConfig: SplitViewConfig): SplitViewConfig {
   const config = (raw && typeof raw === "object"
     ? raw
     : {}) as Partial<SplitViewConfig>;
 
   return {
-    ...splitViewDefaultConfig,
+    ...defaultConfig,
     ...config,
     splitDirection: normalizeSplitDirection(config.splitDirection),
-    panes: normalizePanes(config.panes),
+    panes: normalizePanes(config.panes, defaultConfig.panes),
   };
 }
 
@@ -112,7 +91,9 @@ function findPaneMedia(
 }
 
 export default function SplitViewBoard({ board, mediaItems }: BoardTemplateProps) {
-  const config = parseConfig(board.config);
+  const { t } = useLocale();
+  const defaultConfig = createSplitViewDefaultConfig(t);
+  const config = parseConfig(board.config, defaultConfig);
   const isVertical = config.splitDirection === "vertical";
   const clockColor = config.panes[0]?.textColor || "#ffffff";
 
@@ -182,7 +163,8 @@ function TextPane({ pane }: { pane: SplitPaneConfig }) {
 }
 
 function EmptyMediaPane({ pane }: { pane: SplitPaneConfig }) {
-  const label = pane.type === "video" ? "動画" : "画像";
+  const { t } = useLocale();
+  const label = pane.type === "video" ? t("board.split.emptyVideo") : t("board.split.emptyImage");
 
   return (
     <div
@@ -190,9 +172,9 @@ function EmptyMediaPane({ pane }: { pane: SplitPaneConfig }) {
       style={{ backgroundColor: pane.backgroundColor, color: pane.textColor }}
     >
       <div>
-        <p className="text-2xl font-bold">{label}が未設定です</p>
+        <p className="text-2xl font-bold">{label}</p>
         <p className="mt-3 text-base opacity-80">
-          ボード編集画面でメディアをアップロードして選択してください。
+          {t("board.split.emptyHint")}
         </p>
       </div>
     </div>

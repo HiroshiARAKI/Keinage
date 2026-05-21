@@ -21,6 +21,7 @@ import {
   detectFloorGuideThemePreset,
   isFloorGuideThemeKey,
 } from "@/lib/floor-guide-theme";
+import { createFloorGuideDefaultConfig } from "@/lib/template-default-configs";
 import type { MediaItem } from "@/types";
 import { FontSelect, useLoadAllGoogleFonts } from "./shared";
 
@@ -51,24 +52,6 @@ interface FloorGuideConfigEditorProps {
   mediaItems?: MediaItem[];
 }
 
-function createDefaultFloors(): FloorConfig[] {
-  return Array.from({ length: 10 }, (_, index) => ({
-    floorNumber: index + 1,
-    shops: index < 4 ? [{ logoPath: "", text: `フロア ${index + 1} の案内` }] : [],
-    hasMensRestroom: index < 3,
-    hasWomensRestroom: index < 3,
-    hasEmergencyExit: index < 4,
-    hasEscalator: index < 4,
-  }));
-}
-
-const defaultFloors = createDefaultFloors();
-const defaultElevators: ElevatorConfig[] = [
-  { enabled: true, label: "EV A", startFloor: 1, endFloor: 4 },
-  { enabled: false, label: "EV B", startFloor: 1, endFloor: 4 },
-  { enabled: false, label: "EV C", startFloor: 1, endFloor: 4 },
-];
-
 function clampFloorCount(value: unknown, fallback = 4) {
   const next = Math.round(Number(value));
   if (!Number.isFinite(next)) return fallback;
@@ -86,7 +69,7 @@ function inferFloorCount(value: unknown) {
   return maxFloor > 0 ? maxFloor : 4;
 }
 
-function normalizeFloors(value: unknown): FloorConfig[] {
+function normalizeFloors(value: unknown, defaultFloors: FloorConfig[]): FloorConfig[] {
   const rawFloors = Array.isArray(value) ? value : defaultFloors;
 
   return defaultFloors.map((fallback, index) => {
@@ -123,7 +106,7 @@ function normalizeFloors(value: unknown): FloorConfig[] {
   });
 }
 
-function normalizeElevators(value: unknown, floorCount: number): ElevatorConfig[] {
+function normalizeElevators(value: unknown, floorCount: number, defaultElevators: ElevatorConfig[]): ElevatorConfig[] {
   const rawElevators = Array.isArray(value) ? value : defaultElevators;
 
   return defaultElevators.map((fallback, index) => {
@@ -165,11 +148,12 @@ export function FloorGuideConfigEditor({
 }: FloorGuideConfigEditorProps) {
   useLoadAllGoogleFonts();
   const { t } = useLocale();
+  const defaultConfig = createFloorGuideDefaultConfig(t);
   const updateConfig = onChange as Dispatch<SetStateAction<Record<string, unknown>>>;
   const floorCount = clampFloorCount(config.floorCount, inferFloorCount(config.floors));
-  const floors = normalizeFloors(config.floors);
+  const floors = normalizeFloors(config.floors, defaultConfig.floors);
   const visibleFloors = floors.slice(0, floorCount);
-  const elevators = normalizeElevators(config.elevators, floorCount);
+  const elevators = normalizeElevators(config.elevators, floorCount, defaultConfig.elevators);
   const fontFamily = (config.fontFamily as string) ?? "";
   const showClock = (config.showClock as boolean) ?? false;
   const activeTheme = detectFloorGuideThemePreset(config) ??
@@ -196,7 +180,7 @@ export function FloorGuideConfigEditor({
       return {
         ...currentConfig,
         floorCount: nextFloorCount,
-        elevators: normalizeElevators(currentConfig.elevators, nextFloorCount),
+        elevators: normalizeElevators(currentConfig.elevators, nextFloorCount, defaultConfig.elevators),
       };
     });
   }
@@ -207,7 +191,7 @@ export function FloorGuideConfigEditor({
 
   function updateFloor(index: number, patch: Partial<FloorConfig>) {
     updateConfig((currentConfig) => {
-      const currentFloors = normalizeFloors(currentConfig.floors);
+      const currentFloors = normalizeFloors(currentConfig.floors, defaultConfig.floors);
 
       return {
         ...currentConfig,
@@ -220,7 +204,7 @@ export function FloorGuideConfigEditor({
 
   function updateShop(floorIndex: number, shopIndex: number, patch: Partial<FloorShopConfig>) {
     updateConfig((currentConfig) => {
-      const currentFloors = normalizeFloors(currentConfig.floors);
+      const currentFloors = normalizeFloors(currentConfig.floors, defaultConfig.floors);
 
       return {
         ...currentConfig,
@@ -240,7 +224,7 @@ export function FloorGuideConfigEditor({
 
   function addShop(floorIndex: number) {
     updateConfig((currentConfig) => {
-      const currentFloors = normalizeFloors(currentConfig.floors);
+      const currentFloors = normalizeFloors(currentConfig.floors, defaultConfig.floors);
       if (currentFloors[floorIndex].shops.length >= 10) return currentConfig;
 
       return {
@@ -259,7 +243,7 @@ export function FloorGuideConfigEditor({
 
   function removeShop(floorIndex: number, shopIndex: number) {
     updateConfig((currentConfig) => {
-      const currentFloors = normalizeFloors(currentConfig.floors);
+      const currentFloors = normalizeFloors(currentConfig.floors, defaultConfig.floors);
 
       return {
         ...currentConfig,
@@ -281,14 +265,14 @@ export function FloorGuideConfigEditor({
         currentConfig.floorCount,
         inferFloorCount(currentConfig.floors),
       );
-      const currentElevators = normalizeElevators(currentConfig.elevators, currentFloorCount);
+      const currentElevators = normalizeElevators(currentConfig.elevators, currentFloorCount, defaultConfig.elevators);
       const nextElevators = currentElevators.map((elevator, elevatorIndex) =>
         elevatorIndex === index ? { ...elevator, ...patch } : elevator,
       );
 
       return {
         ...currentConfig,
-        elevators: normalizeElevators(nextElevators, currentFloorCount),
+        elevators: normalizeElevators(nextElevators, currentFloorCount, defaultConfig.elevators),
       };
     });
   }
@@ -300,7 +284,7 @@ export function FloorGuideConfigEditor({
           <Label htmlFor="cfg-floor-title">{t("configEditor.titleText")}</Label>
           <Input
             id="cfg-floor-title"
-            value={(config.title as string) ?? "フロアガイド"}
+            value={(config.title as string) ?? defaultConfig.title}
             onChange={(e) => update("title", e.target.value)}
           />
         </div>
@@ -316,7 +300,7 @@ export function FloorGuideConfigEditor({
         <Textarea
           id="cfg-floor-body"
           rows={3}
-          value={(config.body as string) ?? "会場案内や店舗情報、館内設備をご案内します。"}
+          value={(config.body as string) ?? defaultConfig.body}
           onChange={(e) => update("body", e.target.value)}
         />
       </div>
@@ -364,13 +348,13 @@ export function FloorGuideConfigEditor({
       <div className="grid gap-4 md:grid-cols-2">
         <ColorInput
           id="cfg-floor-bg"
-          label="背景色"
+          label={t("configEditor.backgroundColor")}
           value={(config.backgroundColor as string) ?? "#f8fafc"}
           onChange={(value) => update("backgroundColor", value)}
         />
         <ColorInput
           id="cfg-floor-panel"
-          label="パネル色"
+          label={t("configEditor.floorGuide.panelColor")}
           value={(config.panelColor as string) ?? "#ffffff"}
           onChange={(value) => update("panelColor", value)}
         />
@@ -388,13 +372,13 @@ export function FloorGuideConfigEditor({
         />
         <ColorInput
           id="cfg-floor-text-color"
-          label="本文色"
+          label={t("configEditor.textColor")}
           value={(config.textColor as string) ?? "#0f172a"}
           onChange={(value) => update("textColor", value)}
         />
         <ColorInput
           id="cfg-floor-badge-color"
-          label="階数バッジ色"
+          label={t("configEditor.floorGuide.floorBadgeColor")}
           value={(config.floorBadgeColor as string) ?? "#0f172a"}
           onChange={(value) => update("floorBadgeColor", value)}
         />
@@ -402,14 +386,14 @@ export function FloorGuideConfigEditor({
 
       <div className="space-y-3">
         <div>
-          <h4 className="text-sm font-semibold">フロア設定</h4>
+          <h4 className="text-sm font-semibold">{t("configEditor.floorGuide.floors")}</h4>
           <p className="text-xs text-muted-foreground">
-            表示する階数を 1 から 10 まで指定できます。指定した階数に応じて、1F からその階までの編集項目だけを表示します。
+            {t("configEditor.floorGuide.floorsHint")}
           </p>
         </div>
 
         <div className="max-w-xs space-y-1.5">
-          <Label htmlFor="cfg-floor-count">表示階数</Label>
+          <Label htmlFor="cfg-floor-count">{t("configEditor.floorGuide.floorCount")}</Label>
           <Input
             id="cfg-floor-count"
             type="number"
@@ -429,7 +413,7 @@ export function FloorGuideConfigEditor({
                     <div>
                       <h5 className="text-sm font-semibold">{floor.floorNumber}F</h5>
                       <p className="text-xs text-muted-foreground">
-                        表示対象 / 店舗 {floor.shops.length}件
+                        {t("configEditor.floorGuide.floorSummary", { count: floor.shops.length })}
                       </p>
                     </div>
                   </div>
@@ -439,25 +423,25 @@ export function FloorGuideConfigEditor({
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <FacilitySwitch
                       id={`cfg-floor-m-${floorIndex}`}
-                      label="男性トイレ"
+                      label={t("configEditor.floorGuide.mensRestroom")}
                       checked={floor.hasMensRestroom}
                       onCheckedChange={(checked) => updateFloor(floorIndex, { hasMensRestroom: checked })}
                     />
                     <FacilitySwitch
                       id={`cfg-floor-w-${floorIndex}`}
-                      label="女性トイレ"
+                      label={t("configEditor.floorGuide.womensRestroom")}
                       checked={floor.hasWomensRestroom}
                       onCheckedChange={(checked) => updateFloor(floorIndex, { hasWomensRestroom: checked })}
                     />
                     <FacilitySwitch
                       id={`cfg-floor-exit-${floorIndex}`}
-                      label="非常口"
+                      label={t("configEditor.floorGuide.emergencyExit")}
                       checked={floor.hasEmergencyExit}
                       onCheckedChange={(checked) => updateFloor(floorIndex, { hasEmergencyExit: checked })}
                     />
                     <FacilitySwitch
                       id={`cfg-floor-esc-${floorIndex}`}
-                      label="エスカレーター"
+                      label={t("configEditor.floorGuide.escalator")}
                       checked={floor.hasEscalator}
                       onCheckedChange={(checked) => updateFloor(floorIndex, { hasEscalator: checked })}
                     />
@@ -466,8 +450,8 @@ export function FloorGuideConfigEditor({
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <h6 className="text-sm font-semibold">店舗情報</h6>
-                        <p className="text-xs text-muted-foreground">ロゴとテキストを最大10件まで設定できます。</p>
+                        <h6 className="text-sm font-semibold">{t("configEditor.floorGuide.shops")}</h6>
+                        <p className="text-xs text-muted-foreground">{t("configEditor.floorGuide.shopsHint")}</p>
                       </div>
                       <Button
                         type="button"
@@ -477,7 +461,7 @@ export function FloorGuideConfigEditor({
                         disabled={floor.shops.length >= 10}
                       >
                         <Plus className="size-4" />
-                        店舗を追加
+                        {t("configEditor.floorGuide.addShop")}
                       </Button>
                     </div>
 
@@ -485,7 +469,7 @@ export function FloorGuideConfigEditor({
                       {floor.shops.map((shop, shopIndex) => (
                         <div key={shopIndex} className="grid gap-3 rounded-md border p-3 md:grid-cols-[220px_1fr_auto] md:items-end">
                           <div className="space-y-1.5">
-                            <Label htmlFor={`cfg-floor-logo-${floorIndex}-${shopIndex}`}>ロゴ</Label>
+                            <Label htmlFor={`cfg-floor-logo-${floorIndex}-${shopIndex}`}>{t("configEditor.floorGuide.logo")}</Label>
                             <Select
                               value={shop.logoPath || "__none__"}
                               onValueChange={(value) =>
@@ -498,11 +482,11 @@ export function FloorGuideConfigEditor({
                                 <SelectValue>
                                   {shop.logoPath
                                     ? mediaOptionLabel(shop.logoPath, imageMedia, t)
-                                    : "ロゴなし"}
+                                    : t("configEditor.floorGuide.noLogo")}
                                 </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__none__">ロゴなし</SelectItem>
+                                <SelectItem value="__none__">{t("configEditor.floorGuide.noLogo")}</SelectItem>
                                 {imageMedia.map((media) => (
                                   <SelectItem key={media.id} value={media.filePath}>
                                     {mediaOptionLabel(media.filePath, imageMedia, t)}
@@ -513,7 +497,7 @@ export function FloorGuideConfigEditor({
                           </div>
 
                           <div className="space-y-1.5">
-                            <Label htmlFor={`cfg-floor-text-${floorIndex}-${shopIndex}`}>テキスト</Label>
+                            <Label htmlFor={`cfg-floor-text-${floorIndex}-${shopIndex}`}>{t("configEditor.floorGuide.shopText")}</Label>
                             <Input
                               id={`cfg-floor-text-${floorIndex}-${shopIndex}`}
                               value={shop.text}
@@ -534,7 +518,7 @@ export function FloorGuideConfigEditor({
                       ))}
 
                       {floor.shops.length === 0 && (
-                        <p className="text-sm text-muted-foreground">店舗情報はまだありません。</p>
+                        <p className="text-sm text-muted-foreground">{t("configEditor.floorGuide.noShops")}</p>
                       )}
                     </div>
                   </div>
@@ -547,9 +531,9 @@ export function FloorGuideConfigEditor({
 
       <div className="space-y-3">
         <div>
-          <h4 className="text-sm font-semibold">エレベーター設定</h4>
+          <h4 className="text-sm font-semibold">{t("configEditor.floorGuide.elevators")}</h4>
           <p className="text-xs text-muted-foreground">
-            最大3基まで設定できます。接続階は必ず2階以上離れた範囲で指定してください。
+            {t("configEditor.floorGuide.elevatorsHint")}
           </p>
         </div>
 
@@ -565,7 +549,7 @@ export function FloorGuideConfigEditor({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor={`cfg-elevator-label-${index}`}>表示名</Label>
+                <Label htmlFor={`cfg-elevator-label-${index}`}>{t("configEditor.floorGuide.displayName")}</Label>
                 <Input
                   id={`cfg-elevator-label-${index}`}
                   value={elevator.label}
@@ -576,7 +560,7 @@ export function FloorGuideConfigEditor({
 
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor={`cfg-elevator-start-${index}`}>開始階</Label>
+                  <Label htmlFor={`cfg-elevator-start-${index}`}>{t("configEditor.floorGuide.startFloor")}</Label>
                   <Input
                     id={`cfg-elevator-start-${index}`}
                     type="number"
@@ -588,7 +572,7 @@ export function FloorGuideConfigEditor({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor={`cfg-elevator-end-${index}`}>終了階</Label>
+                  <Label htmlFor={`cfg-elevator-end-${index}`}>{t("configEditor.floorGuide.endFloor")}</Label>
                   <Input
                     id={`cfg-elevator-end-${index}`}
                     type="number"
