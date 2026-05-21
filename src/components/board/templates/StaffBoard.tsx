@@ -17,6 +17,7 @@ interface StaffBoardConfig {
   body: string;
   fontFamily: string;
   showClock: boolean;
+  objectFit: "contain" | "cover";
   backgroundColor: string;
   titleColor: string;
   bodyColor: string;
@@ -41,6 +42,7 @@ export const staffBoardDefaultConfig: StaffBoardConfig = {
   body: "担当者やスタッフのプロフィールを表示します。",
   fontFamily: "",
   showClock: false,
+  objectFit: "cover",
   backgroundColor: "#f8fafc",
   titleColor: "#0f172a",
   bodyColor: "#475569",
@@ -98,9 +100,12 @@ function parseConfig(raw: unknown): StaffBoardConfig {
     ? raw
     : {}) as Partial<StaffBoardConfig>;
 
+  const objectFit = config.objectFit === "contain" ? "contain" : "cover";
+
   return {
     ...staffBoardDefaultConfig,
     ...config,
+    objectFit,
     profiles: normalizeProfiles(config.profiles),
   };
 }
@@ -184,6 +189,8 @@ export default function StaffBoard({ board }: BoardTemplateProps) {
   const config = parseConfig(board.config);
   const profiles = config.profiles.filter(hasProfileContent);
   const layout = getLayout(Math.max(1, profiles.length));
+  const imageObjectFitClassName =
+    config.objectFit === "contain" ? "object-contain" : "object-cover";
 
   return (
     <div
@@ -256,7 +263,7 @@ export default function StaffBoard({ board }: BoardTemplateProps) {
                     <img
                       src={profile.imageUrl}
                       alt={profile.name || "staff"}
-                      className="h-full w-full object-cover"
+                      className={`h-full w-full ${imageObjectFitClassName}`}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-5xl font-black tracking-tight text-slate-700/70">

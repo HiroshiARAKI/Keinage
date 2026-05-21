@@ -25,6 +25,8 @@ interface StaffProfileConfig {
   accentColor: string;
 }
 
+type StaffImageObjectFit = "contain" | "cover";
+
 interface StaffBoardConfigEditorProps {
   config: Record<string, unknown>;
   onChange: (config: Record<string, unknown>) => void;
@@ -83,6 +85,9 @@ export function StaffBoardConfigEditor({
   const profiles = normalizeProfiles(config.profiles);
   const fontFamily = (config.fontFamily as string) ?? "";
   const showClock = (config.showClock as boolean) ?? false;
+  const objectFit = (config.objectFit as StaffImageObjectFit) === "contain"
+    ? "contain"
+    : "cover";
   const imageMedia = mediaItems.filter((item) => item.type === "image");
 
   function update(key: string, value: unknown) {
@@ -156,6 +161,23 @@ export function StaffBoardConfigEditor({
         <Label htmlFor="cfg-staff-showClock">{t("configEditor.showClock")}</Label>
       </div>
 
+      <div className="space-y-1.5">
+        <Label htmlFor="cfg-staff-objectFit">{t("configEditor.mediaMode")}</Label>
+        <Select value={objectFit} onValueChange={(value) => update("objectFit", value)}>
+          <SelectTrigger id="cfg-staff-objectFit" className="w-full sm:max-w-72">
+            <SelectValue>
+              {objectFit === "cover"
+                ? t("configEditor.objectFitCover")
+                : t("configEditor.objectFitContain")}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="cover">{t("configEditor.objectFitCover")}</SelectItem>
+            <SelectItem value="contain">{t("configEditor.objectFitContain")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         <ColorInput
           id="cfg-staff-background"
@@ -206,7 +228,7 @@ export function StaffBoardConfigEditor({
         <div className="space-y-3">
           {profiles.map((profile, index) => {
             const selectedImageLabel = profile.imageUrl
-              ? imageOptionLabel(profile.imageUrl, imageMedia)
+              ? imageOptionLabel(profile.imageUrl, imageMedia, t)
               : "画像なし";
 
             return (
@@ -241,7 +263,7 @@ export function StaffBoardConfigEditor({
                         <SelectItem value="__none__">画像なし</SelectItem>
                         {imageMedia.map((media) => (
                           <SelectItem key={media.id} value={media.filePath}>
-                            {imageOptionLabel(media.filePath, imageMedia)}
+                            {imageOptionLabel(media.filePath, imageMedia, t)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -295,9 +317,19 @@ export function StaffBoardConfigEditor({
   );
 }
 
-function imageOptionLabel(filePath: string, imageMedia: MediaItem[]) {
-  const media = imageMedia.find((item) => item.filePath === filePath);
-  return media?.filePath.split("/").pop() ?? filePath.split("/").pop() ?? filePath;
+function imageOptionLabel(
+  filePath: string,
+  imageMedia: MediaItem[],
+  t: ReturnType<typeof useLocale>["t"],
+) {
+  const index = imageMedia.findIndex((media) => media.filePath === filePath);
+  if (index < 0) return filePath.split("/").pop() ?? filePath;
+
+  const media = imageMedia[index];
+  return t("schedule.imageOption", {
+    number: index + 1,
+    name: media.filePath.split("/").pop() ?? media.id,
+  });
 }
 
 function ColorInput({
