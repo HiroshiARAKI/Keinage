@@ -8,6 +8,10 @@ import { PhotoClockConfigEditor } from "./PhotoClockConfigEditor";
 import { RetroBoardConfigEditor } from "./RetroBoardConfigEditor";
 import { MessageBoardConfigEditor } from "./MessageBoardConfigEditor";
 import { CallNumberConfigEditor } from "./CallNumberConfigEditor";
+import { ScheduleBoardConfigEditor } from "./ScheduleBoardConfigEditor";
+import { StaffBoardConfigEditor } from "./StaffBoardConfigEditor";
+import { SplitViewConfigEditor } from "./SplitViewConfigEditor";
+import { FloorGuideConfigEditor } from "./FloorGuideConfigEditor";
 import { ClinicHoursConfigEditor } from "./ClinicHoursConfigEditor";
 import { RestaurantMenuConfigEditor } from "./RestaurantMenuConfigEditor";
 import { QrInfoConfigEditor } from "./QrInfoConfigEditor";
@@ -26,6 +30,10 @@ const editors: Record<string, React.ComponentType<ConfigEditorProps>> = {
   retro: RetroBoardConfigEditor,
   message: MessageBoardConfigEditor,
   "call-number": CallNumberConfigEditor,
+  "schedule-board": ScheduleBoardConfigEditor,
+  "staff-board": StaffBoardConfigEditor,
+  "split-view": SplitViewConfigEditor,
+  "floor-guide": FloorGuideConfigEditor,
   "clinic-hours": ClinicHoursConfigEditor,
   "restaurant-menu": RestaurantMenuConfigEditor,
   "qr-info": QrInfoConfigEditor,

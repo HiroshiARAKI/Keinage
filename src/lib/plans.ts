@@ -45,6 +45,7 @@ export interface PlanLimits {
   maxUploadBytes: number | null;
   scheduling: "none" | "time_weekday" | "full";
   extendedTemplates: boolean;
+  premiumTemplates: boolean;
   menuItemImages: boolean;
   deviceStatusMonitoring: boolean;
 }
@@ -72,6 +73,7 @@ export const PLAN_DEFINITIONS = {
       maxUploadBytes: null,
       scheduling: "full",
       extendedTemplates: true,
+      premiumTemplates: true,
       menuItemImages: true,
       deviceStatusMonitoring: true,
     },
@@ -89,6 +91,7 @@ export const PLAN_DEFINITIONS = {
       maxUploadBytes: 5 * MB,
       scheduling: "none",
       extendedTemplates: false,
+      premiumTemplates: false,
       menuItemImages: false,
       deviceStatusMonitoring: false,
     },
@@ -106,6 +109,7 @@ export const PLAN_DEFINITIONS = {
       maxUploadBytes: 100 * MB,
       scheduling: "time_weekday",
       extendedTemplates: true,
+      premiumTemplates: false,
       menuItemImages: false,
       deviceStatusMonitoring: true,
     },
@@ -123,6 +127,7 @@ export const PLAN_DEFINITIONS = {
       maxUploadBytes: 500 * MB,
       scheduling: "full",
       extendedTemplates: true,
+      premiumTemplates: false,
       menuItemImages: true,
       deviceStatusMonitoring: true,
     },
@@ -140,6 +145,7 @@ export const PLAN_DEFINITIONS = {
       maxUploadBytes: 2 * GB,
       scheduling: "full",
       extendedTemplates: true,
+      premiumTemplates: true,
       menuItemImages: true,
       deviceStatusMonitoring: true,
     },
@@ -157,6 +163,7 @@ export const PLAN_DEFINITIONS = {
       maxUploadBytes: null,
       scheduling: "full",
       extendedTemplates: true,
+      premiumTemplates: true,
       menuItemImages: true,
       deviceStatusMonitoring: true,
     },

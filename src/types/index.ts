@@ -32,6 +32,10 @@ export type TemplateId =
   | "retro"
   | "message"
   | "call-number"
+  | "schedule-board"
+  | "staff-board"
+  | "split-view"
+  | "floor-guide"
   | "clinic-hours"
   | "restaurant-menu"
   | "qr-info";
