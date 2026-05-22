@@ -16,6 +16,18 @@ import MessageBoard, {
 import CallNumberBoard, {
   callNumberDefaultConfig,
 } from "@/components/board/templates/CallNumberBoard";
+import ScheduleBoard, {
+  scheduleBoardDefaultConfig,
+} from "@/components/board/templates/ScheduleBoard";
+import StaffBoard, {
+  staffBoardDefaultConfig,
+} from "@/components/board/templates/StaffBoard";
+import SplitViewBoard, {
+  splitViewDefaultConfig,
+} from "@/components/board/templates/SplitViewBoard";
+import FloorGuideBoard, {
+  floorGuideDefaultConfig,
+} from "@/components/board/templates/FloorGuideBoard";
 import ClinicHoursBoard, {
   clinicHoursDefaultConfig,
 } from "@/components/board/templates/ClinicHoursBoard";
@@ -66,6 +78,38 @@ export const templates: Record<TemplateId, BoardTemplate> = {
       "病院や飲食店の呼び出し番号を表示するテンプレート",
     defaultConfig: callNumberDefaultConfig,
     component: CallNumberBoard,
+  },
+  "schedule-board": {
+    id: "schedule-board",
+    name: "スケジュールボード",
+    description:
+      "1日の予定を縦型タイムラインで表示するテンプレート",
+    defaultConfig: scheduleBoardDefaultConfig as unknown as Record<string, unknown>,
+    component: ScheduleBoard,
+  },
+  "staff-board": {
+    id: "staff-board",
+    name: "スタッフボード",
+    description:
+      "スタッフ紹介や担当者プロフィールを自動レイアウトで表示するテンプレート",
+    defaultConfig: staffBoardDefaultConfig as unknown as Record<string, unknown>,
+    component: StaffBoard,
+  },
+  "split-view": {
+    id: "split-view",
+    name: "分割表示",
+    description:
+      "画像・動画・テキストを左右または上下に2分割表示するテンプレート",
+    defaultConfig: splitViewDefaultConfig as unknown as Record<string, unknown>,
+    component: SplitViewBoard,
+  },
+  "floor-guide": {
+    id: "floor-guide",
+    name: "フロアガイド",
+    description:
+      "階ごとの店舗情報や館内設備、エレベーター案内を表示するテンプレート",
+    defaultConfig: floorGuideDefaultConfig as unknown as Record<string, unknown>,
+    component: FloorGuideBoard,
   },
   "clinic-hours": {
     id: "clinic-hours",
