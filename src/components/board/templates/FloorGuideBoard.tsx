@@ -5,10 +5,11 @@ import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { resolveFloorGuideTheme, type FloorGuideThemeKey, type FloorGuideThemePalette } from "@/lib/floor-guide-theme";
 import { createFloorGuideDefaultConfig } from "@/lib/template-default-configs";
-import escPict from "@/resources/esc-pict.svg";
 import exitPict from "@/resources/exit-pict.svg";
-import femalePict from "@/resources/female-pict.svg";
-import malePict from "@/resources/male-pict.svg";
+import escPict from "@/resources/pict_esc.png";
+import elevatorPict from "@/resources/pict_ev.png";
+import femalePict from "@/resources/pict_wc_women.png";
+import malePict from "@/resources/pict_wc_men.png";
 import type { BoardTemplateProps, MediaItem } from "@/types";
 
 interface FloorShopConfig {
@@ -460,7 +461,7 @@ function ElevatorOverlay({
   const topCenter = topIndex * rowHeight + rowHeight / 2;
   const bottomCenter = bottomIndex * rowHeight + rowHeight / 2;
   const markerSize = dense ? 12 : compact ? 14 : 16;
-  const topLabelHeight = dense ? 22 : compact ? 28 : 32;
+  const topLabelHeight = dense ? 36 : compact ? 44 : 52;
   const topLabelGap = dense ? 4 : 6;
   const bottomLabelHeight = dense ? 20 : compact ? 24 : 28;
   const bottomLabelGap = dense ? 4 : 6;
@@ -478,13 +479,24 @@ function ElevatorOverlay({
   const bottomMarkerBottom = bottomPadding - markerSize / 2;
   const topLabelRadius = dense ? 12 : compact ? 15 : 18;
   const bottomLabelRadius = dense ? 11 : compact ? 13 : 16;
-  const topLabelFontSize = dense ? "11px" : compact ? "12px" : "14px";
+  const topLabelFontSize = dense ? "10px" : compact ? "11px" : "13px";
   const bottomLabelFontSize = dense ? "10px" : compact ? "11px" : "13px";
+  const topIconSize = dense ? 16 : compact ? 20 : 24;
   const topLabelPaddingX = dense ? "8px" : compact ? "10px" : "12px";
+  const topLabelPaddingY = dense ? "4px" : compact ? "5px" : "6px";
   const bottomLabelPaddingX = dense ? "7px" : compact ? "9px" : "11px";
   const labelShadow = dense
     ? "0 3px 8px rgba(15, 23, 42, 0.08)"
     : "0 5px 12px rgba(15, 23, 42, 0.10)";
+  const iconBadgeBackgroundColor = theme.key === "dark"
+    ? theme.facilityBadgeBackgroundColor
+    : theme.panelColor;
+  const iconBadgeBorderColor = theme.key === "dark"
+    ? theme.facilityBadgeBorderColor
+    : theme.rowBorderColor;
+  const iconBadgeTextColor = theme.key === "dark"
+    ? "#0f172a"
+    : theme.titleColor;
   const rangeLabel = `${elevator.startFloor}F-${elevator.endFloor}F`;
 
   return (
@@ -510,21 +522,30 @@ function ElevatorOverlay({
 
       <div className="absolute inset-x-0 top-0 flex justify-center">
         <span
-          className="inline-flex items-center justify-center border text-center font-semibold"
+          className="inline-flex flex-col items-center justify-center border text-center font-semibold"
           style={{
             minWidth: dense ? "40px" : compact ? "50px" : "60px",
             height: `${topLabelHeight}px`,
-            padding: `0 ${topLabelPaddingX}`,
+            padding: `${topLabelPaddingY} ${topLabelPaddingX}`,
             borderRadius: `${topLabelRadius}px`,
-            borderColor: theme.rowBorderColor,
-            backgroundColor: theme.panelColor,
-            color: theme.titleColor,
+            borderColor: iconBadgeBorderColor,
+            backgroundColor: iconBadgeBackgroundColor,
+            color: iconBadgeTextColor,
             fontSize: topLabelFontSize,
             whiteSpace: "nowrap",
             boxShadow: labelShadow,
             letterSpacing: "0.04em",
+            lineHeight: 1,
+            gap: dense ? "2px" : "3px",
           }}
         >
+          <img
+            src={elevatorPict.src}
+            alt=""
+            aria-hidden="true"
+            className="object-contain"
+            style={{ width: `${topIconSize}px`, height: `${topIconSize}px` }}
+          />
           {elevator.label}
         </span>
       </div>
