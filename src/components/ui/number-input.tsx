@@ -33,6 +33,8 @@ export function NumberInput({
   allowDecimal,
   className,
   onBlur,
+  onCompositionEnd,
+  onCompositionStart,
   onFocus,
   onKeyDown,
   ...props
@@ -47,6 +49,7 @@ export function NumberInput({
   const shouldAllowDecimal = allowDecimal ?? (step !== undefined && !Number.isInteger(step));
   const [isEditing, setIsEditing] = React.useState(false);
   const [draftValue, setDraftValue] = React.useState("");
+  const isComposingRef = React.useRef(false);
   const displayValue = isEditing
     ? draftValue
     : formatNumericValue(value, shouldAllowDecimal);
@@ -92,6 +95,36 @@ export function NumberInput({
         setIsEditing(false);
         onBlur?.(event);
       }}
+      onCompositionStart={(event) => {
+        isComposingRef.current = true;
+        onCompositionStart?.(event);
+      }}
+      onCompositionEnd={(event) => {
+        isComposingRef.current = false;
+        const rawValue = event.currentTarget.value.trim();
+        const normalizedValue = normalizeNumericText(rawValue);
+        if (!numericPattern.test(normalizedValue)) return;
+
+        if (normalizedValue === "" || normalizedValue === ".") {
+          setDraftValue(rawValue);
+          return;
+        }
+
+        const parsed = Number(normalizedValue);
+        if (!Number.isFinite(parsed)) return;
+
+        if (max !== undefined && parsed > max) {
+          setDraftValue(formatNumericValue(max, shouldAllowDecimal));
+          onValueChange(max);
+          return;
+        }
+
+        setDraftValue(normalizedValue);
+        if (min === undefined || parsed >= min) {
+          onValueChange(shouldAllowDecimal ? parsed : Math.trunc(parsed));
+        }
+        onCompositionEnd?.(event);
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
           event.currentTarget.blur();
@@ -102,6 +135,12 @@ export function NumberInput({
         const rawValue = event.target.value.trim();
         const normalizedValue = normalizeNumericText(rawValue);
         if (!numericPattern.test(normalizedValue)) return;
+
+        const nativeEvent = event.nativeEvent as InputEvent;
+        if (isComposingRef.current || nativeEvent.isComposing) {
+          setDraftValue(rawValue);
+          return;
+        }
 
         if (normalizedValue === "" || normalizedValue === ".") {
           setDraftValue(rawValue);
