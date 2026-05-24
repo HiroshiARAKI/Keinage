@@ -116,13 +116,13 @@ export function MediaSlider({
 }: MediaSliderProps) {
   const { t } = useLocale();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [readyImageKey, setReadyImageKey] = useState<string | null>(null);
   const preloadedRef = useRef<Set<string>>(new Set());
   const videoPreloadRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const currentImageRef = useRef<HTMLImageElement | null>(null);
 
   const advance = useCallback(() => {
-    setImageLoaded(false);
+    setReadyImageKey(null);
     setCurrentIndex((prev) => (prev + 1) % mediaItems.length);
   }, [mediaItems.length]);
 
@@ -155,47 +155,81 @@ export function MediaSlider({
   }, [safeCurrentIndex, mediaItems]);
 
   const current = mediaItems[safeCurrentIndex];
+  const currentKey = current ? `${current.id}:${current.filePath}` : "";
+  const currentType = current?.type;
+  const currentDuration = current?.duration;
+  const currentPlaybackMode = current?.playbackMode;
+  const isCurrentImageReady =
+    currentType !== "image" || readyImageKey === currentKey;
+
+  const markCurrentImageReady = useCallback(() => {
+    if (currentKey) {
+      setReadyImageKey(currentKey);
+    }
+  }, [currentKey]);
+
+  const setCurrentImageNode = useCallback(
+    (node: HTMLImageElement | null) => {
+      currentImageRef.current = node;
+      if (node?.complete) {
+        markCurrentImageReady();
+      }
+    },
+    [markCurrentImageReady],
+  );
 
   useEffect(() => {
-    if (!current) return;
+    if (currentType !== "image") return;
 
-    const loaded =
-      current.type !== "image" || Boolean(currentImageRef.current?.complete);
-    const raf = requestAnimationFrame(() => setImageLoaded(loaded));
+    const raf = requestAnimationFrame(() => {
+      if (currentImageRef.current?.complete) {
+        markCurrentImageReady();
+      }
+    });
 
     return () => cancelAnimationFrame(raf);
-  }, [current]);
+  }, [currentType, currentKey, markCurrentImageReady]);
 
   // --- Auto-advance timer (starts only after the current image has loaded) ---
   useEffect(() => {
     if (mediaItems.length <= 1) return;
-
-    const item = mediaItems[safeCurrentIndex];
-    if (!item) return;
+    if (!currentKey) return;
 
     // For videos the advance is handled by the video-specific effect/callback.
-    if (item.type === "video") return;
+    if (currentType === "video") return;
 
     // Wait until the browser has decoded and painted the current image
-    if (!imageLoaded) return;
+    if (!isCurrentImageReady) return;
 
-    const ms = clampMediaDuration(item.duration ?? DEFAULT_MEDIA_DURATION_SECONDS) * 1000;
+    const ms = clampMediaDuration(currentDuration ?? DEFAULT_MEDIA_DURATION_SECONDS) * 1000;
     const timer = setTimeout(advance, ms);
     return () => clearTimeout(timer);
-  }, [safeCurrentIndex, mediaItems, advance, imageLoaded]);
+  }, [
+    mediaItems.length,
+    currentKey,
+    currentDuration,
+    currentType,
+    advance,
+    isCurrentImageReady,
+  ]);
 
   // --- Video timer mode ---
   useEffect(() => {
     if (mediaItems.length <= 1) return;
 
-    const item = mediaItems[safeCurrentIndex];
-    if (item?.type !== "video") return;
-    if (item.playbackMode === "until-ended") return;
+    if (currentType !== "video") return;
+    if (currentPlaybackMode === "until-ended") return;
 
-    const ms = clampMediaDuration(item.duration ?? DEFAULT_MEDIA_DURATION_SECONDS) * 1000;
+    const ms = clampMediaDuration(currentDuration ?? DEFAULT_MEDIA_DURATION_SECONDS) * 1000;
     const timer = setTimeout(advance, ms);
     return () => clearTimeout(timer);
-  }, [safeCurrentIndex, mediaItems, advance]);
+  }, [
+    mediaItems.length,
+    currentDuration,
+    currentPlaybackMode,
+    currentType,
+    advance,
+  ]);
 
   if (mediaItems.length === 0) {
     return (
@@ -233,12 +267,12 @@ export function MediaSlider({
             )
           ) : (
             <img
-              ref={currentImageRef}
+              ref={setCurrentImageNode}
               src={current.filePath}
               alt=""
               className={`h-full w-full ${fitClass}`}
-              onLoad={() => setImageLoaded(true)}
-              onError={() => setImageLoaded(true)}
+              onLoad={markCurrentImageReady}
+              onError={markCurrentImageReady}
             />
           )}
         </motion.div>
