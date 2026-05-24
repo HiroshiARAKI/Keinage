@@ -105,24 +105,7 @@ export function NumberInput({
         const normalizedValue = normalizeNumericText(rawValue);
         if (!numericPattern.test(normalizedValue)) return;
 
-        if (normalizedValue === "" || normalizedValue === ".") {
-          setDraftValue(rawValue);
-          return;
-        }
-
-        const parsed = Number(normalizedValue);
-        if (!Number.isFinite(parsed)) return;
-
-        if (max !== undefined && parsed > max) {
-          setDraftValue(formatNumericValue(max, shouldAllowDecimal));
-          onValueChange(max);
-          return;
-        }
-
-        setDraftValue(normalizedValue);
-        if (min === undefined || parsed >= min) {
-          onValueChange(shouldAllowDecimal ? parsed : Math.trunc(parsed));
-        }
+        setDraftValue(rawValue);
         onCompositionEnd?.(event);
       }}
       onKeyDown={(event) => {
