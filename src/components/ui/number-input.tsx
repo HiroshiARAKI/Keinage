@@ -110,6 +110,11 @@ export function NumberInput({
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
+          const nativeEvent = event.nativeEvent as KeyboardEvent;
+          if (isComposingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229) {
+            onKeyDown?.(event);
+            return;
+          }
           event.currentTarget.blur();
         }
         onKeyDown?.(event);
