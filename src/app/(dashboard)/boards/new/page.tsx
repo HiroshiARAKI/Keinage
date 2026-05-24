@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, ArrowLeft, Globe, Lock } from "lucide-react";
@@ -20,10 +20,16 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { planLimitMessageKey } from "@/lib/plan-limit";
+import type { PlanDefinition } from "@/lib/plans";
+import {
+  getUnavailableTemplateRequiredPlanCode,
+  TEMPLATE_REQUIRED_PLAN_NAMES,
+} from "@/lib/template-plan";
 import { templates } from "@/lib/templates";
 import type { TemplateId } from "@/types";
 
 const templateList = Object.values(templates);
+type CurrentPlan = Pick<PlanDefinition, "code" | "name" | "limits">;
 
 export default function NewBoardPage() {
   const router = useRouter();
@@ -31,18 +37,62 @@ export default function NewBoardPage() {
   const [name, setName] = useState("");
   const [templateId, setTemplateId] = useState<TemplateId>("simple");
   const [visibility, setVisibility] = useState<"public" | "private">("private");
+  const [currentPlan, setCurrentPlan] = useState<CurrentPlan | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const storedTemplateRequiredPlanCode = currentPlan
+    ? getUnavailableTemplateRequiredPlanCode(templateId, currentPlan)
+    : null;
+  const selectedTemplateId = storedTemplateRequiredPlanCode && currentPlan
+    ? templateList.find(
+        (template) => !getUnavailableTemplateRequiredPlanCode(template.id, currentPlan),
+      )?.id ?? templateId
+    : templateId;
+  const selectedTemplateRequiredPlanCode = currentPlan
+    ? getUnavailableTemplateRequiredPlanCode(selectedTemplateId, currentPlan)
+    : null;
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function fetchCurrentPlan() {
+      try {
+        const res = await fetch("/api/billing/plan", {
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const data = await res.json() as { plan?: CurrentPlan };
+        if (data.plan) {
+          setCurrentPlan(data.plan);
+        }
+      } catch (fetchError) {
+        if ((fetchError as Error).name !== "AbortError") {
+          console.error("[boards/new] Failed to load current plan", fetchError);
+        }
+      }
+    }
+
+    void fetchCurrentPlan();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (selectedTemplateRequiredPlanCode) {
+      setError(t("planLimit.templateDisabled"));
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
     const res = await fetch("/api/boards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, templateId, visibility }),
+      body: JSON.stringify({ name, templateId: selectedTemplateId, visibility }),
     });
 
     if (!res.ok) {
@@ -93,21 +143,42 @@ export default function NewBoardPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 {templateList.map((template) => {
                   const templateCopy = getTemplateCopy(template.id);
+                  const requiredPlanCode = currentPlan
+                    ? getUnavailableTemplateRequiredPlanCode(template.id, currentPlan)
+                    : null;
+                  const requiredPlanName = requiredPlanCode
+                    ? TEMPLATE_REQUIRED_PLAN_NAMES[requiredPlanCode]
+                    : null;
                   return (
                     <button
                       key={template.id}
                       type="button"
-                      onClick={() => setTemplateId(template.id)}
-                      className={`rounded-lg border p-4 text-left transition-colors ${
-                        templateId === template.id
-                          ? "border-primary bg-primary/5 ring-1 ring-primary"
-                          : "border-border hover:bg-accent"
+                      disabled={requiredPlanName !== null}
+                      onClick={() => {
+                        setTemplateId(template.id);
+                        setError(null);
+                      }}
+                      className={`relative overflow-hidden rounded-lg border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-100 ${
+                        requiredPlanName
+                          ? "border-border bg-muted/50 text-muted-foreground"
+                          : selectedTemplateId === template.id
+                            ? "border-primary bg-primary/5 ring-1 ring-primary"
+                            : "border-border hover:bg-accent"
                       }`}
                     >
-                      <div className="font-medium">{templateCopy.name}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {templateCopy.description}
+                      <div className={requiredPlanName ? "opacity-45" : undefined}>
+                        <div className="font-medium">{templateCopy.name}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {templateCopy.description}
+                        </div>
                       </div>
+                      {requiredPlanName && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-background/80 px-3 text-center backdrop-blur-[1px]">
+                          <span className="rounded-full border border-primary/30 bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-sm">
+                            {t("boards.templateRequiresPlan", { plan: requiredPlanName })}
+                          </span>
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -164,7 +235,10 @@ export default function NewBoardPage() {
             )}
 
             <div className="flex gap-3">
-              <Button type="submit" disabled={submitting || !name.trim()}>
+              <Button
+                type="submit"
+                disabled={submitting || !name.trim() || selectedTemplateRequiredPlanCode !== null}
+              >
                 {submitting ? t("boards.createSubmitting") : t("common.create")}
               </Button>
               <Link
