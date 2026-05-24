@@ -6,7 +6,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { AlertCircle, Upload, X, GripVertical, Trash2, Image as ImageIcon, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import {
@@ -673,14 +673,10 @@ export default function MediaUploadZone({
               {/* Duration */}
               <div className="ml-auto flex shrink-0 items-center gap-1">
                 <Label className="text-xs text-muted-foreground">{t("media.durationSeconds")}</Label>
-                <Input
-                  type="number"
+                <NumberInput
                   min={1}
                   value={item.duration}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (v >= 1) handleDurationChange(item.id, v);
-                  }}
+                  onValueChange={(value) => handleDurationChange(item.id, value)}
                   className="h-7 w-16 text-xs"
                 />
               </div>

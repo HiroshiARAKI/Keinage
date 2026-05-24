@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Switch } from "@/components/ui/switch";
 import { WEATHER_AREAS, DEFAULT_CITY_ID } from "@/lib/weather-areas";
 import type { WeatherPrefecture } from "@/lib/weather-areas";
@@ -935,17 +936,13 @@ export function SettingsClient({
             <div className="space-y-1.5">
               <Label htmlFor="max-long-edge">{t("settings.maxLongEdge")}</Label>
               <div className="flex items-center gap-2">
-                <Input
+                <NumberInput
                   id="max-long-edge"
-                  type="number"
                   min={100}
                   max={planMaxResolution ?? undefined}
                   step={100}
                   value={maxLongEdge}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (v >= 100) setMaxLongEdge(planMaxResolution ? Math.min(v, planMaxResolution) : v);
-                  }}
+                  onValueChange={setMaxLongEdge}
                   className="w-32"
                 />
                 <span className="text-sm text-muted-foreground">px</span>

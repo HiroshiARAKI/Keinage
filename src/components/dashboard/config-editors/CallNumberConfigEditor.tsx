@@ -5,6 +5,7 @@
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
@@ -120,16 +121,27 @@ export function CallNumberConfigEditor({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="cfg-numberFontSize">{t("configEditor.numberFontSize", { size: numberFontSize })}</Label>
-            <input
-              id="cfg-numberFontSize"
-              type="range"
-              min={24}
-              max={120}
-              step={2}
-              value={numberFontSize}
-              onChange={(e) => update("numberFontSize", Number(e.target.value))}
-              className="w-full max-w-48"
-            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                id="cfg-numberFontSize"
+                type="range"
+                min={24}
+                max={120}
+                step={2}
+                value={numberFontSize}
+                onChange={(e) => update("numberFontSize", Number(e.target.value))}
+                className="w-full max-w-48"
+              />
+              <NumberInput
+                aria-label={t("configEditor.numberFontSize", { size: numberFontSize })}
+                min={24}
+                max={120}
+                step={2}
+                value={numberFontSize}
+                onValueChange={(value) => update("numberFontSize", value)}
+                className="w-full sm:w-24"
+              />
+            </div>
             <div className="flex w-full max-w-48 justify-between text-xs text-muted-foreground">
               <span>24px</span>
               <span>120px</span>
@@ -137,13 +149,12 @@ export function CallNumberConfigEditor({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cfg-calledExpire">{t("configEditor.calledExpire")}</Label>
-            <Input
+            <NumberInput
               id="cfg-calledExpire"
-              type="number"
               min={1}
               max={60}
               value={calledExpireMinutes}
-              onChange={(e) => update("calledExpireMinutes", parseInt(e.target.value, 10) || 5)}
+              onValueChange={(value) => update("calledExpireMinutes", value)}
               className="w-28"
             />
             <p className="text-xs text-muted-foreground">
