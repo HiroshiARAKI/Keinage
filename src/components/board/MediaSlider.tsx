@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocale } from "@/components/i18n/LocaleProvider";
+import { clampMediaDuration, DEFAULT_MEDIA_DURATION_SECONDS } from "@/lib/media-duration";
 import { thumbUrl } from "@/lib/utils";
 import type { MediaItem } from "@/types";
 
@@ -13,12 +14,8 @@ const PRELOAD_AHEAD = 2;
 
 interface MediaSliderProps {
   mediaItems: MediaItem[];
-  /** Interval between slides in seconds (default from board config) */
-  interval?: number;
   /** How media fits the container: "contain" (show all) or "cover" (fill, may crop) */
   objectFit?: "contain" | "cover";
-  /** Whether video slides advance by timer or after the video naturally ends */
-  videoAdvanceMode?: "duration" | "until-ended";
 }
 
 interface DeferredVideoSlideProps {
@@ -115,86 +112,124 @@ function DeferredVideoSlide({ item, fitClass, loop, onEnded }: DeferredVideoSlid
 
 export function MediaSlider({
   mediaItems,
-  interval = 5,
   objectFit = "contain",
-  videoAdvanceMode = "duration",
 }: MediaSliderProps) {
   const { t } = useLocale();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [readyImageKey, setReadyImageKey] = useState<string | null>(null);
   const preloadedRef = useRef<Set<string>>(new Set());
+  const videoPreloadRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const currentImageRef = useRef<HTMLImageElement | null>(null);
 
   const advance = useCallback(() => {
-    setImageLoaded(false);
+    setReadyImageKey(null);
     setCurrentIndex((prev) => (prev + 1) % mediaItems.length);
   }, [mediaItems.length]);
 
   const safeCurrentIndex =
     mediaItems.length === 0 ? 0 : Math.min(currentIndex, mediaItems.length - 1);
 
-  // --- Preload upcoming images ---
+  // --- Preload upcoming media ---
   useEffect(() => {
     if (mediaItems.length <= 1) return;
 
     for (let offset = 1; offset <= PRELOAD_AHEAD; offset++) {
       const idx = (safeCurrentIndex + offset) % mediaItems.length;
       const item = mediaItems[idx];
-      if (item?.type === "image" && !preloadedRef.current.has(item.filePath)) {
-        preloadedRef.current.add(item.filePath);
+      if (!item || preloadedRef.current.has(item.filePath)) continue;
+
+      preloadedRef.current.add(item.filePath);
+      if (item.type === "image") {
         const img = new Image();
         img.src = item.filePath;
+      } else if (item.playbackStatus === undefined || item.playbackStatus === "available") {
+        const video = document.createElement("video");
+        video.preload = "auto";
+        video.muted = true;
+        video.playsInline = true;
+        video.src = item.filePath;
+        video.load();
+        videoPreloadRef.current.set(item.filePath, video);
       }
     }
   }, [safeCurrentIndex, mediaItems]);
 
   const current = mediaItems[safeCurrentIndex];
+  const currentKey = current ? `${current.id}:${current.filePath}` : "";
+  const currentType = current?.type;
+  const currentDuration = current?.duration;
+  const currentPlaybackMode = current?.playbackMode;
+  const isCurrentImageReady =
+    currentType !== "image" || readyImageKey === currentKey;
+
+  const markCurrentImageReady = useCallback(() => {
+    if (currentKey) {
+      setReadyImageKey(currentKey);
+    }
+  }, [currentKey]);
+
+  const setCurrentImageNode = useCallback(
+    (node: HTMLImageElement | null) => {
+      currentImageRef.current = node;
+      if (node?.complete) {
+        markCurrentImageReady();
+      }
+    },
+    [markCurrentImageReady],
+  );
 
   useEffect(() => {
-    if (!current) return;
+    if (currentType !== "image") return;
 
-    const loaded =
-      current.type !== "image" || Boolean(currentImageRef.current?.complete);
-    const raf = requestAnimationFrame(() => setImageLoaded(loaded));
+    const raf = requestAnimationFrame(() => {
+      if (currentImageRef.current?.complete) {
+        markCurrentImageReady();
+      }
+    });
 
     return () => cancelAnimationFrame(raf);
-  }, [current]);
+  }, [currentType, currentKey, markCurrentImageReady]);
 
   // --- Auto-advance timer (starts only after the current image has loaded) ---
   useEffect(() => {
     if (mediaItems.length <= 1) return;
-
-    const item = mediaItems[safeCurrentIndex];
-    if (!item) return;
+    if (!currentKey) return;
 
     // For videos the advance is handled by the video-specific effect/callback.
-    if (item.type === "video") return;
+    if (currentType === "video") return;
 
     // Wait until the browser has decoded and painted the current image
-    if (!imageLoaded) return;
+    if (!isCurrentImageReady) return;
 
-    const ms = (item.duration || interval) * 1000;
+    const ms = clampMediaDuration(currentDuration ?? DEFAULT_MEDIA_DURATION_SECONDS) * 1000;
     const timer = setTimeout(advance, ms);
     return () => clearTimeout(timer);
-  }, [safeCurrentIndex, mediaItems, interval, advance, imageLoaded]);
+  }, [
+    mediaItems.length,
+    currentKey,
+    currentDuration,
+    currentType,
+    advance,
+    isCurrentImageReady,
+  ]);
 
   // --- Video timer mode ---
   useEffect(() => {
     if (mediaItems.length <= 1) return;
 
-    const item = mediaItems[safeCurrentIndex];
-    if (item?.type !== "video") return;
-    if (videoAdvanceMode === "until-ended") return;
+    if (currentType !== "video") return;
+    if (currentPlaybackMode === "until-ended") return;
 
-    const ms = (item.duration || interval) * 1000;
+    const ms = clampMediaDuration(currentDuration ?? DEFAULT_MEDIA_DURATION_SECONDS) * 1000;
     const timer = setTimeout(advance, ms);
     return () => clearTimeout(timer);
-  }, [safeCurrentIndex, mediaItems, interval, advance, videoAdvanceMode]);
-
-  // Reset preload cache when the media list changes
-  useEffect(() => {
-    preloadedRef.current.clear();
-  }, [mediaItems]);
+  }, [
+    mediaItems.length,
+    currentDuration,
+    currentPlaybackMode,
+    currentType,
+    advance,
+  ]);
 
   if (mediaItems.length === 0) {
     return (
@@ -226,18 +261,18 @@ export function MediaSlider({
               <DeferredVideoSlide
                 item={current}
                 fitClass={fitClass}
-                loop={mediaItems.length <= 1 || videoAdvanceMode === "duration"}
+                loop={mediaItems.length <= 1 || current.playbackMode !== "until-ended"}
                 onEnded={advance}
               />
             )
           ) : (
             <img
-              ref={currentImageRef}
+              ref={setCurrentImageNode}
               src={current.filePath}
               alt=""
               className={`h-full w-full ${fitClass}`}
-              onLoad={() => setImageLoaded(true)}
-              onError={() => setImageLoaded(true)}
+              onLoad={markCurrentImageReady}
+              onError={markCurrentImageReady}
             />
           )}
         </motion.div>

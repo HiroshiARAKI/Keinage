@@ -15,14 +15,7 @@ import {
 import { updateBoardSchema } from "@/lib/validators";
 import { emitSSE } from "@/lib/sse";
 import { findOwnedBoard, resolveOwnerUserId } from "@/lib/ownership";
-import { normalizeConfig, parseJsonObject } from "@/lib/utils";
-
-const LEGACY_IMAGE_DURATION_SECONDS = 5;
-
-function readSlideInterval(config: unknown): number | undefined {
-  const raw = parseJsonObject(config).slideInterval;
-  return typeof raw === "number" && Number.isFinite(raw) && raw >= 1 ? raw : undefined;
-}
+import { normalizeConfig } from "@/lib/utils";
 
 export async function GET(
   _request: NextRequest,
@@ -146,12 +139,6 @@ export async function PATCH(
   }
   if (result.data.isActive !== undefined) updates.isActive = result.data.isActive;
 
-  const previousSlideInterval = readSlideInterval(normalizedExisting.config);
-  const nextSlideInterval =
-    result.data.config !== undefined
-      ? readSlideInterval(result.data.config)
-      : undefined;
-
   if (Object.keys(updates).length === 0) {
     return NextResponse.json(normalizedExisting);
   }
@@ -165,42 +152,6 @@ export async function PATCH(
     .set(updates)
     .where(eq(boards.id, id))
     .returning();
-
-  if (
-    nextSlideInterval !== undefined &&
-    nextSlideInterval !== previousSlideInterval
-  ) {
-    const boardMedia = await db
-      .select({
-        id: mediaItems.id,
-        type: mediaItems.type,
-        duration: mediaItems.duration,
-      })
-      .from(mediaItems)
-      .where(eq(mediaItems.boardId, id));
-
-    const fallbackDurations = new Set<number>([LEGACY_IMAGE_DURATION_SECONDS]);
-    if (previousSlideInterval !== undefined) {
-      fallbackDurations.add(previousSlideInterval);
-    }
-
-    const imageIdsToSync = boardMedia
-      .filter(
-        (item) => item.type === "image" && fallbackDurations.has(item.duration),
-      )
-      .map((item) => item.id);
-
-    for (const mediaId of imageIdsToSync) {
-      await db
-        .update(mediaItems)
-        .set({ duration: nextSlideInterval })
-        .where(eq(mediaItems.id, mediaId));
-    }
-
-    if (imageIdsToSync.length > 0) {
-      emitSSE(id, "media-updated");
-    }
-  }
 
   emitSSE(id, "board-updated");
 

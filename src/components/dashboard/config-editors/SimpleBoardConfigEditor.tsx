@@ -59,7 +59,6 @@ export function SimpleBoardConfigEditor({
   useLoadAllGoogleFonts();
   const { t } = useLocale();
 
-  const slideInterval = (config.slideInterval as number) ?? 5;
   const tickerSpeed = (config.tickerSpeed as number) ?? 60;
   const backgroundColor = (config.backgroundColor as string) ?? "#000000";
   const textColor = (config.textColor as string) ?? "#ffffff";
@@ -70,9 +69,6 @@ export function SimpleBoardConfigEditor({
   const showClock = (config.showClock as boolean) ?? false;
   const showWeather = (config.showWeather as boolean) ?? false;
   const objectFit = (config.objectFit as string) ?? "contain";
-  const videoAdvanceMode = (config.videoAdvanceMode as string) === "until-ended"
-    ? "until-ended"
-    : "duration";
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
@@ -120,36 +116,6 @@ export function SimpleBoardConfigEditor({
       <div>
         <h4 className="mb-3 text-sm font-semibold">{t("configEditor.slideshowSection")}</h4>
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="cfg-slideInterval">{t("configEditor.slideInterval")}</Label>
-            <NumberInput
-              id="cfg-slideInterval"
-              min={1}
-              max={300}
-              value={slideInterval}
-              onValueChange={(value) => update("slideInterval", value)}
-              className="w-24"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="cfg-videoAdvanceMode">{t("configEditor.videoAdvanceMode")}</Label>
-            <Select
-              value={videoAdvanceMode}
-              onValueChange={(v) => update("videoAdvanceMode", v)}
-            >
-              <SelectTrigger id="cfg-videoAdvanceMode" className="w-full max-w-72">
-                <SelectValue>
-                  {videoAdvanceMode === "until-ended"
-                    ? t("configEditor.videoAdvance.untilEnded")
-                    : t("configEditor.videoAdvance.duration")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="duration">{t("configEditor.videoAdvance.duration")}</SelectItem>
-                <SelectItem value="until-ended">{t("configEditor.videoAdvance.untilEnded")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <div className="space-y-1.5">
             <Label htmlFor="cfg-objectFit">{t("configEditor.mediaMode")}</Label>
             <Select value={objectFit} onValueChange={(v) => update("objectFit", v)}>
