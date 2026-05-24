@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -394,13 +395,12 @@ export function FloorGuideConfigEditor({
 
         <div className="max-w-xs space-y-1.5">
           <Label htmlFor="cfg-floor-count">{t("configEditor.floorGuide.floorCount")}</Label>
-          <Input
+          <NumberInput
             id="cfg-floor-count"
-            type="number"
             min={1}
             max={10}
             value={floorCount}
-            onChange={(e) => updateFloorCount(e.target.value)}
+            onValueChange={updateFloorCount}
           />
         </div>
 
@@ -561,25 +561,23 @@ export function FloorGuideConfigEditor({
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor={`cfg-elevator-start-${index}`}>{t("configEditor.floorGuide.startFloor")}</Label>
-                  <Input
+                  <NumberInput
                     id={`cfg-elevator-start-${index}`}
-                    type="number"
                     min={1}
                     max={floorCount}
                     value={elevator.startFloor}
-                    onChange={(e) => updateElevator(index, { startFloor: clampFloor(e.target.value, elevator.startFloor) ?? elevator.startFloor })}
+                    onValueChange={(value) => updateElevator(index, { startFloor: value })}
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor={`cfg-elevator-end-${index}`}>{t("configEditor.floorGuide.endFloor")}</Label>
-                  <Input
+                  <NumberInput
                     id={`cfg-elevator-end-${index}`}
-                    type="number"
                     min={1}
                     max={floorCount}
                     value={elevator.endFloor}
-                    onChange={(e) => updateElevator(index, { endFloor: clampFloor(e.target.value, elevator.endFloor) ?? elevator.endFloor })}
+                    onValueChange={(value) => updateElevator(index, { endFloor: value })}
                   />
                 </div>
               </div>

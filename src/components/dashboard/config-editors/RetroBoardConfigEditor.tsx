@@ -5,6 +5,7 @@
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -124,32 +125,39 @@ export function RetroBoardConfigEditor({
 
       <div className="space-y-1.5">
         <Label htmlFor="cfg-rows">{t("configEditor.rows")}</Label>
-        <Input
+        <NumberInput
           id="cfg-rows"
-          type="number"
           min={1}
           max={20}
           value={rows}
-          onChange={(e) =>
-            updateRows(parseInt(e.target.value, 10))
-          }
+          onValueChange={updateRows}
           className="w-24"
         />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="cfg-fontSize">{t("configEditor.retroFontSize", { size: fontSize })}</Label>
-        <Input
-          id="cfg-fontSize"
-          type="range"
-          min={18}
-          max={96}
-          value={fontSize}
-          onChange={(e) =>
-            update("fontSize", Math.max(18, parseInt(e.target.value, 10) || 36))
-          }
-          className="w-full max-w-sm"
-        />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Input
+            id="cfg-fontSize"
+            type="range"
+            min={18}
+            max={96}
+            value={fontSize}
+            onChange={(e) =>
+              update("fontSize", Math.max(18, parseInt(e.target.value, 10) || 36))
+            }
+            className="w-full max-w-sm"
+          />
+          <NumberInput
+            aria-label={t("configEditor.retroFontSize", { size: fontSize })}
+            min={18}
+            max={96}
+            value={fontSize}
+            onValueChange={(value) => update("fontSize", value)}
+            className="w-24"
+          />
+        </div>
       </div>
 
       <div className="space-y-1.5">
@@ -177,18 +185,31 @@ export function RetroBoardConfigEditor({
           <Label htmlFor="cfg-leftColumnPercent">
             {t("configEditor.retroLeftColumnWidth", { percent: leftColumnPercent })}
           </Label>
-          <Input
-            id="cfg-leftColumnPercent"
-            type="range"
-            min={20}
-            max={80}
-            step={5}
-            value={leftColumnPercent}
-            onChange={(e) =>
-              update("leftColumnPercent", Math.min(80, Math.max(20, parseInt(e.target.value, 10) || 50)))
-            }
-            className="w-full max-w-sm"
-          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              id="cfg-leftColumnPercent"
+              type="range"
+              min={20}
+              max={80}
+              step={5}
+              value={leftColumnPercent}
+              onChange={(e) =>
+                update("leftColumnPercent", Math.min(80, Math.max(20, parseInt(e.target.value, 10) || 50)))
+              }
+              className="w-full max-w-sm"
+            />
+            <NumberInput
+              aria-label={t("configEditor.retroLeftColumnWidth", {
+                percent: leftColumnPercent,
+              })}
+              min={20}
+              max={80}
+              step={5}
+              value={leftColumnPercent}
+              onValueChange={(value) => update("leftColumnPercent", value)}
+              className="w-24"
+            />
+          </div>
         </div>
       )}
 
@@ -236,31 +257,26 @@ export function RetroBoardConfigEditor({
 
       <div className="space-y-1.5">
         <Label htmlFor="cfg-flipSpeed">{t("configEditor.flipSpeed")}</Label>
-        <Input
+        <NumberInput
           id="cfg-flipSpeed"
-          type="number"
           min={0.01}
           max={1}
           step={0.01}
+          allowDecimal
           value={flipSpeed}
-          onChange={(e) =>
-            update("flipSpeed", Math.max(0.01, parseFloat(e.target.value) || 0.08))
-          }
+          onValueChange={(value) => update("flipSpeed", value)}
           className="w-24"
         />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="cfg-switchInterval">{t("configEditor.switchInterval")}</Label>
-        <Input
+        <NumberInput
           id="cfg-switchInterval"
-          type="number"
           min={1}
           max={300}
           value={switchInterval}
-          onChange={(e) =>
-            update("switchInterval", Math.max(1, parseInt(e.target.value, 10) || 5))
-          }
+          onValueChange={(value) => update("switchInterval", value)}
           className="w-24"
         />
       </div>

@@ -5,6 +5,7 @@
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -93,31 +94,38 @@ export function MessageBoardConfigEditor({
 
       <div className="space-y-1.5">
         <Label htmlFor="cfg-maxDisplay">{t("configEditor.maxDisplayCount")}</Label>
-        <Input
+        <NumberInput
           id="cfg-maxDisplay"
-          type="number"
           min={1}
           max={100}
           value={maxDisplayCount}
-          onChange={(e) =>
-            update("maxDisplayCount", Math.max(1, parseInt(e.target.value, 10) || 10))
-          }
+          onValueChange={(value) => update("maxDisplayCount", value)}
           className="w-full sm:w-24"
         />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="cfg-fontSize">{t("configEditor.fontSize", { size: fontSize })}</Label>
-        <input
-          id="cfg-fontSize"
-          type="range"
-          min={12}
-          max={48}
-          step={1}
-          value={fontSize}
-          onChange={(e) => update("fontSize", Number(e.target.value))}
-          className="w-full sm:max-w-48"
-        />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            id="cfg-fontSize"
+            type="range"
+            min={12}
+            max={48}
+            step={1}
+            value={fontSize}
+            onChange={(e) => update("fontSize", Number(e.target.value))}
+            className="w-full sm:max-w-48"
+          />
+          <NumberInput
+            aria-label={t("configEditor.fontSize", { size: fontSize })}
+            min={12}
+            max={48}
+            value={fontSize}
+            onValueChange={(value) => update("fontSize", value)}
+            className="w-full sm:w-24"
+          />
+        </div>
       </div>
 
       <div className="space-y-1.5">

@@ -434,9 +434,11 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                     <Input
                       id="new-message-priority"
                       value={newMsgPriority}
-                      onChange={(e) => setNewMsgPriority(e.target.value)}
-                      type="number"
-                      min={0}
+                      onChange={(e) => {
+                        if (/^\d*$/.test(e.target.value)) setNewMsgPriority(e.target.value);
+                      }}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -509,9 +511,11 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                           <div className="grid gap-2 sm:grid-cols-[100px_140px_minmax(180px,1fr)_auto] sm:items-end">
                             <Input
                               value={editMsgPriority}
-                              onChange={(e) => setEditMsgPriority(e.target.value)}
-                              type="number"
-                              min={0}
+                              onChange={(e) => {
+                                if (/^\d*$/.test(e.target.value)) setEditMsgPriority(e.target.value);
+                              }}
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                             />
                             <Select
                               value={editMsgKind}
