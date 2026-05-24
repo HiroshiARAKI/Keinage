@@ -1,6 +1,7 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
 import { z } from "zod";
+import { MAX_MEDIA_DURATION_SECONDS } from "@/lib/media-duration";
 
 // --- Board ---
 
@@ -39,13 +40,15 @@ export const updateBoardSchema = z.object({
 // --- MediaItem ---
 
 export const mediaTypeSchema = z.enum(["image", "video"]);
+export const mediaPlaybackModeSchema = z.enum(["duration", "until-ended"]);
 
 export const createMediaItemSchema = z.object({
   boardId: z.string().uuid(),
   type: mediaTypeSchema,
   filePath: z.string().min(1),
   displayOrder: z.number().int().min(0).optional().default(0),
-  duration: z.number().int().min(1).optional().default(5),
+  duration: z.number().int().min(1).max(MAX_MEDIA_DURATION_SECONDS).optional().default(10),
+  playbackMode: mediaPlaybackModeSchema.optional().default("duration"),
 });
 
 export const updateMediaOrderSchema = z.array(

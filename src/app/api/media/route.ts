@@ -29,6 +29,7 @@ import {
   thumbnailStorageKeyFromPublicPath,
   writeStoredObject,
 } from "@/lib/media-storage";
+import { clampMediaDuration, DEFAULT_MEDIA_DURATION_SECONDS } from "@/lib/media-duration";
 import { getOwnerSetting } from "@/lib/owner-settings";
 import { resolveOwnerUserId } from "@/lib/ownership";
 import {
@@ -39,7 +40,6 @@ import {
   isPlanLimitError,
   planLimitErrorBody,
 } from "@/lib/plan-enforcement";
-import { parseJsonObject } from "@/lib/utils";
 import { probeVideoMetadataFromBuffer } from "@/lib/video-metadata";
 import {
   buildRateLimitKey,
@@ -57,11 +57,6 @@ function planLimitResponse(error: unknown) {
     return NextResponse.json(planLimitErrorBody(error), { status: 403 });
   }
   return null;
-}
-
-function readSlideInterval(config: unknown): number | undefined {
-  const raw = parseJsonObject(config).slideInterval;
-  return typeof raw === "number" && Number.isFinite(raw) && raw >= 1 ? raw : undefined;
 }
 
 function videoMetadataResponse(error: unknown) {
@@ -91,6 +86,7 @@ export async function GET() {
       height: mediaItems.height,
       displayOrder: mediaItems.displayOrder,
       duration: mediaItems.duration,
+      playbackMode: mediaItems.playbackMode,
       createdAt: mediaItems.createdAt,
       updatedAt: mediaItems.updatedAt,
       boardName: boards.name,
@@ -324,13 +320,10 @@ export async function POST(request: NextRequest) {
     -1,
   );
 
-  const defaultDuration =
-    mediaType === "image" ? readSlideInterval(board.config) ?? 5 : 5;
-
   const durationValue =
     duration && typeof duration === "string"
-      ? Math.max(1, parseInt(duration, 10) || defaultDuration)
-      : defaultDuration;
+      ? clampMediaDuration(duration)
+      : DEFAULT_MEDIA_DURATION_SECONDS;
 
   const [created] = await db
     .insert(mediaItems)
@@ -344,6 +337,7 @@ export async function POST(request: NextRequest) {
       height: mediaHeight,
       displayOrder: maxOrder + 1,
       duration: durationValue,
+      playbackMode: "duration",
     })
     .returning();
 

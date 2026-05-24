@@ -18,6 +18,11 @@ import {
   mediaTypeFromContentType,
   validateUploadFilename,
 } from "@/lib/media-upload";
+import {
+  clampMediaDuration,
+  DEFAULT_MEDIA_DURATION_SECONDS,
+  MAX_MEDIA_DURATION_SECONDS,
+} from "@/lib/media-duration";
 import { resolveOwnerUserId } from "@/lib/ownership";
 import {
   assertCanUploadMedia,
@@ -26,7 +31,6 @@ import {
   isPlanLimitError,
   planLimitErrorBody,
 } from "@/lib/plan-enforcement";
-import { parseJsonObject } from "@/lib/utils";
 import {
   buildRateLimitKey,
   consumeRateLimit,
@@ -45,7 +49,7 @@ const directUploadCompleteSchema = z.object({
   sizeBytes: z.number().int().positive(),
   width: z.number().int().positive().nullable().optional(),
   height: z.number().int().positive().nullable().optional(),
-  duration: z.number().int().positive().optional(),
+  duration: z.number().int().positive().max(MAX_MEDIA_DURATION_SECONDS).optional(),
   poster: z.object({
     objectKey: z.string().min(1),
     contentType: z.string().min(1),
@@ -58,11 +62,6 @@ function planLimitResponse(error: unknown) {
     return NextResponse.json(planLimitErrorBody(error), { status: 403 });
   }
   return null;
-}
-
-function readSlideInterval(config: unknown): number | undefined {
-  const raw = parseJsonObject(config).slideInterval;
-  return typeof raw === "number" && Number.isFinite(raw) && raw >= 1 ? raw : undefined;
 }
 
 export async function POST(request: NextRequest) {
@@ -240,9 +239,6 @@ async function handlePost(request: NextRequest) {
     (max, item) => Math.max(max, item.displayOrder),
     -1,
   );
-  const defaultDuration =
-    mediaType === "image" ? readSlideInterval(board.config) ?? 5 : 5;
-
   const [created] = await db
     .insert(mediaItems)
     .values({
@@ -255,7 +251,8 @@ async function handlePost(request: NextRequest) {
       width: width ?? null,
       height: height ?? null,
       displayOrder: maxOrder + 1,
-      duration: duration ?? defaultDuration,
+      duration: duration ? clampMediaDuration(duration) : DEFAULT_MEDIA_DURATION_SECONDS,
+      playbackMode: "duration",
     })
     .returning();
 

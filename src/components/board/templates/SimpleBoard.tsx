@@ -18,7 +18,6 @@ import type { BoardTemplateProps } from "@/types";
 
 /** Default config for the Simple Board template */
 export const simpleBoardDefaultConfig = {
-  slideInterval: 5,
   tickerSpeed: 60,
   backgroundColor: "#000000",
   textColor: "#ffffff",
@@ -29,7 +28,6 @@ export const simpleBoardDefaultConfig = {
   showClock: false,
   showWeather: false,
   objectFit: "contain" as "contain" | "cover",
-  videoAdvanceMode: "duration" as "duration" | "until-ended",
   fallbackMediaId: "",
   mediaSchedules: {},
   messageSchedules: {},
@@ -110,9 +108,7 @@ export default function SimpleBoard({
         {activeMedia.length > 0 ? (
           <MediaSlider
             mediaItems={activeMedia}
-            interval={config.slideInterval}
             objectFit={config.objectFit}
-            videoAdvanceMode={config.videoAdvanceMode}
           />
         ) : (
           <ScheduledMediaFallback

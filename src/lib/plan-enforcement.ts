@@ -5,19 +5,7 @@ import type { MessageKey } from "@/lib/i18n";
 import { getOwnerBoardCount, getOwnerUsage, type OwnerUsage } from "@/lib/owner-usage";
 import { PLAN_LIMIT_MESSAGE_KEYS, type PlanLimitCode } from "@/lib/plan-limit";
 import type { PlanCode, PlanDefinition } from "@/lib/plans";
-
-export const EXTENDED_TEMPLATE_IDS = [
-  "schedule-board",
-  "staff-board",
-  "split-view",
-  "clinic-hours",
-  "restaurant-menu",
-  "qr-info",
-] as const;
-
-export const PREMIUM_TEMPLATE_IDS = [
-  "floor-guide",
-] as const;
+import { getUnavailableTemplateRequiredPlanCode } from "@/lib/template-plan";
 
 export type OwnerPlanUsage = OwnerUsage;
 export { getOwnerBoardCount, getOwnerUsage };
@@ -98,34 +86,16 @@ export async function assertCanCreateBoard(ownerUserId: string) {
   return effectivePlan;
 }
 
-export function isExtendedTemplateId(templateId: string): boolean {
-  return EXTENDED_TEMPLATE_IDS.includes(templateId as (typeof EXTENDED_TEMPLATE_IDS)[number]);
-}
-
-export function isPremiumTemplateId(templateId: string): boolean {
-  return PREMIUM_TEMPLATE_IDS.includes(templateId as (typeof PREMIUM_TEMPLATE_IDS)[number]);
-}
-
 export async function assertCanUseTemplate(input: {
   ownerUserId: string;
   templateId: string;
 }) {
   const effectivePlan = await getEffectivePlanForOwner(input.ownerUserId);
-  if (
-    isPremiumTemplateId(input.templateId)
-    && !effectivePlan.plan.limits.premiumTemplates
-  ) {
-    throwLimit(
-      "plan_limit_template_disabled",
-      effectivePlan.plan,
-      true,
-    );
-  }
-
-  if (
-    isExtendedTemplateId(input.templateId)
-    && !effectivePlan.plan.limits.extendedTemplates
-  ) {
+  const requiredPlanCode = getUnavailableTemplateRequiredPlanCode(
+    input.templateId,
+    effectivePlan.plan,
+  );
+  if (requiredPlanCode) {
     throwLimit(
       "plan_limit_template_disabled",
       effectivePlan.plan,

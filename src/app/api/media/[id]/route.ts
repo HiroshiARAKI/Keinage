@@ -7,6 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { emitSSE } from "@/lib/sse";
 import { resolveOwnerUserId } from "@/lib/ownership";
+import { clampMediaDuration, isMediaPlaybackMode } from "@/lib/media-duration";
 import {
   deleteStoredObject,
   storageKeyFromPublicPath,
@@ -75,6 +76,7 @@ export async function PATCH(
     .select({
       id: mediaItems.id,
       boardId: mediaItems.boardId,
+      type: mediaItems.type,
       duration: mediaItems.duration,
     })
     .from(mediaItems)
@@ -101,7 +103,18 @@ export async function PATCH(
     "duration" in body &&
     typeof (body as Record<string, unknown>).duration === "number"
   ) {
-    updates.duration = (body as Record<string, unknown>).duration;
+    updates.duration = clampMediaDuration((body as Record<string, unknown>).duration);
+  }
+
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "playbackMode" in body &&
+    isMediaPlaybackMode((body as Record<string, unknown>).playbackMode)
+  ) {
+    updates.playbackMode = item.type === "video"
+      ? (body as Record<string, unknown>).playbackMode
+      : "duration";
   }
 
   if (Object.keys(updates).length === 0) {

@@ -4,6 +4,7 @@
 
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -128,15 +129,12 @@ export function ClinicHoursConfigEditor({
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="cfg-daysToShow">{t("configEditor.daysToShow")}</Label>
-          <Input
+          <NumberInput
             id="cfg-daysToShow"
-            type="number"
             min={7}
             max={31}
             value={daysToShow}
-            onChange={(e) =>
-              update("daysToShow", Math.min(31, Math.max(7, parseInt(e.target.value, 10) || 14)))
-            }
+            onValueChange={(value) => update("daysToShow", value)}
           />
         </div>
         <div className="space-y-1.5">

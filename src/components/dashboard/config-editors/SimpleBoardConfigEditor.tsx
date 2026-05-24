@@ -5,6 +5,7 @@
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -58,7 +59,6 @@ export function SimpleBoardConfigEditor({
   useLoadAllGoogleFonts();
   const { t } = useLocale();
 
-  const slideInterval = (config.slideInterval as number) ?? 5;
   const tickerSpeed = (config.tickerSpeed as number) ?? 60;
   const backgroundColor = (config.backgroundColor as string) ?? "#000000";
   const textColor = (config.textColor as string) ?? "#ffffff";
@@ -69,9 +69,6 @@ export function SimpleBoardConfigEditor({
   const showClock = (config.showClock as boolean) ?? false;
   const showWeather = (config.showWeather as boolean) ?? false;
   const objectFit = (config.objectFit as string) ?? "contain";
-  const videoAdvanceMode = (config.videoAdvanceMode as string) === "until-ended"
-    ? "until-ended"
-    : "duration";
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
@@ -120,39 +117,6 @@ export function SimpleBoardConfigEditor({
         <h4 className="mb-3 text-sm font-semibold">{t("configEditor.slideshowSection")}</h4>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="cfg-slideInterval">{t("configEditor.slideInterval")}</Label>
-            <Input
-              id="cfg-slideInterval"
-              type="number"
-              min={1}
-              max={300}
-              value={slideInterval}
-              onChange={(e) =>
-                update("slideInterval", Math.max(1, parseInt(e.target.value, 10) || 1))
-              }
-              className="w-24"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="cfg-videoAdvanceMode">{t("configEditor.videoAdvanceMode")}</Label>
-            <Select
-              value={videoAdvanceMode}
-              onValueChange={(v) => update("videoAdvanceMode", v)}
-            >
-              <SelectTrigger id="cfg-videoAdvanceMode" className="w-full max-w-72">
-                <SelectValue>
-                  {videoAdvanceMode === "until-ended"
-                    ? t("configEditor.videoAdvance.untilEnded")
-                    : t("configEditor.videoAdvance.duration")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="duration">{t("configEditor.videoAdvance.duration")}</SelectItem>
-                <SelectItem value="until-ended">{t("configEditor.videoAdvance.untilEnded")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
             <Label htmlFor="cfg-objectFit">{t("configEditor.mediaMode")}</Label>
             <Select value={objectFit} onValueChange={(v) => update("objectFit", v)}>
               <SelectTrigger id="cfg-objectFit" className="w-full max-w-72">
@@ -191,31 +155,38 @@ export function SimpleBoardConfigEditor({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="cfg-tickerSpeed">{t("configEditor.tickerSpeed")}</Label>
-            <Input
+            <NumberInput
               id="cfg-tickerSpeed"
-              type="number"
               min={10}
               max={500}
               value={tickerSpeed}
-              onChange={(e) =>
-                update("tickerSpeed", Math.max(10, parseInt(e.target.value, 10) || 60))
-              }
+              onValueChange={(value) => update("tickerSpeed", value)}
               className="w-24"
             />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="cfg-tickerFontSize">{t("configEditor.tickerFontSize", { size: tickerFontSize })}</Label>
-            <input
-              id="cfg-tickerFontSize"
-              type="range"
-              min={12}
-              max={64}
-              step={1}
-              value={tickerFontSize}
-              onChange={(e) => update("tickerFontSize", Number(e.target.value))}
-              className="w-full max-w-48"
-            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                id="cfg-tickerFontSize"
+                type="range"
+                min={12}
+                max={64}
+                step={1}
+                value={tickerFontSize}
+                onChange={(e) => update("tickerFontSize", Number(e.target.value))}
+                className="w-full max-w-48"
+              />
+              <NumberInput
+                aria-label={t("configEditor.tickerFontSize", { size: tickerFontSize })}
+                min={12}
+                max={64}
+                value={tickerFontSize}
+                onValueChange={(value) => update("tickerFontSize", value)}
+                className="w-24"
+              />
+            </div>
             <div className="flex w-full max-w-48 justify-between text-xs text-muted-foreground">
               <span>12px</span>
               <span>64px</span>

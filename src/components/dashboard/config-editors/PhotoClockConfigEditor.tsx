@@ -5,6 +5,7 @@
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   Select,
   SelectContent,
@@ -46,7 +47,6 @@ export function PhotoClockConfigEditor({
   useLoadAllGoogleFonts();
   const { t } = useLocale();
 
-  const slideInterval = (config.slideInterval as number) ?? 8;
   const clockPosition = (config.clockPosition as string) ?? "bottom-right";
   const clockFontSize = (config.clockFontSize as number) ?? 48;
   const clockColor = (config.clockColor as string) ?? "#ffffff";
@@ -55,9 +55,6 @@ export function PhotoClockConfigEditor({
   const is24Hour = (config.is24Hour as boolean) ?? true;
   const showWeather = (config.showWeather as boolean) ?? false;
   const objectFit = (config.objectFit as string) ?? "contain";
-  const videoAdvanceMode = (config.videoAdvanceMode as string) === "until-ended"
-    ? "until-ended"
-    : "duration";
   const fontFamily = (config.fontFamily as string) ?? "";
 
   const positionLabels: Record<string, string> = {
@@ -81,41 +78,6 @@ export function PhotoClockConfigEditor({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="cfg-slideInterval">{t("configEditor.slideInterval")}</Label>
-        <Input
-          id="cfg-slideInterval"
-          type="number"
-          min={1}
-          max={300}
-          value={slideInterval}
-          onChange={(e) =>
-            update("slideInterval", Math.max(1, parseInt(e.target.value, 10) || 1))
-          }
-          className="w-full sm:w-24"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="cfg-videoAdvanceMode">{t("configEditor.videoAdvanceMode")}</Label>
-        <Select
-          value={videoAdvanceMode}
-          onValueChange={(v) => update("videoAdvanceMode", v)}
-        >
-          <SelectTrigger id="cfg-videoAdvanceMode" className="w-full sm:max-w-72">
-            <SelectValue>
-              {videoAdvanceMode === "until-ended"
-                ? t("configEditor.videoAdvance.untilEnded")
-                : t("configEditor.videoAdvance.duration")}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="duration">{t("configEditor.videoAdvance.duration")}</SelectItem>
-            <SelectItem value="until-ended">{t("configEditor.videoAdvance.untilEnded")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       <div className="space-y-1.5">
         <Label htmlFor="cfg-objectFit">{t("configEditor.mediaMode")}</Label>
         <Select value={objectFit} onValueChange={(v) => update("objectFit", v)}>
@@ -162,16 +124,27 @@ export function PhotoClockConfigEditor({
 
       <div className="space-y-1.5">
         <Label htmlFor="cfg-clockSize">{t("configEditor.clockFontSize", { size: clockFontSize })}</Label>
-        <input
-          id="cfg-clockSize"
-          type="range"
-          min={24}
-          max={160}
-          step={4}
-          value={clockFontSize}
-          onChange={(e) => update("clockFontSize", parseInt(e.target.value, 10))}
-          className="w-full sm:max-w-64"
-        />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            id="cfg-clockSize"
+            type="range"
+            min={24}
+            max={160}
+            step={4}
+            value={clockFontSize}
+            onChange={(e) => update("clockFontSize", parseInt(e.target.value, 10))}
+            className="w-full sm:max-w-64"
+          />
+          <NumberInput
+            aria-label={t("configEditor.clockFontSize", { size: clockFontSize })}
+            min={24}
+            max={160}
+            step={4}
+            value={clockFontSize}
+            onValueChange={(value) => update("clockFontSize", value)}
+            className="w-full sm:w-24"
+          />
+        </div>
         <div className="flex w-full justify-between text-xs text-muted-foreground sm:max-w-64">
           <span>24px</span>
           <span>160px</span>
@@ -201,16 +174,30 @@ export function PhotoClockConfigEditor({
         <Label htmlFor="cfg-clockOpacity">
           {t("configEditor.clockBgOpacity", { percent: Math.round(clockBgOpacity * 100) })}
         </Label>
-        <input
-          id="cfg-clockOpacity"
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={clockBgOpacity}
-          onChange={(e) => update("clockBgOpacity", parseFloat(e.target.value))}
-          className="w-full sm:max-w-48"
-        />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            id="cfg-clockOpacity"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={clockBgOpacity}
+            onChange={(e) => update("clockBgOpacity", parseFloat(e.target.value))}
+            className="w-full sm:max-w-48"
+          />
+          <NumberInput
+            aria-label={t("configEditor.clockBgOpacity", {
+              percent: Math.round(clockBgOpacity * 100),
+            })}
+            min={0}
+            max={1}
+            step={0.05}
+            allowDecimal
+            value={clockBgOpacity}
+            onValueChange={(value) => update("clockBgOpacity", value)}
+            className="w-full sm:w-24"
+          />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-start gap-3">

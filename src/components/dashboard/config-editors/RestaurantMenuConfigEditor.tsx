@@ -5,6 +5,7 @@
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -285,13 +286,12 @@ function FontNumber({
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <Input
+      <NumberInput
         id={id}
-        type="number"
         min={12}
         max={120}
         value={value}
-        onChange={(e) => onChange(Math.max(12, parseInt(e.target.value, 10) || value))}
+        onValueChange={onChange}
       />
     </div>
   );
