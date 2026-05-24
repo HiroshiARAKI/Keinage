@@ -1,7 +1,7 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
 
-import { MESSAGE_CATALOGS, type MessageKey } from "@/lib/i18n-messages";
+import { MESSAGE_CATALOGS, type MessageKey } from "@/lib/i18n/messages";
 
 export const LOCALE_COOKIE_NAME = "keinage-locale";
 export const DEFAULT_LOCALE = "en-US";
@@ -160,7 +160,7 @@ export function translate(
   vars?: Record<string, string | number>,
 ) {
   const catalog = MESSAGE_CATALOGS[locale] ?? MESSAGE_CATALOGS[DEFAULT_LOCALE];
-  const template = catalog[key] ?? MESSAGE_CATALOGS[DEFAULT_LOCALE][key] ?? key;
+  const template: string = catalog[key] ?? MESSAGE_CATALOGS[DEFAULT_LOCALE][key] ?? key;
   if (!vars) return template;
 
   return template.replace(/\{(\w+)\}/g, (_, token: string) => {
