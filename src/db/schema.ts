@@ -88,7 +88,8 @@ export const mediaItems = pgTable("media_items", {
   width: integer("width"),
   height: integer("height"),
   displayOrder: integer("display_order").notNull().default(0),
-  duration: integer("duration").notNull().default(5), // seconds
+  duration: integer("duration").notNull().default(10), // seconds
+  playbackMode: text("playback_mode").notNull().default("duration"), // "duration" | "until-ended"
   createdAt: text("created_at")
     .notNull()
     .default(isoNow),

@@ -47,7 +47,6 @@ export function PhotoClockConfigEditor({
   useLoadAllGoogleFonts();
   const { t } = useLocale();
 
-  const slideInterval = (config.slideInterval as number) ?? 8;
   const clockPosition = (config.clockPosition as string) ?? "bottom-right";
   const clockFontSize = (config.clockFontSize as number) ?? 48;
   const clockColor = (config.clockColor as string) ?? "#ffffff";
@@ -56,9 +55,6 @@ export function PhotoClockConfigEditor({
   const is24Hour = (config.is24Hour as boolean) ?? true;
   const showWeather = (config.showWeather as boolean) ?? false;
   const objectFit = (config.objectFit as string) ?? "contain";
-  const videoAdvanceMode = (config.videoAdvanceMode as string) === "until-ended"
-    ? "until-ended"
-    : "duration";
   const fontFamily = (config.fontFamily as string) ?? "";
 
   const positionLabels: Record<string, string> = {
@@ -82,38 +78,6 @@ export function PhotoClockConfigEditor({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="cfg-slideInterval">{t("configEditor.slideInterval")}</Label>
-        <NumberInput
-          id="cfg-slideInterval"
-          min={1}
-          max={300}
-          value={slideInterval}
-          onValueChange={(value) => update("slideInterval", value)}
-          className="w-full sm:w-24"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="cfg-videoAdvanceMode">{t("configEditor.videoAdvanceMode")}</Label>
-        <Select
-          value={videoAdvanceMode}
-          onValueChange={(v) => update("videoAdvanceMode", v)}
-        >
-          <SelectTrigger id="cfg-videoAdvanceMode" className="w-full sm:max-w-72">
-            <SelectValue>
-              {videoAdvanceMode === "until-ended"
-                ? t("configEditor.videoAdvance.untilEnded")
-                : t("configEditor.videoAdvance.duration")}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="duration">{t("configEditor.videoAdvance.duration")}</SelectItem>
-            <SelectItem value="until-ended">{t("configEditor.videoAdvance.untilEnded")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       <div className="space-y-1.5">
         <Label htmlFor="cfg-objectFit">{t("configEditor.mediaMode")}</Label>
         <Select value={objectFit} onValueChange={(v) => update("objectFit", v)}>

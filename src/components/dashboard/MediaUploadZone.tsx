@@ -8,12 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import {
   ScheduleControls,
   sanitizeScheduleMap,
 } from "@/components/dashboard/BoardSchedulePanel";
 import { planLimitMessageKey } from "@/lib/plan-limit";
+import { MAX_MEDIA_DURATION_SECONDS, type MediaPlaybackMode } from "@/lib/media-duration";
 import {
   getScheduleMap,
   normalizeDisplaySchedule,
@@ -448,6 +456,18 @@ export default function MediaUploadZone({
     [onUpdate],
   );
 
+  const handlePlaybackModeChange = useCallback(
+    async (id: string, playbackMode: MediaPlaybackMode) => {
+      await fetch(`/api/media/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playbackMode }),
+      });
+      await onUpdate();
+    },
+    [onUpdate],
+  );
+
   // Drag & drop reorder handlers
   const handleReorderDragStart = useCallback(
     (e: React.DragEvent, index: number) => {
@@ -671,14 +691,34 @@ export default function MediaUploadZone({
               </div>
 
               {/* Duration */}
-              <div className="ml-auto flex shrink-0 items-center gap-1">
+              <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
                 <Label className="text-xs text-muted-foreground">{t("media.durationSeconds")}</Label>
                 <NumberInput
                   min={1}
+                  max={MAX_MEDIA_DURATION_SECONDS}
                   value={item.duration}
                   onValueChange={(value) => handleDurationChange(item.id, value)}
                   className="h-7 w-16 text-xs"
                 />
+                {item.type === "video" && (
+                  <Select
+                    value={item.playbackMode ?? "duration"}
+                    onValueChange={(value) =>
+                      handlePlaybackModeChange(item.id, value as MediaPlaybackMode)}
+                  >
+                    <SelectTrigger className="h-7 w-36 text-xs">
+                      <SelectValue>
+                        {(item.playbackMode ?? "duration") === "until-ended"
+                          ? t("configEditor.videoAdvance.untilEnded")
+                          : t("configEditor.videoAdvance.duration")}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="duration">{t("configEditor.videoAdvance.duration")}</SelectItem>
+                      <SelectItem value="until-ended">{t("configEditor.videoAdvance.untilEnded")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {/* Delete */}

@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocale } from "@/components/i18n/LocaleProvider";
+import { clampMediaDuration, DEFAULT_MEDIA_DURATION_SECONDS } from "@/lib/media-duration";
 import { thumbUrl } from "@/lib/utils";
 import type { MediaItem } from "@/types";
 
@@ -13,12 +14,8 @@ const PRELOAD_AHEAD = 2;
 
 interface MediaSliderProps {
   mediaItems: MediaItem[];
-  /** Interval between slides in seconds (default from board config) */
-  interval?: number;
   /** How media fits the container: "contain" (show all) or "cover" (fill, may crop) */
   objectFit?: "contain" | "cover";
-  /** Whether video slides advance by timer or after the video naturally ends */
-  videoAdvanceMode?: "duration" | "until-ended";
 }
 
 interface DeferredVideoSlideProps {
@@ -115,14 +112,13 @@ function DeferredVideoSlide({ item, fitClass, loop, onEnded }: DeferredVideoSlid
 
 export function MediaSlider({
   mediaItems,
-  interval = 5,
   objectFit = "contain",
-  videoAdvanceMode = "duration",
 }: MediaSliderProps) {
   const { t } = useLocale();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imageLoaded, setImageLoaded] = useState(false);
   const preloadedRef = useRef<Set<string>>(new Set());
+  const videoPreloadRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const currentImageRef = useRef<HTMLImageElement | null>(null);
 
   const advance = useCallback(() => {
@@ -133,17 +129,27 @@ export function MediaSlider({
   const safeCurrentIndex =
     mediaItems.length === 0 ? 0 : Math.min(currentIndex, mediaItems.length - 1);
 
-  // --- Preload upcoming images ---
+  // --- Preload upcoming media ---
   useEffect(() => {
     if (mediaItems.length <= 1) return;
 
     for (let offset = 1; offset <= PRELOAD_AHEAD; offset++) {
       const idx = (safeCurrentIndex + offset) % mediaItems.length;
       const item = mediaItems[idx];
-      if (item?.type === "image" && !preloadedRef.current.has(item.filePath)) {
-        preloadedRef.current.add(item.filePath);
+      if (!item || preloadedRef.current.has(item.filePath)) continue;
+
+      preloadedRef.current.add(item.filePath);
+      if (item.type === "image") {
         const img = new Image();
         img.src = item.filePath;
+      } else if (item.playbackStatus === undefined || item.playbackStatus === "available") {
+        const video = document.createElement("video");
+        video.preload = "auto";
+        video.muted = true;
+        video.playsInline = true;
+        video.src = item.filePath;
+        video.load();
+        videoPreloadRef.current.set(item.filePath, video);
       }
     }
   }, [safeCurrentIndex, mediaItems]);
@@ -173,10 +179,10 @@ export function MediaSlider({
     // Wait until the browser has decoded and painted the current image
     if (!imageLoaded) return;
 
-    const ms = (item.duration || interval) * 1000;
+    const ms = clampMediaDuration(item.duration ?? DEFAULT_MEDIA_DURATION_SECONDS) * 1000;
     const timer = setTimeout(advance, ms);
     return () => clearTimeout(timer);
-  }, [safeCurrentIndex, mediaItems, interval, advance, imageLoaded]);
+  }, [safeCurrentIndex, mediaItems, advance, imageLoaded]);
 
   // --- Video timer mode ---
   useEffect(() => {
@@ -184,17 +190,12 @@ export function MediaSlider({
 
     const item = mediaItems[safeCurrentIndex];
     if (item?.type !== "video") return;
-    if (videoAdvanceMode === "until-ended") return;
+    if (item.playbackMode === "until-ended") return;
 
-    const ms = (item.duration || interval) * 1000;
+    const ms = clampMediaDuration(item.duration ?? DEFAULT_MEDIA_DURATION_SECONDS) * 1000;
     const timer = setTimeout(advance, ms);
     return () => clearTimeout(timer);
-  }, [safeCurrentIndex, mediaItems, interval, advance, videoAdvanceMode]);
-
-  // Reset preload cache when the media list changes
-  useEffect(() => {
-    preloadedRef.current.clear();
-  }, [mediaItems]);
+  }, [safeCurrentIndex, mediaItems, advance]);
 
   if (mediaItems.length === 0) {
     return (
@@ -226,7 +227,7 @@ export function MediaSlider({
               <DeferredVideoSlide
                 item={current}
                 fitClass={fitClass}
-                loop={mediaItems.length <= 1 || videoAdvanceMode === "duration"}
+                loop={mediaItems.length <= 1 || current.playbackMode !== "until-ended"}
                 onEnded={advance}
               />
             )

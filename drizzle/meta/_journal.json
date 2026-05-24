@@ -183,6 +183,13 @@
       "when": 1778742000000,
       "tag": "0025_audit_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1778828400000,
+      "tag": "0026_media_playback_mode",
+      "breakpoints": true
     }
   ]
 }
