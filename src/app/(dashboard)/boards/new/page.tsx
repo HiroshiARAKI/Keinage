@@ -160,24 +160,25 @@ export default function NewBoardPage() {
                       }}
                       className={`relative overflow-hidden rounded-lg border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-100 ${
                         requiredPlanName
-                          ? "border-border bg-muted/50 text-muted-foreground"
+                          ? "border-border bg-muted/30 text-muted-foreground"
                           : selectedTemplateId === template.id
                             ? "border-primary bg-primary/5 ring-1 ring-primary"
                             : "border-border hover:bg-accent"
                       }`}
                     >
-                      <div className={requiredPlanName ? "opacity-45" : undefined}>
+                      <div className={requiredPlanName ? "pr-20 opacity-75" : undefined}>
                         <div className="font-medium">{templateCopy.name}</div>
                         <div className="mt-1 text-xs text-muted-foreground">
                           {templateCopy.description}
                         </div>
                       </div>
                       {requiredPlanName && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-background/80 px-3 text-center backdrop-blur-[1px]">
-                          <span className="rounded-full border border-primary/30 bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-sm">
+                        <>
+                          <div className="pointer-events-none absolute inset-0 bg-background/20" />
+                          <span className="absolute right-3 top-3 rounded-full border border-primary/25 bg-primary/90 px-2.5 py-1 text-xs font-medium text-primary-foreground shadow-sm">
                             {t("boards.templateRequiresPlan", { plan: requiredPlanName })}
                           </span>
-                        </div>
+                        </>
                       )}
                     </button>
                   );
