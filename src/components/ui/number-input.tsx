@@ -17,6 +17,13 @@ function clampNumericValue(value: number, min?: number, max?: number) {
   return next;
 }
 
+function normalizeNumericText(value: string) {
+  return value
+    .trim()
+    .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+    .replace(/[．。]/g, ".");
+}
+
 export function NumberInput({
   value,
   onValueChange,
@@ -46,8 +53,9 @@ export function NumberInput({
   const numericPattern = shouldAllowDecimal ? /^\d*(?:\.\d*)?$/ : /^\d*$/;
 
   function commit(rawValue: string) {
-    const parsed = Number(rawValue);
-    if (!rawValue || !Number.isFinite(parsed)) {
+    const normalizedValue = normalizeNumericText(rawValue);
+    const parsed = Number(normalizedValue);
+    if (!normalizedValue || !Number.isFinite(parsed)) {
       setDraftValue(formatNumericValue(value, shouldAllowDecimal));
       return;
     }
@@ -92,14 +100,15 @@ export function NumberInput({
       }}
       onChange={(event) => {
         const rawValue = event.target.value.trim();
-        if (!numericPattern.test(rawValue)) return;
+        const normalizedValue = normalizeNumericText(rawValue);
+        if (!numericPattern.test(normalizedValue)) return;
 
-        if (rawValue === "" || rawValue === ".") {
+        if (normalizedValue === "" || normalizedValue === ".") {
           setDraftValue(rawValue);
           return;
         }
 
-        const parsed = Number(rawValue);
+        const parsed = Number(normalizedValue);
         if (!Number.isFinite(parsed)) return;
 
         if (max !== undefined && parsed > max) {
