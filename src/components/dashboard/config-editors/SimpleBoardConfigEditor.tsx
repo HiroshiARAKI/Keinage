@@ -14,11 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ClockWeatherPlacementPicker } from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
 import {
-  ClockWeatherPlacementPicker,
-  isClockWeatherPlacement,
-  legacyPlacementFromLayout,
-} from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
+  normalizeClockWeatherState,
+  type ClockWeatherState,
+} from "@/components/board/ClockWeatherGroup";
 import { GOOGLE_FONTS, buildGoogleFontsUrl } from "@/lib/fonts";
 import { useEffect } from "react";
 
@@ -76,13 +76,24 @@ export function SimpleBoardConfigEditor({
   const clockFontSize = (config.clockFontSize as number) ?? 36;
   const clockDateFontSize = (config.clockDateFontSize as number) ?? 14;
   const weatherFontSize = (config.weatherFontSize as number) ?? 18;
-  const clockWeatherPlacement = isClockWeatherPlacement(config.clockWeatherPlacement)
-    ? config.clockWeatherPlacement
-    : legacyPlacementFromLayout(config.clockWeatherLayout);
+  const clockWeatherState = normalizeClockWeatherState({
+    anchor: config.clockWeatherAnchor,
+    arrangement: config.clockWeatherArrangement,
+    placement: config.clockWeatherPlacement,
+    layout: config.clockWeatherLayout,
+  });
   const objectFit = (config.objectFit as string) ?? "contain";
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
+  }
+
+  function updateClockWeatherState(value: ClockWeatherState) {
+    onChange({
+      ...config,
+      clockWeatherAnchor: value.anchor,
+      clockWeatherArrangement: value.arrangement,
+    });
   }
 
   function applyPreset(preset: (typeof TICKER_PRESETS)[number]) {
@@ -203,14 +214,14 @@ export function SimpleBoardConfigEditor({
                   </div>
                 </div>
               )}
-              {showClock && showWeather && (
+              {(showClock || showWeather) && (
                 <div className="space-y-1.5 md:col-span-2">
                   <Label>
                     {t("configEditor.clockWeatherLayout")}
                   </Label>
                   <ClockWeatherPlacementPicker
-                    value={clockWeatherPlacement}
-                    onChange={(value) => update("clockWeatherPlacement", value)}
+                    value={clockWeatherState}
+                    onChange={updateClockWeatherState}
                   />
                 </div>
               )}

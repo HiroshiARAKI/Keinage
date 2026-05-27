@@ -14,11 +14,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { ClockWeatherPlacementPicker } from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
 import {
-  ClockWeatherPlacementPicker,
-  isClockWeatherPlacement,
-  legacyPlacementFromLayout,
-} from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
+  normalizeClockWeatherState,
+  type ClockWeatherState,
+} from "@/components/board/ClockWeatherGroup";
 import { GOOGLE_FONTS, buildGoogleFontsUrl } from "@/lib/fonts";
 import { useEffect } from "react";
 
@@ -58,9 +58,12 @@ export function PhotoClockConfigEditor({
   const clockColor = (config.clockColor as string) ?? "#ffffff";
   const clockBgOpacity = (config.clockBgOpacity as number) ?? 0.5;
   const clockLayout = (config.clockLayout as string) ?? "standard";
-  const clockWeatherPlacement = isClockWeatherPlacement(config.clockWeatherPlacement)
-    ? config.clockWeatherPlacement
-    : legacyPlacementFromLayout(config.clockWeatherLayout);
+  const clockWeatherState = normalizeClockWeatherState({
+    anchor: config.clockWeatherAnchor,
+    arrangement: config.clockWeatherArrangement,
+    placement: config.clockWeatherPlacement,
+    layout: config.clockWeatherLayout,
+  });
   const is24Hour = (config.is24Hour as boolean) ?? true;
   const showWeather = (config.showWeather as boolean) ?? false;
   const weatherFontSize = (config.weatherFontSize as number) ?? 18;
@@ -84,6 +87,14 @@ export function PhotoClockConfigEditor({
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
+  }
+
+  function updateClockWeatherState(value: ClockWeatherState) {
+    onChange({
+      ...config,
+      clockWeatherAnchor: value.anchor,
+      clockWeatherArrangement: value.arrangement,
+    });
   }
 
   return (
@@ -274,8 +285,8 @@ export function PhotoClockConfigEditor({
               {t("configEditor.clockWeatherLayout")}
             </Label>
             <ClockWeatherPlacementPicker
-              value={clockWeatherPlacement}
-              onChange={(value) => update("clockWeatherPlacement", value)}
+              value={clockWeatherState}
+              onChange={updateClockWeatherState}
             />
           </div>
           <div className="space-y-1.5">

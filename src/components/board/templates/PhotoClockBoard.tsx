@@ -5,8 +5,9 @@
 import { MediaSlider } from "@/components/board/MediaSlider";
 import {
   ClockWeatherGroup,
-  clockWeatherPlacementFromLegacyLayout,
-  type ClockWeatherPlacement,
+  normalizeClockWeatherState,
+  type ClockWeatherAnchor,
+  type ClockWeatherArrangement,
 } from "@/components/board/ClockWeatherGroup";
 import { DateTimeClock, type ClockLayout } from "@/components/board/DateTimeClock";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
@@ -33,7 +34,8 @@ export const photoClockDefaultConfig = {
   clockColor: "#ffffff",
   clockBgOpacity: 0.5,
   clockLayout: "standard" as ClockLayout,
-  clockWeatherPlacement: "clock-top-right-weather-bottom-right" as ClockWeatherPlacement,
+  clockWeatherAnchor: "right-split" as ClockWeatherAnchor,
+  clockWeatherArrangement: "vertical-clock-top" as ClockWeatherArrangement,
   is24Hour: true,
   showWeather: false,
   weatherFontSize: 18,
@@ -60,11 +62,14 @@ function parseConfig(raw: unknown): PhotoClockConfig {
     merged.clockFontSize =
       sizeMap[merged.clockFontSize as string] ?? 48;
   }
-  if (!("clockWeatherPlacement" in cfg)) {
-    merged.clockWeatherPlacement = clockWeatherPlacementFromLegacyLayout(
-      (cfg as { clockWeatherLayout?: unknown }).clockWeatherLayout,
-    );
-  }
+  const clockWeatherState = normalizeClockWeatherState({
+    anchor: cfg.clockWeatherAnchor,
+    arrangement: cfg.clockWeatherArrangement,
+    placement: (cfg as { clockWeatherPlacement?: unknown }).clockWeatherPlacement,
+    layout: (cfg as { clockWeatherLayout?: unknown }).clockWeatherLayout,
+  });
+  merged.clockWeatherAnchor = clockWeatherState.anchor;
+  merged.clockWeatherArrangement = clockWeatherState.arrangement;
   return merged;
 }
 
@@ -120,7 +125,8 @@ export default function PhotoClockBoard({
           boardId={board.id}
           showClock
           showWeather={config.showWeather}
-          placement={config.clockWeatherPlacement}
+          anchor={config.clockWeatherAnchor}
+          arrangement={config.clockWeatherArrangement}
           clock={{
             is24Hour: config.is24Hour,
             timeFontSize: config.clockFontSize,

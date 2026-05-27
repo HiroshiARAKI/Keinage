@@ -7,8 +7,9 @@ import { TickerText } from "@/components/board/TickerText";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
 import {
   ClockWeatherGroup,
-  clockWeatherPlacementFromLegacyLayout,
-  type ClockWeatherPlacement,
+  normalizeClockWeatherState,
+  type ClockWeatherAnchor,
+  type ClockWeatherArrangement,
 } from "@/components/board/ClockWeatherGroup";
 import { ScheduledMediaFallback } from "@/components/board/ScheduledMediaFallback";
 import { useScheduleNow } from "@/hooks/useScheduleNow";
@@ -33,7 +34,8 @@ export const simpleBoardDefaultConfig = {
   clockFontSize: 36,
   clockDateFontSize: 14,
   weatherFontSize: 18,
-  clockWeatherPlacement: "clock-top-right-weather-bottom-right" as ClockWeatherPlacement,
+  clockWeatherAnchor: "right-split" as ClockWeatherAnchor,
+  clockWeatherArrangement: "vertical-clock-top" as ClockWeatherArrangement,
   objectFit: "contain" as "contain" | "cover",
   fallbackMediaId: "",
   mediaSchedules: {},
@@ -45,11 +47,14 @@ type SimpleBoardConfig = typeof simpleBoardDefaultConfig;
 function parseConfig(raw: unknown): SimpleBoardConfig {
   const cfg = (raw && typeof raw === "object" ? raw : {}) as Partial<SimpleBoardConfig>;
   const merged = { ...simpleBoardDefaultConfig, ...cfg };
-  if (!("clockWeatherPlacement" in cfg)) {
-    merged.clockWeatherPlacement = clockWeatherPlacementFromLegacyLayout(
-      (cfg as { clockWeatherLayout?: unknown }).clockWeatherLayout,
-    );
-  }
+  const clockWeatherState = normalizeClockWeatherState({
+    anchor: cfg.clockWeatherAnchor,
+    arrangement: cfg.clockWeatherArrangement,
+    placement: (cfg as { clockWeatherPlacement?: unknown }).clockWeatherPlacement,
+    layout: (cfg as { clockWeatherLayout?: unknown }).clockWeatherLayout,
+  });
+  merged.clockWeatherAnchor = clockWeatherState.anchor;
+  merged.clockWeatherArrangement = clockWeatherState.arrangement;
   return merged;
 }
 
@@ -136,7 +141,8 @@ export default function SimpleBoard({
             boardId={board.id}
             showClock={config.showClock}
             showWeather={config.showWeather}
-            placement={config.clockWeatherPlacement}
+            anchor={config.clockWeatherAnchor}
+            arrangement={config.clockWeatherArrangement}
             clock={{
               timeFontSize: config.clockFontSize,
               dateFontSize: config.clockDateFontSize,
