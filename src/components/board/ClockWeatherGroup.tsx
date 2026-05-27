@@ -248,7 +248,20 @@ export function clockWeatherPlacementFromLegacyLayout(value: unknown): ClockWeat
   return "clock-top-right-weather-bottom-right";
 }
 
-function clockCornerForState(state: ClockWeatherState): Corner {
+function isClusterAnchor(anchor: ClockWeatherAnchor) {
+  return (
+    anchor === "bottom-right"
+    || anchor === "top-right"
+    || anchor === "top-left"
+    || anchor === "bottom-left"
+  );
+}
+
+function isVerticalArrangement(arrangement: ClockWeatherArrangement) {
+  return arrangement === "vertical-clock-top" || arrangement === "vertical-weather-top";
+}
+
+export function clockCornerForClockWeatherState(state: ClockWeatherState): Corner {
   switch (state.anchor) {
     case "top-left":
       return "top-left";
@@ -375,6 +388,11 @@ export function ClockWeatherGroup({
   if (!showClock && !showWeather) return null;
 
   const state = normalizeClockWeatherState({ anchor, arrangement, placement, layout });
+  const shouldStretchVerticalCluster =
+    isClusterAnchor(state.anchor) && isVerticalArrangement(state.arrangement);
+  const itemClassName = shouldStretchVerticalCluster
+    ? "self-stretch justify-center w-full"
+    : "self-stretch justify-center";
   const clockElement = showClock && (
     <DateTimeClock
       is24Hour={clock?.is24Hour}
@@ -384,7 +402,7 @@ export function ClockWeatherGroup({
       bgOpacity={clock?.bgOpacity}
       layout={clock?.layout}
       fontFamily={clock?.fontFamily}
-      className="self-stretch justify-center"
+      className={itemClassName}
     />
   );
   const weatherElement = showWeather && (
@@ -394,13 +412,13 @@ export function ClockWeatherGroup({
       bgOpacity={weather?.bgOpacity}
       fontSize={weather?.fontSize}
       fontFamily={weather?.fontFamily}
-      className="self-stretch justify-center"
+      className={itemClassName}
     />
   );
 
   if (!showClock || !showWeather) {
     const visibleElement = clockElement || weatherElement;
-    const corner = showClock ? clockCornerForState(state) : weatherCornerForState(state);
+    const corner = showClock ? clockCornerForClockWeatherState(state) : weatherCornerForState(state);
 
     return (
       <div className="pointer-events-none absolute inset-0 z-10">
@@ -415,7 +433,10 @@ export function ClockWeatherGroup({
     <div className="pointer-events-none absolute inset-0 z-10">
       <div className={`pointer-events-auto absolute flex items-stretch gap-2 ${pairClassName(state)}`}>
         {orderedChildren(state, clockElement, weatherElement).map((child, index) => child && (
-          <div key={index} className="flex self-stretch">
+          <div
+            key={index}
+            className={shouldStretchVerticalCluster ? "flex w-full self-stretch" : "flex self-stretch"}
+          >
             {child}
           </div>
         ))}

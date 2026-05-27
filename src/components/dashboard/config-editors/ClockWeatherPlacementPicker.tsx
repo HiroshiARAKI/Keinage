@@ -6,6 +6,7 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { cn } from "@/lib/utils";
 import {
   arrangementsForAnchor,
+  clockCornerForClockWeatherState,
   defaultArrangementForAnchor,
   isArrangementAllowedForAnchor,
   type ClockWeatherAnchor,
@@ -36,6 +37,13 @@ const ANCHOR_OPTIONS: AnchorOption[] = [
   { value: "left-split", labelKey: "configEditor.clockWeatherAnchorLeftSplit" },
   { value: "top-split", labelKey: "configEditor.clockWeatherAnchorTopSplit" },
   { value: "bottom-split", labelKey: "configEditor.clockWeatherAnchorBottomSplit" },
+];
+
+const CLOCK_CORNER_OPTIONS: Array<{ value: Corner; labelKey: MessageKey }> = [
+  { value: "top-right", labelKey: "configEditor.positionTopRight" },
+  { value: "top-left", labelKey: "configEditor.positionTopLeft" },
+  { value: "bottom-right", labelKey: "configEditor.positionBottomRight" },
+  { value: "bottom-left", labelKey: "configEditor.positionBottomLeft" },
 ];
 
 const ARRANGEMENT_OPTIONS: ArrangementOption[] = [
@@ -189,6 +197,14 @@ function PlacementIcon({ state }: { state: ClockWeatherState }) {
   );
 }
 
+function ClockOnlyIcon({ corner }: { corner: Corner }) {
+  return (
+    <div className="relative aspect-[16/9] w-full rounded border border-slate-300 bg-white">
+      <ClockGlyph corner={corner} />
+    </div>
+  );
+}
+
 function PickerButton({
   selected,
   label,
@@ -219,6 +235,39 @@ function PickerButton({
         {label}
       </div>
     </button>
+  );
+}
+
+export function ClockCornerPlacementPicker({
+  value,
+  onChange,
+}: {
+  value: ClockWeatherState;
+  onChange: (value: ClockWeatherState) => void;
+}) {
+  const { t } = useLocale();
+  const selectedCorner = clockCornerForClockWeatherState(value);
+
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {CLOCK_CORNER_OPTIONS.map((option) => {
+        const label = t(option.labelKey);
+
+        return (
+          <PickerButton
+            key={option.value}
+            selected={option.value === selectedCorner}
+            label={label}
+            onClick={() => onChange({
+              anchor: option.value,
+              arrangement: "vertical-clock-top",
+            })}
+          >
+            <ClockOnlyIcon corner={option.value} />
+          </PickerButton>
+        );
+      })}
+    </div>
   );
 }
 

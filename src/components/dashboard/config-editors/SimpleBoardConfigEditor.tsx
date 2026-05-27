@@ -14,7 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ClockWeatherPlacementPicker } from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
+import {
+  ClockCornerPlacementPicker,
+  ClockWeatherPlacementPicker,
+} from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
 import {
   normalizeClockWeatherState,
   type ClockWeatherState,
@@ -214,7 +217,18 @@ export function SimpleBoardConfigEditor({
                   </div>
                 </div>
               )}
-              {(showClock || showWeather) && (
+              {showClock && !showWeather && (
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>
+                    {t("configEditor.clockPosition")}
+                  </Label>
+                  <ClockCornerPlacementPicker
+                    value={clockWeatherState}
+                    onChange={updateClockWeatherState}
+                  />
+                </div>
+              )}
+              {showWeather && (
                 <div className="space-y-1.5 md:col-span-2">
                   <Label>
                     {t("configEditor.clockWeatherLayout")}
