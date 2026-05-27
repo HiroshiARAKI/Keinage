@@ -14,7 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ClockWeatherPlacementPicker } from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
+import {
+  ClockCornerPlacementPicker,
+  ClockWeatherPlacementPicker,
+} from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
 import {
   normalizeClockWeatherState,
   type ClockWeatherState,
@@ -45,6 +48,25 @@ interface PhotoClockConfigEditorProps {
   onChange: (config: Record<string, unknown>) => void;
 }
 
+function clockOnlyStateFromPosition(position: string): ClockWeatherState {
+  if (
+    position === "top-left"
+    || position === "top-right"
+    || position === "bottom-left"
+    || position === "bottom-right"
+  ) {
+    return {
+      anchor: position,
+      arrangement: "vertical-clock-top",
+    };
+  }
+
+  return {
+    anchor: "bottom-right",
+    arrangement: "vertical-clock-top",
+  };
+}
+
 export function PhotoClockConfigEditor({
   config,
   onChange,
@@ -69,14 +91,7 @@ export function PhotoClockConfigEditor({
   const weatherFontSize = (config.weatherFontSize as number) ?? 18;
   const objectFit = (config.objectFit as string) ?? "contain";
   const fontFamily = (config.fontFamily as string) ?? "";
-
-  const positionLabels: Record<string, string> = {
-    "top-left": t("configEditor.positionTopLeft"),
-    "top-right": t("configEditor.positionTopRight"),
-    center: t("configEditor.positionCenter"),
-    "bottom-left": t("configEditor.positionBottomLeft"),
-    "bottom-right": t("configEditor.positionBottomRight"),
-  };
+  const clockOnlyState = clockOnlyStateFromPosition(clockPosition);
 
   const layoutLabels: Record<string, string> = {
     standard: t("configEditor.layoutStandard"),
@@ -97,6 +112,17 @@ export function PhotoClockConfigEditor({
     });
   }
 
+  function updateClockOnlyPosition(value: ClockWeatherState) {
+    const nextPosition =
+      value.anchor === "top-left"
+      || value.anchor === "top-right"
+      || value.anchor === "bottom-left"
+      || value.anchor === "bottom-right"
+        ? value.anchor
+        : "bottom-right";
+    update("clockPosition", nextPosition);
+  }
+
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
@@ -114,19 +140,11 @@ export function PhotoClockConfigEditor({
 
       {!showWeather && (
         <div className="space-y-1.5">
-          <Label htmlFor="cfg-clockPos">{t("configEditor.clockPosition")}</Label>
-          <Select value={clockPosition} onValueChange={(v) => update("clockPosition", v)}>
-            <SelectTrigger id="cfg-clockPos" className="w-full sm:max-w-48">
-              <SelectValue placeholder={t("configEditor.selectPosition")}>{positionLabels[clockPosition] ?? clockPosition}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="top-left">{t("configEditor.positionTopLeft")}</SelectItem>
-              <SelectItem value="top-right">{t("configEditor.positionTopRight")}</SelectItem>
-              <SelectItem value="center">{t("configEditor.positionCenter")}</SelectItem>
-              <SelectItem value="bottom-left">{t("configEditor.positionBottomLeft")}</SelectItem>
-              <SelectItem value="bottom-right">{t("configEditor.positionBottomRight")}</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label>{t("configEditor.clockPosition")}</Label>
+          <ClockCornerPlacementPicker
+            value={clockOnlyState}
+            onChange={updateClockOnlyPosition}
+          />
         </div>
       )}
 
