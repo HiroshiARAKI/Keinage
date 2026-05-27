@@ -12,6 +12,8 @@ interface DateTimeClockProps {
   is24Hour?: boolean;
   /** Font size in px for the time display */
   timeFontSize?: number;
+  /** Font size in px for the date display. Defaults to a ratio of timeFontSize. */
+  dateFontSize?: number;
   /** Text color */
   color?: string;
   /** Background opacity 0-1 */
@@ -32,6 +34,7 @@ function delayToNextSecond() {
 export function DateTimeClock({
   is24Hour = true,
   timeFontSize = 48,
+  dateFontSize,
   color = "#ffffff",
   bgOpacity = 0.5,
   layout = "standard",
@@ -86,7 +89,7 @@ export function DateTimeClock({
     weekday: "short",
   });
 
-  const dateFontSize = Math.max(14, Math.round(timeFontSize * 0.35));
+  const resolvedDateFontSize = dateFontSize ?? Math.max(14, Math.round(timeFontSize * 0.35));
 
   const fontStyle = fontFamily || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
   const hasBackground = bgOpacity > 0;
@@ -109,7 +112,7 @@ export function DateTimeClock({
         </span>
         <span
           className="font-medium opacity-90"
-          style={{ fontSize: dateFontSize }}
+          style={{ fontSize: resolvedDateFontSize }}
         >
           {dateStr}
         </span>
@@ -141,7 +144,7 @@ export function DateTimeClock({
         </span>
         <span
           className="mt-1 font-medium opacity-80"
-          style={{ fontSize: dateFontSize }}
+          style={{ fontSize: resolvedDateFontSize }}
         >
           {dateStr}
         </span>
@@ -161,7 +164,7 @@ export function DateTimeClock({
       >
         <span
           className="font-medium opacity-90"
-          style={{ fontSize: dateFontSize }}
+          style={{ fontSize: resolvedDateFontSize }}
         >
           {dateStr}
         </span>
@@ -193,7 +196,7 @@ export function DateTimeClock({
       </span>
       <span
         className="mt-1 font-medium opacity-90"
-        style={{ fontSize: dateFontSize }}
+        style={{ fontSize: resolvedDateFontSize }}
       >
         {dateStr}
       </span>

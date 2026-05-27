@@ -49,11 +49,14 @@ export function PhotoClockConfigEditor({
 
   const clockPosition = (config.clockPosition as string) ?? "bottom-right";
   const clockFontSize = (config.clockFontSize as number) ?? 48;
+  const clockDateFontSize = (config.clockDateFontSize as number) ?? 18;
   const clockColor = (config.clockColor as string) ?? "#ffffff";
   const clockBgOpacity = (config.clockBgOpacity as number) ?? 0.5;
   const clockLayout = (config.clockLayout as string) ?? "standard";
+  const clockWeatherLayout = (config.clockWeatherLayout as string) ?? "clock-top";
   const is24Hour = (config.is24Hour as boolean) ?? true;
   const showWeather = (config.showWeather as boolean) ?? false;
+  const weatherFontSize = (config.weatherFontSize as number) ?? 18;
   const objectFit = (config.objectFit as string) ?? "contain";
   const fontFamily = (config.fontFamily as string) ?? "";
 
@@ -70,6 +73,13 @@ export function PhotoClockConfigEditor({
     compact: t("configEditor.layoutCompact"),
     "large-time": t("configEditor.layoutLargeTime"),
     "date-top": t("configEditor.layoutDateTop"),
+  };
+
+  const clockWeatherLayoutLabels: Record<string, string> = {
+    "clock-top": t("configEditor.clockWeatherLayoutClockTop"),
+    "weather-top": t("configEditor.clockWeatherLayoutWeatherTop"),
+    "clock-left": t("configEditor.clockWeatherLayoutClockLeft"),
+    "weather-left": t("configEditor.clockWeatherLayoutWeatherLeft"),
   };
 
   function update(key: string, value: unknown) {
@@ -152,6 +162,37 @@ export function PhotoClockConfigEditor({
       </div>
 
       <div className="space-y-1.5">
+        <Label htmlFor="cfg-clockDateSize">
+          {t("configEditor.clockDateFontSize", { size: clockDateFontSize })}
+        </Label>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            id="cfg-clockDateSize"
+            type="range"
+            min={10}
+            max={80}
+            step={1}
+            value={clockDateFontSize}
+            onChange={(e) => update("clockDateFontSize", parseInt(e.target.value, 10))}
+            className="w-full sm:max-w-64"
+          />
+          <NumberInput
+            aria-label={t("configEditor.clockDateFontSize", { size: clockDateFontSize })}
+            min={10}
+            max={80}
+            step={1}
+            value={clockDateFontSize}
+            onValueChange={(value) => update("clockDateFontSize", value)}
+            className="w-full sm:w-24"
+          />
+        </div>
+        <div className="flex w-full justify-between text-xs text-muted-foreground sm:max-w-64">
+          <span>10px</span>
+          <span>80px</span>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
         <Label htmlFor="cfg-clockColor">{t("configEditor.clockTextColor")}</Label>
         <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
           <input
@@ -222,9 +263,70 @@ export function PhotoClockConfigEditor({
         </Label>
       </div>
       {showWeather && (
-        <p className="break-words text-xs text-muted-foreground">
-          {t("configEditor.weatherHint")}
-        </p>
+        <div className="space-y-3">
+          <p className="break-words text-xs text-muted-foreground">
+            {t("configEditor.weatherHint")}
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="cfg-clockWeatherLayout">
+              {t("configEditor.clockWeatherLayout")}
+            </Label>
+            <Select
+              value={clockWeatherLayout}
+              onValueChange={(v) => update("clockWeatherLayout", v)}
+            >
+              <SelectTrigger id="cfg-clockWeatherLayout" className="w-full sm:max-w-72">
+                <SelectValue>
+                  {clockWeatherLayoutLabels[clockWeatherLayout] ?? clockWeatherLayout}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="clock-top">
+                  {t("configEditor.clockWeatherLayoutClockTop")}
+                </SelectItem>
+                <SelectItem value="weather-top">
+                  {t("configEditor.clockWeatherLayoutWeatherTop")}
+                </SelectItem>
+                <SelectItem value="clock-left">
+                  {t("configEditor.clockWeatherLayoutClockLeft")}
+                </SelectItem>
+                <SelectItem value="weather-left">
+                  {t("configEditor.clockWeatherLayoutWeatherLeft")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cfg-weatherSize">
+              {t("configEditor.weatherFontSize", { size: weatherFontSize })}
+            </Label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                id="cfg-weatherSize"
+                type="range"
+                min={12}
+                max={56}
+                step={1}
+                value={weatherFontSize}
+                onChange={(e) => update("weatherFontSize", parseInt(e.target.value, 10))}
+                className="w-full sm:max-w-64"
+              />
+              <NumberInput
+                aria-label={t("configEditor.weatherFontSize", { size: weatherFontSize })}
+                min={12}
+                max={56}
+                step={1}
+                value={weatherFontSize}
+                onValueChange={(value) => update("weatherFontSize", value)}
+                className="w-full sm:w-24"
+              />
+            </div>
+            <div className="flex w-full justify-between text-xs text-muted-foreground sm:max-w-64">
+              <span>12px</span>
+              <span>56px</span>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="space-y-1.5">

@@ -3,8 +3,10 @@
 "use client";
 
 import { MediaSlider } from "@/components/board/MediaSlider";
-import { DateTimeClock } from "@/components/board/DateTimeClock";
-import { WeatherDisplay } from "@/components/board/WeatherDisplay";
+import {
+  ClockWeatherGroup,
+  type ClockWeatherLayout,
+} from "@/components/board/ClockWeatherGroup";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
 import { ScheduledMediaFallback } from "@/components/board/ScheduledMediaFallback";
 import { useScheduleNow } from "@/hooks/useScheduleNow";
@@ -26,11 +28,14 @@ type ClockPosition =
 export const photoClockDefaultConfig = {
   clockPosition: "bottom-right" as ClockPosition,
   clockFontSize: 48,
+  clockDateFontSize: 18,
   clockColor: "#ffffff",
   clockBgOpacity: 0.5,
   clockLayout: "standard" as ClockLayout,
+  clockWeatherLayout: "clock-top" as ClockWeatherLayout,
   is24Hour: true,
   showWeather: false,
+  weatherFontSize: 18,
   objectFit: "contain" as "contain" | "cover",
   fontFamily: "",
   fallbackMediaId: "",
@@ -107,22 +112,27 @@ export default function PhotoClockBoard({
       <div
         className={`absolute z-10 flex flex-col gap-2 ${positionClasses[config.clockPosition] ?? positionClasses["bottom-right"]}`}
       >
-        <DateTimeClock
-          is24Hour={config.is24Hour}
-          timeFontSize={config.clockFontSize}
-          color={config.clockColor}
-          bgOpacity={config.clockBgOpacity}
-          layout={config.clockLayout}
-          fontFamily={config.fontFamily || undefined}
+        <ClockWeatherGroup
+          boardId={board.id}
+          showClock
+          showWeather={config.showWeather}
+          layout={config.clockWeatherLayout}
+          clock={{
+            is24Hour: config.is24Hour,
+            timeFontSize: config.clockFontSize,
+            dateFontSize: config.clockDateFontSize,
+            color: config.clockColor,
+            bgOpacity: config.clockBgOpacity,
+            layout: config.clockLayout,
+            fontFamily: config.fontFamily || undefined,
+          }}
+          weather={{
+            color: config.clockColor,
+            bgOpacity: config.clockBgOpacity,
+            fontSize: config.weatherFontSize,
+            fontFamily: config.fontFamily || undefined,
+          }}
         />
-        {config.showWeather && (
-          <WeatherDisplay
-            boardId={board.id}
-            color={config.clockColor}
-            bgOpacity={config.clockBgOpacity}
-            fontFamily={config.fontFamily || undefined}
-          />
-        )}
       </div>
     </div>
   );

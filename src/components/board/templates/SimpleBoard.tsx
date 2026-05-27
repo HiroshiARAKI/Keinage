@@ -5,8 +5,10 @@
 import { MediaSlider } from "@/components/board/MediaSlider";
 import { TickerText } from "@/components/board/TickerText";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
-import { DateTimeClock } from "@/components/board/DateTimeClock";
-import { WeatherDisplay } from "@/components/board/WeatherDisplay";
+import {
+  ClockWeatherGroup,
+  type ClockWeatherLayout,
+} from "@/components/board/ClockWeatherGroup";
 import { ScheduledMediaFallback } from "@/components/board/ScheduledMediaFallback";
 import { useScheduleNow } from "@/hooks/useScheduleNow";
 import {
@@ -27,6 +29,10 @@ export const simpleBoardDefaultConfig = {
   tickerPosition: "bottom" as "top" | "bottom",
   showClock: false,
   showWeather: false,
+  clockFontSize: 36,
+  clockDateFontSize: 14,
+  weatherFontSize: 18,
+  clockWeatherLayout: "clock-top" as ClockWeatherLayout,
   objectFit: "contain" as "contain" | "cover",
   fallbackMediaId: "",
   mediaSchedules: {},
@@ -120,23 +126,26 @@ export default function SimpleBoard({
         {/* Clock & Weather overlay */}
         {(config.showClock || config.showWeather) && (
           <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
-            {config.showClock && (
-              <DateTimeClock
-                timeFontSize={36}
-                color="#ffffff"
-                bgOpacity={0.5}
-                layout="compact"
-                fontFamily={config.tickerFontFamily || undefined}
-              />
-            )}
-            {config.showWeather && (
-              <WeatherDisplay
-                boardId={board.id}
-                color="#ffffff"
-                bgOpacity={0.5}
-                fontFamily={config.tickerFontFamily || undefined}
-              />
-            )}
+            <ClockWeatherGroup
+              boardId={board.id}
+              showClock={config.showClock}
+              showWeather={config.showWeather}
+              layout={config.clockWeatherLayout}
+              clock={{
+                timeFontSize: config.clockFontSize,
+                dateFontSize: config.clockDateFontSize,
+                color: "#ffffff",
+                bgOpacity: 0.5,
+                layout: "compact",
+                fontFamily: config.tickerFontFamily || undefined,
+              }}
+              weather={{
+                color: "#ffffff",
+                bgOpacity: 0.5,
+                fontSize: config.weatherFontSize,
+                fontFamily: config.tickerFontFamily || undefined,
+              }}
+            />
           </div>
         )}
       </div>
