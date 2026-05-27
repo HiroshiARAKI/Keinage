@@ -390,7 +390,9 @@ export function ClockWeatherGroup({
   const state = normalizeClockWeatherState({ anchor, arrangement, placement, layout });
   const shouldStretchVerticalCluster =
     isClusterAnchor(state.anchor) && isVerticalArrangement(state.arrangement);
-  const itemClassName = shouldStretchVerticalCluster
+  const shouldLeftAlignRightSplitClock = state.anchor === "right-split";
+  const shouldStretchItem = shouldStretchVerticalCluster || shouldLeftAlignRightSplitClock;
+  const itemClassName = shouldStretchItem
     ? "self-stretch justify-center w-full"
     : "self-stretch justify-center";
   const clockElement = showClock && (
@@ -402,6 +404,7 @@ export function ClockWeatherGroup({
       bgOpacity={clock?.bgOpacity}
       layout={clock?.layout}
       fontFamily={clock?.fontFamily}
+      align={shouldLeftAlignRightSplitClock ? "start" : "center"}
       className={itemClassName}
     />
   );
@@ -435,7 +438,7 @@ export function ClockWeatherGroup({
         {orderedChildren(state, clockElement, weatherElement).map((child, index) => child && (
           <div
             key={index}
-            className={shouldStretchVerticalCluster ? "flex w-full self-stretch" : "flex self-stretch"}
+            className={shouldStretchItem ? "flex w-full self-stretch" : "flex self-stretch"}
           >
             {child}
           </div>

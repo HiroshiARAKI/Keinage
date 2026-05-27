@@ -22,6 +22,8 @@ interface DateTimeClockProps {
   layout?: ClockLayout;
   /** Custom font family */
   fontFamily?: string;
+  /** Horizontal alignment inside the clock box */
+  align?: "start" | "center";
   className?: string;
 }
 
@@ -40,6 +42,7 @@ export function DateTimeClock({
   bgOpacity = 0.5,
   layout = "standard",
   fontFamily,
+  align = "center",
   className,
 }: DateTimeClockProps) {
   const [now, setNow] = useState(() => new Date());
@@ -96,6 +99,7 @@ export function DateTimeClock({
   const fontStyle = fontFamily || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
   const hasBackground = bgOpacity > 0;
   const rootClassName = className ?? "";
+  const stackAlignClassName = align === "start" ? "items-start text-left" : "items-center text-center";
 
   if (layout === "compact") {
     return (
@@ -126,7 +130,7 @@ export function DateTimeClock({
   if (layout === "large-time") {
     return (
       <div
-        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-8 py-4" : ""} ${rootClassName}`}
+        className={`inline-flex flex-col ${stackAlignClassName} ${hasBackground ? "rounded-lg px-8 py-4" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -158,7 +162,7 @@ export function DateTimeClock({
   if (layout === "date-top") {
     return (
       <div
-        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
+        className={`inline-flex flex-col ${stackAlignClassName} ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -184,7 +188,7 @@ export function DateTimeClock({
   // "standard" layout (default)
   return (
     <div
-      className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
+      className={`inline-flex flex-col ${stackAlignClassName} ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
       style={{
         backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
         color,
