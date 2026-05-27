@@ -14,6 +14,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  ClockWeatherPlacementPicker,
+  isClockWeatherPlacement,
+  legacyPlacementFromLayout,
+} from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
 import { GOOGLE_FONTS, buildGoogleFontsUrl } from "@/lib/fonts";
 import { useEffect } from "react";
 
@@ -53,7 +58,9 @@ export function PhotoClockConfigEditor({
   const clockColor = (config.clockColor as string) ?? "#ffffff";
   const clockBgOpacity = (config.clockBgOpacity as number) ?? 0.5;
   const clockLayout = (config.clockLayout as string) ?? "standard";
-  const clockWeatherLayout = (config.clockWeatherLayout as string) ?? "clock-top";
+  const clockWeatherPlacement = isClockWeatherPlacement(config.clockWeatherPlacement)
+    ? config.clockWeatherPlacement
+    : legacyPlacementFromLayout(config.clockWeatherLayout);
   const is24Hour = (config.is24Hour as boolean) ?? true;
   const showWeather = (config.showWeather as boolean) ?? false;
   const weatherFontSize = (config.weatherFontSize as number) ?? 18;
@@ -75,13 +82,6 @@ export function PhotoClockConfigEditor({
     "date-top": t("configEditor.layoutDateTop"),
   };
 
-  const clockWeatherLayoutLabels: Record<string, string> = {
-    "clock-top": t("configEditor.clockWeatherLayoutClockTop"),
-    "weather-top": t("configEditor.clockWeatherLayoutWeatherTop"),
-    "clock-left": t("configEditor.clockWeatherLayoutClockLeft"),
-    "weather-left": t("configEditor.clockWeatherLayoutWeatherLeft"),
-  };
-
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
   }
@@ -101,21 +101,23 @@ export function PhotoClockConfigEditor({
         </Select>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="cfg-clockPos">{t("configEditor.clockPosition")}</Label>
-        <Select value={clockPosition} onValueChange={(v) => update("clockPosition", v)}>
-          <SelectTrigger id="cfg-clockPos" className="w-full sm:max-w-48">
-            <SelectValue placeholder={t("configEditor.selectPosition")}>{positionLabels[clockPosition] ?? clockPosition}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="top-left">{t("configEditor.positionTopLeft")}</SelectItem>
-            <SelectItem value="top-right">{t("configEditor.positionTopRight")}</SelectItem>
-            <SelectItem value="center">{t("configEditor.positionCenter")}</SelectItem>
-            <SelectItem value="bottom-left">{t("configEditor.positionBottomLeft")}</SelectItem>
-            <SelectItem value="bottom-right">{t("configEditor.positionBottomRight")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {!showWeather && (
+        <div className="space-y-1.5">
+          <Label htmlFor="cfg-clockPos">{t("configEditor.clockPosition")}</Label>
+          <Select value={clockPosition} onValueChange={(v) => update("clockPosition", v)}>
+            <SelectTrigger id="cfg-clockPos" className="w-full sm:max-w-48">
+              <SelectValue placeholder={t("configEditor.selectPosition")}>{positionLabels[clockPosition] ?? clockPosition}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="top-left">{t("configEditor.positionTopLeft")}</SelectItem>
+              <SelectItem value="top-right">{t("configEditor.positionTopRight")}</SelectItem>
+              <SelectItem value="center">{t("configEditor.positionCenter")}</SelectItem>
+              <SelectItem value="bottom-left">{t("configEditor.positionBottomLeft")}</SelectItem>
+              <SelectItem value="bottom-right">{t("configEditor.positionBottomRight")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="cfg-clockLayout">{t("configEditor.clockLayout")}</Label>
@@ -268,33 +270,13 @@ export function PhotoClockConfigEditor({
             {t("configEditor.weatherHint")}
           </p>
           <div className="space-y-1.5">
-            <Label htmlFor="cfg-clockWeatherLayout">
+            <Label>
               {t("configEditor.clockWeatherLayout")}
             </Label>
-            <Select
-              value={clockWeatherLayout}
-              onValueChange={(v) => update("clockWeatherLayout", v)}
-            >
-              <SelectTrigger id="cfg-clockWeatherLayout" className="w-full sm:max-w-72">
-                <SelectValue>
-                  {clockWeatherLayoutLabels[clockWeatherLayout] ?? clockWeatherLayout}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="clock-top">
-                  {t("configEditor.clockWeatherLayoutClockTop")}
-                </SelectItem>
-                <SelectItem value="weather-top">
-                  {t("configEditor.clockWeatherLayoutWeatherTop")}
-                </SelectItem>
-                <SelectItem value="clock-left">
-                  {t("configEditor.clockWeatherLayoutClockLeft")}
-                </SelectItem>
-                <SelectItem value="weather-left">
-                  {t("configEditor.clockWeatherLayoutWeatherLeft")}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <ClockWeatherPlacementPicker
+              value={clockWeatherPlacement}
+              onChange={(value) => update("clockWeatherPlacement", value)}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cfg-weatherSize">

@@ -5,8 +5,10 @@
 import { MediaSlider } from "@/components/board/MediaSlider";
 import {
   ClockWeatherGroup,
-  type ClockWeatherLayout,
+  clockWeatherPlacementFromLegacyLayout,
+  type ClockWeatherPlacement,
 } from "@/components/board/ClockWeatherGroup";
+import { DateTimeClock, type ClockLayout } from "@/components/board/DateTimeClock";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
 import { ScheduledMediaFallback } from "@/components/board/ScheduledMediaFallback";
 import { useScheduleNow } from "@/hooks/useScheduleNow";
@@ -14,7 +16,6 @@ import {
   filterActiveMediaItems,
   findFallbackImage,
 } from "@/lib/scheduling";
-import type { ClockLayout } from "@/components/board/DateTimeClock";
 import type { BoardTemplateProps } from "@/types";
 
 type ClockPosition =
@@ -32,7 +33,7 @@ export const photoClockDefaultConfig = {
   clockColor: "#ffffff",
   clockBgOpacity: 0.5,
   clockLayout: "standard" as ClockLayout,
-  clockWeatherLayout: "clock-top" as ClockWeatherLayout,
+  clockWeatherPlacement: "clock-top-right-weather-bottom-right" as ClockWeatherPlacement,
   is24Hour: true,
   showWeather: false,
   weatherFontSize: 18,
@@ -58,6 +59,11 @@ function parseConfig(raw: unknown): PhotoClockConfig {
     };
     merged.clockFontSize =
       sizeMap[merged.clockFontSize as string] ?? 48;
+  }
+  if (!("clockWeatherPlacement" in cfg)) {
+    merged.clockWeatherPlacement = clockWeatherPlacementFromLegacyLayout(
+      (cfg as { clockWeatherLayout?: unknown }).clockWeatherLayout,
+    );
   }
   return merged;
 }
@@ -109,14 +115,12 @@ export default function PhotoClockBoard({
       )}
 
       {/* Clock + Weather overlay */}
-      <div
-        className={`absolute z-10 flex flex-col gap-2 ${positionClasses[config.clockPosition] ?? positionClasses["bottom-right"]}`}
-      >
+      {config.showWeather ? (
         <ClockWeatherGroup
           boardId={board.id}
           showClock
           showWeather={config.showWeather}
-          layout={config.clockWeatherLayout}
+          placement={config.clockWeatherPlacement}
           clock={{
             is24Hour: config.is24Hour,
             timeFontSize: config.clockFontSize,
@@ -133,7 +137,21 @@ export default function PhotoClockBoard({
             fontFamily: config.fontFamily || undefined,
           }}
         />
-      </div>
+      ) : (
+        <div
+          className={`absolute z-10 flex flex-col gap-2 ${positionClasses[config.clockPosition] ?? positionClasses["bottom-right"]}`}
+        >
+          <DateTimeClock
+            is24Hour={config.is24Hour}
+            timeFontSize={config.clockFontSize}
+            dateFontSize={config.clockDateFontSize}
+            color={config.clockColor}
+            bgOpacity={config.clockBgOpacity}
+            layout={config.clockLayout}
+            fontFamily={config.fontFamily || undefined}
+          />
+        </div>
+      )}
     </div>
   );
 }

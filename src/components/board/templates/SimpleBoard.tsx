@@ -7,7 +7,8 @@ import { TickerText } from "@/components/board/TickerText";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
 import {
   ClockWeatherGroup,
-  type ClockWeatherLayout,
+  clockWeatherPlacementFromLegacyLayout,
+  type ClockWeatherPlacement,
 } from "@/components/board/ClockWeatherGroup";
 import { ScheduledMediaFallback } from "@/components/board/ScheduledMediaFallback";
 import { useScheduleNow } from "@/hooks/useScheduleNow";
@@ -32,7 +33,7 @@ export const simpleBoardDefaultConfig = {
   clockFontSize: 36,
   clockDateFontSize: 14,
   weatherFontSize: 18,
-  clockWeatherLayout: "clock-top" as ClockWeatherLayout,
+  clockWeatherPlacement: "clock-top-right-weather-bottom-right" as ClockWeatherPlacement,
   objectFit: "contain" as "contain" | "cover",
   fallbackMediaId: "",
   mediaSchedules: {},
@@ -43,7 +44,13 @@ type SimpleBoardConfig = typeof simpleBoardDefaultConfig;
 
 function parseConfig(raw: unknown): SimpleBoardConfig {
   const cfg = (raw && typeof raw === "object" ? raw : {}) as Partial<SimpleBoardConfig>;
-  return { ...simpleBoardDefaultConfig, ...cfg };
+  const merged = { ...simpleBoardDefaultConfig, ...cfg };
+  if (!("clockWeatherPlacement" in cfg)) {
+    merged.clockWeatherPlacement = clockWeatherPlacementFromLegacyLayout(
+      (cfg as { clockWeatherLayout?: unknown }).clockWeatherLayout,
+    );
+  }
+  return merged;
 }
 
 export default function SimpleBoard({
@@ -125,28 +132,26 @@ export default function SimpleBoard({
 
         {/* Clock & Weather overlay */}
         {(config.showClock || config.showWeather) && (
-          <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
-            <ClockWeatherGroup
-              boardId={board.id}
-              showClock={config.showClock}
-              showWeather={config.showWeather}
-              layout={config.clockWeatherLayout}
-              clock={{
-                timeFontSize: config.clockFontSize,
-                dateFontSize: config.clockDateFontSize,
-                color: "#ffffff",
-                bgOpacity: 0.5,
-                layout: "compact",
-                fontFamily: config.tickerFontFamily || undefined,
-              }}
-              weather={{
-                color: "#ffffff",
-                bgOpacity: 0.5,
-                fontSize: config.weatherFontSize,
-                fontFamily: config.tickerFontFamily || undefined,
-              }}
-            />
-          </div>
+          <ClockWeatherGroup
+            boardId={board.id}
+            showClock={config.showClock}
+            showWeather={config.showWeather}
+            placement={config.clockWeatherPlacement}
+            clock={{
+              timeFontSize: config.clockFontSize,
+              dateFontSize: config.clockDateFontSize,
+              color: "#ffffff",
+              bgOpacity: 0.5,
+              layout: "compact",
+              fontFamily: config.tickerFontFamily || undefined,
+            }}
+            weather={{
+              color: "#ffffff",
+              bgOpacity: 0.5,
+              fontSize: config.weatherFontSize,
+              fontFamily: config.tickerFontFamily || undefined,
+            }}
+          />
         )}
       </div>
 
