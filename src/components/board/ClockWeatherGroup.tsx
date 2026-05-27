@@ -366,12 +366,21 @@ function orderedChildren(
   weatherElement: React.ReactNode,
 ) {
   if (state.arrangement === "vertical-weather-top") {
-    return [weatherElement, clockElement];
+    return [
+      { key: "weather", node: weatherElement },
+      { key: "clock", node: clockElement },
+    ];
   }
   if (state.arrangement === "horizontal-clock-right") {
-    return [weatherElement, clockElement];
+    return [
+      { key: "weather", node: weatherElement },
+      { key: "clock", node: clockElement },
+    ];
   }
-  return [clockElement, weatherElement];
+  return [
+    { key: "clock", node: clockElement },
+    { key: "weather", node: weatherElement },
+  ];
 }
 
 export function ClockWeatherGroup({
@@ -390,9 +399,8 @@ export function ClockWeatherGroup({
   const state = normalizeClockWeatherState({ anchor, arrangement, placement, layout });
   const shouldStretchVerticalCluster =
     isClusterAnchor(state.anchor) && isVerticalArrangement(state.arrangement);
-  const shouldLeftAlignRightSplitClock = state.anchor === "right-split";
-  const shouldStretchItem = shouldStretchVerticalCluster || shouldLeftAlignRightSplitClock;
-  const itemClassName = shouldStretchItem
+  const shouldLeftAlignRightSplitClock = state.anchor === "right-split" && showClock && showWeather;
+  const itemClassName = shouldStretchVerticalCluster
     ? "self-stretch justify-center w-full"
     : "self-stretch justify-center";
   const clockElement = showClock && (
@@ -404,7 +412,6 @@ export function ClockWeatherGroup({
       bgOpacity={clock?.bgOpacity}
       layout={clock?.layout}
       fontFamily={clock?.fontFamily}
-      align={shouldLeftAlignRightSplitClock ? "start" : "center"}
       className={itemClassName}
     />
   );
@@ -435,12 +442,18 @@ export function ClockWeatherGroup({
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
       <div className={`pointer-events-auto absolute flex items-stretch gap-2 ${pairClassName(state)}`}>
-        {orderedChildren(state, clockElement, weatherElement).map((child, index) => child && (
+        {orderedChildren(state, clockElement, weatherElement).map((child) => child.node && (
           <div
-            key={index}
-            className={shouldStretchItem ? "flex w-full self-stretch" : "flex self-stretch"}
+            key={child.key}
+            className={
+              shouldStretchVerticalCluster
+                ? "flex w-full self-stretch"
+                : shouldLeftAlignRightSplitClock && child.key === "clock"
+                  ? "flex w-full justify-start self-stretch"
+                  : "flex self-stretch"
+            }
           >
-            {child}
+            {child.node}
           </div>
         ))}
       </div>
