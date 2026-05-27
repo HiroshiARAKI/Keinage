@@ -24,7 +24,7 @@ export function thumbUrl(filePath: string): string {
   const thumbParts = parts.length <= 2
     ? ["/uploads", "thumbs"]
     : [...parts, "thumbs"];
-  return `${parsed.origin}${thumbParts.join("/")}/${name}${thumbExt}`;
+  return `${parsed.origin}${thumbParts.join("/")}/${name}${thumbExt}${parsed.search}`;
 }
 
 function parseMediaUrl(value: string) {
@@ -33,11 +33,14 @@ function parseMediaUrl(value: string) {
     return {
       origin: url.origin,
       pathname: url.pathname,
+      search: url.search,
     };
   } catch {
+    const [pathname = "", search = ""] = value.split("?", 2);
     return {
       origin: "",
-      pathname: value,
+      pathname,
+      search: search ? `?${search}` : "",
     };
   }
 }

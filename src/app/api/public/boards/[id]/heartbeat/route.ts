@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { isBoardDisplayable } from "@/lib/board-status";
 import {
+  hasRecentBoardDisplayAccess,
   normalizeBoardDeviceKey,
   recordBoardDeviceHeartbeat,
 } from "@/lib/board-device-status";
@@ -37,11 +38,17 @@ export async function POST(
 
   if (board.visibility === "private") {
     const session = await getSessionUser();
-    if (!session) {
-      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
-    }
+    const sessionAllowed = session
+      ? isInOwnerScope(session.user, board.ownerUserId)
+      : false;
+    const displayAccessAllowed = sessionAllowed
+      ? false
+      : await hasRecentBoardDisplayAccess({ board, deviceKey });
 
-    if (!isInOwnerScope(session.user, board.ownerUserId)) {
+    if (!sessionAllowed && !displayAccessAllowed) {
+      if (!session) {
+        return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+      }
       return NextResponse.json({ error: "Board not found" }, { status: 404 });
     }
   }

@@ -7,6 +7,8 @@ import { getEffectivePlanForOwner, type EffectivePlan } from "@/lib/billing";
 
 export const BOARD_DEVICE_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 export const BOARD_DEVICE_ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+export const BOARD_DISPLAY_ACCESS_QUERY_PARAM = "displayDeviceKey";
+export const BOARD_DISPLAY_ACCESS_GRACE_MS = 30 * 60 * 1000;
 
 const DEVICE_KEY_MAX_LENGTH = 128;
 const USER_AGENT_MAX_LENGTH = 500;
@@ -46,15 +48,18 @@ function isOnline(lastSeenAt: string, nowMs: number): boolean {
   return Number.isFinite(time) && nowMs - time <= BOARD_DEVICE_ONLINE_THRESHOLD_MS;
 }
 
+function isRecentDisplayAccess(lastSeenAt: string, nowMs: number): boolean {
+  const time = Date.parse(lastSeenAt);
+  return Number.isFinite(time) && nowMs - time <= BOARD_DISPLAY_ACCESS_GRACE_MS;
+}
+
 export async function recordBoardDeviceHeartbeat(input: {
   board: BoardDeviceBoard;
   deviceKey: string;
   userAgent: string | null;
 }): Promise<{ enabled: boolean }> {
   const effectivePlan = await getEffectivePlanForOwner(input.board.ownerUserId);
-  if (!canUseBoardDeviceStatus(effectivePlan)) {
-    return { enabled: false };
-  }
+  const enabled = canUseBoardDeviceStatus(effectivePlan);
 
   const nowMs = Date.now();
   const now = new Date(nowMs).toISOString();
@@ -91,7 +96,7 @@ export async function recordBoardDeviceHeartbeat(input: {
           updatedAt: now,
         },
       });
-    return { enabled: true };
+    return { enabled };
   }
 
   const shouldUpdate =
@@ -99,7 +104,7 @@ export async function recordBoardDeviceHeartbeat(input: {
     || existing.lastSeenAt < threshold;
 
   if (!shouldUpdate) {
-    return { enabled: true };
+    return { enabled };
   }
 
   await db
@@ -111,7 +116,25 @@ export async function recordBoardDeviceHeartbeat(input: {
     })
     .where(eq(boardDisplayDevices.id, existing.id));
 
-  return { enabled: true };
+  return { enabled };
+}
+
+export async function hasRecentBoardDisplayAccess(input: {
+  board: BoardDeviceBoard;
+  deviceKey: string | null;
+}): Promise<boolean> {
+  if (!input.deviceKey) return false;
+
+  const existing = await db.query.boardDisplayDevices.findFirst({
+    where: and(
+      eq(boardDisplayDevices.ownerUserId, input.board.ownerUserId),
+      eq(boardDisplayDevices.deviceKey, input.deviceKey),
+      eq(boardDisplayDevices.boardId, input.board.id),
+    ),
+  });
+
+  if (!existing) return false;
+  return isRecentDisplayAccess(existing.lastSeenAt, Date.now());
 }
 
 export async function listBoardDeviceStatuses(
