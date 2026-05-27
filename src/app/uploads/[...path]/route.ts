@@ -8,6 +8,11 @@ import { boards, mediaItems } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { isBoardDisplayable } from "@/lib/board-status";
 import {
+  BOARD_DISPLAY_ACCESS_QUERY_PARAM,
+  hasRecentBoardDisplayAccess,
+  normalizeBoardDeviceKey,
+} from "@/lib/board-device-status";
+import {
   createCloudFrontSignedUrl,
   isCloudFrontSignedDeliveryMode,
 } from "@/lib/cloudfront-signed-url";
@@ -25,6 +30,7 @@ import {
 export const dynamic = "force-dynamic";
 
 type MediaDeliveryRef = {
+  boardId: string;
   filePath?: string;
   visibility: string;
   ownerUserId: string;
@@ -127,7 +133,10 @@ function mediaIdRouteFromSegments(pathSegments: string[]):
   return null;
 }
 
-async function canAccessMediaRef(refs: MediaDeliveryRef[]): Promise<{
+async function canAccessMediaRef(
+  request: NextRequest,
+  refs: MediaDeliveryRef[],
+): Promise<{
   allowed: boolean;
   requiresPrivateScope: boolean;
 }> {
@@ -144,16 +153,36 @@ async function canAccessMediaRef(refs: MediaDeliveryRef[]): Promise<{
   }
 
   const session = await getSessionUser();
-  if (!session) {
+  if (session) {
+    const allowed = displayableRefs.some((ref) =>
+      isInOwnerScope(session.user, ref.ownerUserId),
+    );
+    if (allowed) {
+      return { allowed: true, requiresPrivateScope };
+    }
+  }
+
+  const displayDeviceKey = normalizeBoardDeviceKey(
+    request.nextUrl.searchParams.get(BOARD_DISPLAY_ACCESS_QUERY_PARAM),
+  );
+  if (!displayDeviceKey) {
     return { allowed: false, requiresPrivateScope };
   }
 
-  return {
-    allowed: displayableRefs.some((ref) =>
-      isInOwnerScope(session.user, ref.ownerUserId),
-    ),
-    requiresPrivateScope,
-  };
+  let allowedByDisplayAccess = false;
+  for (const ref of displayableRefs) {
+    if (
+      await hasRecentBoardDisplayAccess({
+        board: { id: ref.boardId, ownerUserId: ref.ownerUserId },
+        deviceKey: displayDeviceKey,
+      })
+    ) {
+      allowedByDisplayAccess = true;
+      break;
+    }
+  }
+
+  return { allowed: allowedByDisplayAccess, requiresPrivateScope };
 }
 
 async function serveStoredObject(
@@ -222,6 +251,7 @@ async function handleMediaIdDelivery(
 ): Promise<NextResponse> {
   const refs = await db
     .select({
+      boardId: boards.id,
       filePath: mediaItems.filePath,
       visibility: boards.visibility,
       ownerUserId: boards.ownerUserId,
@@ -236,7 +266,7 @@ async function handleMediaIdDelivery(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const access = await canAccessMediaRef(refs);
+  const access = await canAccessMediaRef(request, refs);
   if (!access.allowed) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -293,6 +323,7 @@ export async function GET(
   const candidateMediaPaths = buildCandidateMediaPaths(filename);
   const mediaRefs = await db
     .select({
+      boardId: boards.id,
       visibility: boards.visibility,
       ownerUserId: boards.ownerUserId,
       isActive: boards.isActive,
@@ -306,7 +337,7 @@ export async function GET(
         : or(...candidateMediaPaths.map((filePath) => eq(mediaItems.filePath, filePath))),
     );
 
-  const access = await canAccessMediaRef(mediaRefs);
+  const access = await canAccessMediaRef(request, mediaRefs);
   if (mediaRefs.length > 0 && !access.allowed) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
