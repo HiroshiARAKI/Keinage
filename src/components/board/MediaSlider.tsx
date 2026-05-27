@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { startTransition, useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { clampMediaDuration, DEFAULT_MEDIA_DURATION_SECONDS } from "@/lib/media-duration";
@@ -11,6 +11,7 @@ import type { MediaItem } from "@/types";
 
 /** How many upcoming images to preload ahead of the current slide. */
 const PRELOAD_AHEAD = 2;
+const PRELOAD_DELAY_MS = 120;
 
 interface MediaSliderProps {
   mediaItems: MediaItem[];
@@ -67,6 +68,7 @@ function DeferredVideoSlide({ item, fitClass, loop, onEnded }: DeferredVideoSlid
         <img
           src={poster}
           alt=""
+          decoding="async"
           className={`absolute inset-0 z-10 h-full w-full ${fitClass}`}
           onError={() => setPosterFailed(true)}
         />
@@ -122,16 +124,20 @@ export function MediaSlider({
   const currentImageRef = useRef<HTMLImageElement | null>(null);
 
   const advance = useCallback(() => {
-    setReadyImageKey(null);
-    setCurrentIndex((prev) => (prev + 1) % mediaItems.length);
+    startTransition(() => {
+      setReadyImageKey(null);
+      setCurrentIndex((prev) => (prev + 1) % mediaItems.length);
+    });
   }, [mediaItems.length]);
 
   const safeCurrentIndex =
     mediaItems.length === 0 ? 0 : Math.min(currentIndex, mediaItems.length - 1);
 
-  // --- Preload upcoming media ---
+  // --- Preload upcoming media after the active slide has had a chance to paint. ---
   useEffect(() => {
     if (mediaItems.length <= 1) return;
+
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
     for (let offset = 1; offset <= PRELOAD_AHEAD; offset++) {
       const idx = (safeCurrentIndex + offset) % mediaItems.length;
@@ -139,19 +145,27 @@ export function MediaSlider({
       if (!item || preloadedRef.current.has(item.filePath)) continue;
 
       preloadedRef.current.add(item.filePath);
-      if (item.type === "image") {
-        const img = new Image();
-        img.src = item.filePath;
-      } else if (item.playbackStatus === undefined || item.playbackStatus === "available") {
-        const video = document.createElement("video");
-        video.preload = "auto";
-        video.muted = true;
-        video.playsInline = true;
-        video.src = item.filePath;
-        video.load();
-        videoPreloadRef.current.set(item.filePath, video);
-      }
+      const timer = setTimeout(() => {
+        if (item.type === "image") {
+          const img = new Image();
+          img.decoding = "async";
+          img.src = item.filePath;
+        } else if (item.playbackStatus === undefined || item.playbackStatus === "available") {
+          const video = document.createElement("video");
+          video.preload = "metadata";
+          video.muted = true;
+          video.playsInline = true;
+          video.src = item.filePath;
+          video.load();
+          videoPreloadRef.current.set(item.filePath, video);
+        }
+      }, PRELOAD_DELAY_MS * offset);
+      timers.push(timer);
     }
+
+    return () => {
+      for (const timer of timers) clearTimeout(timer);
+    };
   }, [safeCurrentIndex, mediaItems]);
 
   const current = mediaItems[safeCurrentIndex];
@@ -270,6 +284,7 @@ export function MediaSlider({
               ref={setCurrentImageNode}
               src={current.filePath}
               alt=""
+              decoding="async"
               className={`h-full w-full ${fitClass}`}
               onLoad={markCurrentImageReady}
               onError={markCurrentImageReady}
