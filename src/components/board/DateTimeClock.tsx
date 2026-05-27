@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 
 export type ClockLayout = "standard" | "compact" | "large-time" | "date-top";
@@ -22,6 +22,13 @@ interface DateTimeClockProps {
   fontFamily?: string;
 }
 
+const CLOCK_SETTLE_MS = 20;
+
+function delayToNextSecond() {
+  const elapsedInSecond = Date.now() % 1000;
+  return Math.max(16, 1000 - elapsedInSecond + CLOCK_SETTLE_MS);
+}
+
 export function DateTimeClock({
   is24Hour = true,
   timeFontSize = 48,
@@ -30,36 +37,48 @@ export function DateTimeClock({
   layout = "standard",
   fontFamily,
 }: DateTimeClockProps) {
-  const [now, setNow] = useState<Date | null>(null);
+  const [now, setNow] = useState(() => new Date());
   const { locale, formatDate } = useLocale();
 
   useEffect(() => {
-    const initialTimer = setTimeout(() => setNow(new Date()), 0);
-    const timer = setInterval(() => setNow(new Date()), 1000);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = () => {
+      setNow(new Date());
+      schedule();
+    };
+
+    const schedule = () => {
+      if (stopped) return;
+      timer = setTimeout(tick, delayToNextSecond());
+    };
+
+    schedule();
+
     return () => {
-      clearTimeout(initialTimer);
-      clearInterval(timer);
+      stopped = true;
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
-  if (!now) return null;
+  const timeFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: !is24Hour,
+      }),
+    [is24Hour, locale],
+  );
 
-  const parts = new Intl.DateTimeFormat(locale, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: !is24Hour,
-  }).formatToParts(now);
+  const parts = timeFormatter.formatToParts(now);
   const hoursStr = parts.find((part) => part.type === "hour")?.value ?? "00";
   const minutes = parts.find((part) => part.type === "minute")?.value ?? "00";
   const seconds = parts.find((part) => part.type === "second")?.value ?? "00";
   const period = parts.find((part) => part.type === "dayPeriod")?.value ?? "";
-  const timeStr = new Intl.DateTimeFormat(locale, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: !is24Hour,
-  }).format(now);
+  const timeStr = timeFormatter.format(now);
   const dateStr = formatDate(now, {
     year: "numeric",
     month: "2-digit",
