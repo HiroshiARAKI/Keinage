@@ -22,6 +22,7 @@ interface DateTimeClockProps {
   layout?: ClockLayout;
   /** Custom font family */
   fontFamily?: string;
+  className?: string;
 }
 
 const CLOCK_SETTLE_MS = 20;
@@ -39,6 +40,7 @@ export function DateTimeClock({
   bgOpacity = 0.5,
   layout = "standard",
   fontFamily,
+  className,
 }: DateTimeClockProps) {
   const [now, setNow] = useState(() => new Date());
   const { locale, formatDate } = useLocale();
@@ -93,11 +95,12 @@ export function DateTimeClock({
 
   const fontStyle = fontFamily || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
   const hasBackground = bgOpacity > 0;
+  const rootClassName = className ?? "";
 
   if (layout === "compact") {
     return (
       <div
-        className={`inline-flex items-center gap-4 ${hasBackground ? "rounded-lg px-5 py-2" : ""}`}
+        className={`inline-flex items-center gap-4 ${hasBackground ? "rounded-lg px-5 py-2" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -123,7 +126,7 @@ export function DateTimeClock({
   if (layout === "large-time") {
     return (
       <div
-        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-8 py-4" : ""}`}
+        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-8 py-4" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -155,7 +158,7 @@ export function DateTimeClock({
   if (layout === "date-top") {
     return (
       <div
-        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""}`}
+        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -181,7 +184,7 @@ export function DateTimeClock({
   // "standard" layout (default)
   return (
     <div
-      className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""}`}
+      className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
       style={{
         backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
         color,

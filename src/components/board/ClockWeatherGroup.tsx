@@ -36,14 +36,14 @@ interface ClockWeatherGroupProps {
 function groupClassName(layout: ClockWeatherLayout) {
   switch (layout) {
     case "weather-top":
-      return "flex-col-reverse items-end";
+      return "flex-col-reverse items-stretch";
     case "clock-left":
-      return "flex-row items-center";
+      return "flex-row items-stretch";
     case "weather-left":
-      return "flex-row-reverse items-center";
+      return "flex-row-reverse items-stretch";
     case "clock-top":
     default:
-      return "flex-col items-end";
+      return "flex-col items-stretch";
   }
 }
 
@@ -58,7 +58,7 @@ export function ClockWeatherGroup({
   if (!showClock && !showWeather) return null;
 
   return (
-    <div className={`flex gap-2 ${groupClassName(layout)}`}>
+    <div className={`flex w-max gap-2 ${groupClassName(layout)}`}>
       {showClock && (
         <DateTimeClock
           is24Hour={clock?.is24Hour}
@@ -68,6 +68,7 @@ export function ClockWeatherGroup({
           bgOpacity={clock?.bgOpacity}
           layout={clock?.layout}
           fontFamily={clock?.fontFamily}
+          className="self-stretch justify-center"
         />
       )}
       {showWeather && (
@@ -77,6 +78,7 @@ export function ClockWeatherGroup({
           bgOpacity={weather?.bgOpacity}
           fontSize={weather?.fontSize}
           fontFamily={weather?.fontFamily}
+          className="self-stretch justify-center"
         />
       )}
     </div>

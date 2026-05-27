@@ -30,6 +30,7 @@ interface WeatherDisplayProps {
   fontSize?: number;
   /** Custom font family */
   fontFamily?: string;
+  className?: string;
 }
 
 export function WeatherDisplay({
@@ -38,6 +39,7 @@ export function WeatherDisplay({
   bgOpacity = 0.5,
   fontSize = 18,
   fontFamily,
+  className,
 }: WeatherDisplayProps) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const { t, translateWeatherTelop } = useLocale();
@@ -80,7 +82,7 @@ export function WeatherDisplay({
 
   return (
     <div
-      className="flex items-center gap-4 rounded-xl px-5 py-3"
+      className={`flex items-center gap-4 rounded-xl px-5 py-3 ${className ?? ""}`}
       style={{
         backgroundColor: `rgba(0,0,0,${bgOpacity})`,
         color,
