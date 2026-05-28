@@ -14,6 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  ClockCornerPlacementPicker,
+  ClockWeatherPlacementPicker,
+} from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
+import {
+  normalizeClockWeatherState,
+  type ClockWeatherState,
+} from "@/components/board/ClockWeatherGroup";
 import { GOOGLE_FONTS, buildGoogleFontsUrl } from "@/lib/fonts";
 import { useEffect } from "react";
 
@@ -68,10 +76,27 @@ export function SimpleBoardConfigEditor({
   const tickerPosition = (config.tickerPosition as string) ?? "bottom";
   const showClock = (config.showClock as boolean) ?? false;
   const showWeather = (config.showWeather as boolean) ?? false;
+  const clockFontSize = (config.clockFontSize as number) ?? 36;
+  const clockDateFontSize = (config.clockDateFontSize as number) ?? 14;
+  const weatherFontSize = (config.weatherFontSize as number) ?? 18;
+  const clockWeatherState = normalizeClockWeatherState({
+    anchor: config.clockWeatherAnchor,
+    arrangement: config.clockWeatherArrangement,
+    placement: config.clockWeatherPlacement,
+    layout: config.clockWeatherLayout,
+  });
   const objectFit = (config.objectFit as string) ?? "contain";
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
+  }
+
+  function updateClockWeatherState(value: ClockWeatherState) {
+    onChange({
+      ...config,
+      clockWeatherAnchor: value.anchor,
+      clockWeatherArrangement: value.arrangement,
+    });
   }
 
   function applyPreset(preset: (typeof TICKER_PRESETS)[number]) {
@@ -108,6 +133,113 @@ export function SimpleBoardConfigEditor({
             <p className="text-xs text-muted-foreground">
               {t("configEditor.weatherHint")}
             </p>
+          )}
+          {(showClock || showWeather) && (
+            <div className="grid gap-3 md:grid-cols-2">
+              {showClock && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cfg-clockFontSize">
+                      {t("configEditor.clockFontSize", { size: clockFontSize })}
+                    </Label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        id="cfg-clockFontSize"
+                        type="range"
+                        min={20}
+                        max={96}
+                        step={1}
+                        value={clockFontSize}
+                        onChange={(e) => update("clockFontSize", Number(e.target.value))}
+                        className="w-full max-w-48"
+                      />
+                      <NumberInput
+                        aria-label={t("configEditor.clockFontSize", { size: clockFontSize })}
+                        min={20}
+                        max={96}
+                        value={clockFontSize}
+                        onValueChange={(value) => update("clockFontSize", value)}
+                        className="w-24"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cfg-clockDateFontSize">
+                      {t("configEditor.clockDateFontSize", { size: clockDateFontSize })}
+                    </Label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        id="cfg-clockDateFontSize"
+                        type="range"
+                        min={10}
+                        max={48}
+                        step={1}
+                        value={clockDateFontSize}
+                        onChange={(e) => update("clockDateFontSize", Number(e.target.value))}
+                        className="w-full max-w-48"
+                      />
+                      <NumberInput
+                        aria-label={t("configEditor.clockDateFontSize", { size: clockDateFontSize })}
+                        min={10}
+                        max={48}
+                        value={clockDateFontSize}
+                        onValueChange={(value) => update("clockDateFontSize", value)}
+                        className="w-24"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+              {showWeather && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="cfg-weatherFontSize">
+                    {t("configEditor.weatherFontSize", { size: weatherFontSize })}
+                  </Label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      id="cfg-weatherFontSize"
+                      type="range"
+                      min={12}
+                      max={48}
+                      step={1}
+                      value={weatherFontSize}
+                      onChange={(e) => update("weatherFontSize", Number(e.target.value))}
+                      className="w-full max-w-48"
+                    />
+                    <NumberInput
+                      aria-label={t("configEditor.weatherFontSize", { size: weatherFontSize })}
+                      min={12}
+                      max={48}
+                      value={weatherFontSize}
+                      onValueChange={(value) => update("weatherFontSize", value)}
+                      className="w-24"
+                    />
+                  </div>
+                </div>
+              )}
+              {showClock && !showWeather && (
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>
+                    {t("configEditor.clockPosition")}
+                  </Label>
+                  <ClockCornerPlacementPicker
+                    value={clockWeatherState}
+                    onChange={updateClockWeatherState}
+                  />
+                </div>
+              )}
+              {showWeather && (
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>
+                    {t("configEditor.clockWeatherLayout")}
+                  </Label>
+                  <ClockWeatherPlacementPicker
+                    value={clockWeatherState}
+                    onChange={updateClockWeatherState}
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

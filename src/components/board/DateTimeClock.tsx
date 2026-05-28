@@ -12,6 +12,8 @@ interface DateTimeClockProps {
   is24Hour?: boolean;
   /** Font size in px for the time display */
   timeFontSize?: number;
+  /** Font size in px for the date display. Defaults to a ratio of timeFontSize. */
+  dateFontSize?: number;
   /** Text color */
   color?: string;
   /** Background opacity 0-1 */
@@ -20,6 +22,7 @@ interface DateTimeClockProps {
   layout?: ClockLayout;
   /** Custom font family */
   fontFamily?: string;
+  className?: string;
 }
 
 const CLOCK_SETTLE_MS = 20;
@@ -32,10 +35,12 @@ function delayToNextSecond() {
 export function DateTimeClock({
   is24Hour = true,
   timeFontSize = 48,
+  dateFontSize,
   color = "#ffffff",
   bgOpacity = 0.5,
   layout = "standard",
   fontFamily,
+  className,
 }: DateTimeClockProps) {
   const [now, setNow] = useState(() => new Date());
   const { locale, formatDate } = useLocale();
@@ -86,15 +91,16 @@ export function DateTimeClock({
     weekday: "short",
   });
 
-  const dateFontSize = Math.max(14, Math.round(timeFontSize * 0.35));
+  const resolvedDateFontSize = dateFontSize ?? Math.max(14, Math.round(timeFontSize * 0.35));
 
   const fontStyle = fontFamily || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
   const hasBackground = bgOpacity > 0;
+  const rootClassName = className ?? "";
 
   if (layout === "compact") {
     return (
       <div
-        className={`inline-flex items-center gap-4 ${hasBackground ? "rounded-lg px-5 py-2" : ""}`}
+        className={`inline-flex items-center gap-4 ${hasBackground ? "rounded-lg px-5 py-2" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -109,7 +115,7 @@ export function DateTimeClock({
         </span>
         <span
           className="font-medium opacity-90"
-          style={{ fontSize: dateFontSize }}
+          style={{ fontSize: resolvedDateFontSize }}
         >
           {dateStr}
         </span>
@@ -120,7 +126,7 @@ export function DateTimeClock({
   if (layout === "large-time") {
     return (
       <div
-        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-8 py-4" : ""}`}
+        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-8 py-4" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -141,7 +147,7 @@ export function DateTimeClock({
         </span>
         <span
           className="mt-1 font-medium opacity-80"
-          style={{ fontSize: dateFontSize }}
+          style={{ fontSize: resolvedDateFontSize }}
         >
           {dateStr}
         </span>
@@ -152,7 +158,7 @@ export function DateTimeClock({
   if (layout === "date-top") {
     return (
       <div
-        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""}`}
+        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -161,7 +167,7 @@ export function DateTimeClock({
       >
         <span
           className="font-medium opacity-90"
-          style={{ fontSize: dateFontSize }}
+          style={{ fontSize: resolvedDateFontSize }}
         >
           {dateStr}
         </span>
@@ -178,7 +184,7 @@ export function DateTimeClock({
   // "standard" layout (default)
   return (
     <div
-      className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""}`}
+      className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
       style={{
         backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
         color,
@@ -193,7 +199,7 @@ export function DateTimeClock({
       </span>
       <span
         className="mt-1 font-medium opacity-90"
-        style={{ fontSize: dateFontSize }}
+        style={{ fontSize: resolvedDateFontSize }}
       >
         {dateStr}
       </span>

@@ -14,6 +14,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  ClockCornerPlacementPicker,
+  ClockWeatherPlacementPicker,
+} from "@/components/dashboard/config-editors/ClockWeatherPlacementPicker";
+import {
+  normalizeClockWeatherState,
+  type ClockWeatherState,
+} from "@/components/board/ClockWeatherGroup";
 import { GOOGLE_FONTS, buildGoogleFontsUrl } from "@/lib/fonts";
 import { useEffect } from "react";
 
@@ -40,6 +48,25 @@ interface PhotoClockConfigEditorProps {
   onChange: (config: Record<string, unknown>) => void;
 }
 
+function clockOnlyStateFromPosition(position: string): ClockWeatherState {
+  if (
+    position === "top-left"
+    || position === "top-right"
+    || position === "bottom-left"
+    || position === "bottom-right"
+  ) {
+    return {
+      anchor: position,
+      arrangement: "vertical-clock-top",
+    };
+  }
+
+  return {
+    anchor: "bottom-right",
+    arrangement: "vertical-clock-top",
+  };
+}
+
 export function PhotoClockConfigEditor({
   config,
   onChange,
@@ -49,21 +76,22 @@ export function PhotoClockConfigEditor({
 
   const clockPosition = (config.clockPosition as string) ?? "bottom-right";
   const clockFontSize = (config.clockFontSize as number) ?? 48;
+  const clockDateFontSize = (config.clockDateFontSize as number) ?? 18;
   const clockColor = (config.clockColor as string) ?? "#ffffff";
   const clockBgOpacity = (config.clockBgOpacity as number) ?? 0.5;
   const clockLayout = (config.clockLayout as string) ?? "standard";
+  const clockWeatherState = normalizeClockWeatherState({
+    anchor: config.clockWeatherAnchor,
+    arrangement: config.clockWeatherArrangement,
+    placement: config.clockWeatherPlacement,
+    layout: config.clockWeatherLayout,
+  });
   const is24Hour = (config.is24Hour as boolean) ?? true;
   const showWeather = (config.showWeather as boolean) ?? false;
+  const weatherFontSize = (config.weatherFontSize as number) ?? 18;
   const objectFit = (config.objectFit as string) ?? "contain";
   const fontFamily = (config.fontFamily as string) ?? "";
-
-  const positionLabels: Record<string, string> = {
-    "top-left": t("configEditor.positionTopLeft"),
-    "top-right": t("configEditor.positionTopRight"),
-    center: t("configEditor.positionCenter"),
-    "bottom-left": t("configEditor.positionBottomLeft"),
-    "bottom-right": t("configEditor.positionBottomRight"),
-  };
+  const clockOnlyState = clockOnlyStateFromPosition(clockPosition);
 
   const layoutLabels: Record<string, string> = {
     standard: t("configEditor.layoutStandard"),
@@ -74,6 +102,25 @@ export function PhotoClockConfigEditor({
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
+  }
+
+  function updateClockWeatherState(value: ClockWeatherState) {
+    onChange({
+      ...config,
+      clockWeatherAnchor: value.anchor,
+      clockWeatherArrangement: value.arrangement,
+    });
+  }
+
+  function updateClockOnlyPosition(value: ClockWeatherState) {
+    const nextPosition =
+      value.anchor === "top-left"
+      || value.anchor === "top-right"
+      || value.anchor === "bottom-left"
+      || value.anchor === "bottom-right"
+        ? value.anchor
+        : "bottom-right";
+    update("clockPosition", nextPosition);
   }
 
   return (
@@ -91,21 +138,15 @@ export function PhotoClockConfigEditor({
         </Select>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="cfg-clockPos">{t("configEditor.clockPosition")}</Label>
-        <Select value={clockPosition} onValueChange={(v) => update("clockPosition", v)}>
-          <SelectTrigger id="cfg-clockPos" className="w-full sm:max-w-48">
-            <SelectValue placeholder={t("configEditor.selectPosition")}>{positionLabels[clockPosition] ?? clockPosition}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="top-left">{t("configEditor.positionTopLeft")}</SelectItem>
-            <SelectItem value="top-right">{t("configEditor.positionTopRight")}</SelectItem>
-            <SelectItem value="center">{t("configEditor.positionCenter")}</SelectItem>
-            <SelectItem value="bottom-left">{t("configEditor.positionBottomLeft")}</SelectItem>
-            <SelectItem value="bottom-right">{t("configEditor.positionBottomRight")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {!showWeather && (
+        <div className="space-y-1.5">
+          <Label>{t("configEditor.clockPosition")}</Label>
+          <ClockCornerPlacementPicker
+            value={clockOnlyState}
+            onChange={updateClockOnlyPosition}
+          />
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="cfg-clockLayout">{t("configEditor.clockLayout")}</Label>
@@ -148,6 +189,37 @@ export function PhotoClockConfigEditor({
         <div className="flex w-full justify-between text-xs text-muted-foreground sm:max-w-64">
           <span>24px</span>
           <span>160px</span>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="cfg-clockDateSize">
+          {t("configEditor.clockDateFontSize", { size: clockDateFontSize })}
+        </Label>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            id="cfg-clockDateSize"
+            type="range"
+            min={10}
+            max={80}
+            step={1}
+            value={clockDateFontSize}
+            onChange={(e) => update("clockDateFontSize", parseInt(e.target.value, 10))}
+            className="w-full sm:max-w-64"
+          />
+          <NumberInput
+            aria-label={t("configEditor.clockDateFontSize", { size: clockDateFontSize })}
+            min={10}
+            max={80}
+            step={1}
+            value={clockDateFontSize}
+            onValueChange={(value) => update("clockDateFontSize", value)}
+            className="w-full sm:w-24"
+          />
+        </div>
+        <div className="flex w-full justify-between text-xs text-muted-foreground sm:max-w-64">
+          <span>10px</span>
+          <span>80px</span>
         </div>
       </div>
 
@@ -222,9 +294,50 @@ export function PhotoClockConfigEditor({
         </Label>
       </div>
       {showWeather && (
-        <p className="break-words text-xs text-muted-foreground">
-          {t("configEditor.weatherHint")}
-        </p>
+        <div className="space-y-3">
+          <p className="break-words text-xs text-muted-foreground">
+            {t("configEditor.weatherHint")}
+          </p>
+          <div className="space-y-1.5">
+            <Label>
+              {t("configEditor.clockWeatherLayout")}
+            </Label>
+            <ClockWeatherPlacementPicker
+              value={clockWeatherState}
+              onChange={updateClockWeatherState}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cfg-weatherSize">
+              {t("configEditor.weatherFontSize", { size: weatherFontSize })}
+            </Label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                id="cfg-weatherSize"
+                type="range"
+                min={12}
+                max={56}
+                step={1}
+                value={weatherFontSize}
+                onChange={(e) => update("weatherFontSize", parseInt(e.target.value, 10))}
+                className="w-full sm:max-w-64"
+              />
+              <NumberInput
+                aria-label={t("configEditor.weatherFontSize", { size: weatherFontSize })}
+                min={12}
+                max={56}
+                step={1}
+                value={weatherFontSize}
+                onValueChange={(value) => update("weatherFontSize", value)}
+                className="w-full sm:w-24"
+              />
+            </div>
+            <div className="flex w-full justify-between text-xs text-muted-foreground sm:max-w-64">
+              <span>12px</span>
+              <span>56px</span>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="space-y-1.5">
