@@ -3,8 +3,13 @@
 "use client";
 
 import { MediaSlider } from "@/components/board/MediaSlider";
-import { DateTimeClock } from "@/components/board/DateTimeClock";
-import { WeatherDisplay } from "@/components/board/WeatherDisplay";
+import {
+  ClockWeatherGroup,
+  normalizeClockWeatherState,
+  type ClockWeatherAnchor,
+  type ClockWeatherArrangement,
+} from "@/components/board/ClockWeatherGroup";
+import { DateTimeClock, type ClockLayout } from "@/components/board/DateTimeClock";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
 import { ScheduledMediaFallback } from "@/components/board/ScheduledMediaFallback";
 import { useScheduleNow } from "@/hooks/useScheduleNow";
@@ -12,7 +17,6 @@ import {
   filterActiveMediaItems,
   findFallbackImage,
 } from "@/lib/scheduling";
-import type { ClockLayout } from "@/components/board/DateTimeClock";
 import type { BoardTemplateProps } from "@/types";
 
 type ClockPosition =
@@ -26,11 +30,15 @@ type ClockPosition =
 export const photoClockDefaultConfig = {
   clockPosition: "bottom-right" as ClockPosition,
   clockFontSize: 48,
+  clockDateFontSize: 18,
   clockColor: "#ffffff",
   clockBgOpacity: 0.5,
   clockLayout: "standard" as ClockLayout,
+  clockWeatherAnchor: "right-split" as ClockWeatherAnchor,
+  clockWeatherArrangement: "vertical-clock-top" as ClockWeatherArrangement,
   is24Hour: true,
   showWeather: false,
+  weatherFontSize: 18,
   objectFit: "contain" as "contain" | "cover",
   fontFamily: "",
   fallbackMediaId: "",
@@ -54,6 +62,14 @@ function parseConfig(raw: unknown): PhotoClockConfig {
     merged.clockFontSize =
       sizeMap[merged.clockFontSize as string] ?? 48;
   }
+  const clockWeatherState = normalizeClockWeatherState({
+    anchor: cfg.clockWeatherAnchor,
+    arrangement: cfg.clockWeatherArrangement,
+    placement: (cfg as { clockWeatherPlacement?: unknown }).clockWeatherPlacement,
+    layout: (cfg as { clockWeatherLayout?: unknown }).clockWeatherLayout,
+  });
+  merged.clockWeatherAnchor = clockWeatherState.anchor;
+  merged.clockWeatherArrangement = clockWeatherState.arrangement;
   return merged;
 }
 
@@ -104,26 +120,44 @@ export default function PhotoClockBoard({
       )}
 
       {/* Clock + Weather overlay */}
-      <div
-        className={`absolute z-10 flex flex-col gap-2 ${positionClasses[config.clockPosition] ?? positionClasses["bottom-right"]}`}
-      >
-        <DateTimeClock
-          is24Hour={config.is24Hour}
-          timeFontSize={config.clockFontSize}
-          color={config.clockColor}
-          bgOpacity={config.clockBgOpacity}
-          layout={config.clockLayout}
-          fontFamily={config.fontFamily || undefined}
+      {config.showWeather ? (
+        <ClockWeatherGroup
+          boardId={board.id}
+          showClock
+          showWeather={config.showWeather}
+          anchor={config.clockWeatherAnchor}
+          arrangement={config.clockWeatherArrangement}
+          clock={{
+            is24Hour: config.is24Hour,
+            timeFontSize: config.clockFontSize,
+            dateFontSize: config.clockDateFontSize,
+            color: config.clockColor,
+            bgOpacity: config.clockBgOpacity,
+            layout: config.clockLayout,
+            fontFamily: config.fontFamily || undefined,
+          }}
+          weather={{
+            color: config.clockColor,
+            bgOpacity: config.clockBgOpacity,
+            fontSize: config.weatherFontSize,
+            fontFamily: config.fontFamily || undefined,
+          }}
         />
-        {config.showWeather && (
-          <WeatherDisplay
-            boardId={board.id}
+      ) : (
+        <div
+          className={`absolute z-10 flex flex-col gap-2 ${positionClasses[config.clockPosition] ?? positionClasses["bottom-right"]}`}
+        >
+          <DateTimeClock
+            is24Hour={config.is24Hour}
+            timeFontSize={config.clockFontSize}
+            dateFontSize={config.clockDateFontSize}
             color={config.clockColor}
             bgOpacity={config.clockBgOpacity}
+            layout={config.clockLayout}
             fontFamily={config.fontFamily || undefined}
           />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

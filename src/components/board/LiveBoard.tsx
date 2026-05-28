@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { WatermarkOverlay } from "@/components/board/WatermarkOverlay";
 import { useSSE } from "@/hooks/useSSE";
@@ -18,6 +18,7 @@ import type {
 const CURSOR_HIDE_DELAY = 3000;
 const DEVICE_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 const DEVICE_KEY_STORAGE_KEY = "keinage-display-device-key";
+const DISPLAY_ACCESS_QUERY_PARAM = "displayDeviceKey";
 
 interface LiveBoardProps {
   board: Board;
@@ -69,6 +70,18 @@ function getOrCreateDeviceKey() {
   }
 }
 
+function withDisplayAccessQuery(filePath: string, deviceKey: string) {
+  if (!filePath.startsWith("/uploads/")) {
+    return filePath;
+  }
+
+  const [pathname = "", query = ""] = filePath.split("?", 2);
+  const params = new URLSearchParams(query);
+  params.set(DISPLAY_ACCESS_QUERY_PARAM, deviceKey);
+  const serialized = params.toString();
+  return serialized ? `${pathname}?${serialized}` : pathname;
+}
+
 /**
  * Wraps a board template with SSE-based live updates.
  * Initial data comes from server-side rendering (props).
@@ -85,6 +98,7 @@ export default function LiveBoard({
   const [mediaItems, setMediaItems] = useState(initialMedia);
   const [messages, setMessages] = useState(initialMessages);
   const [boardPlan, setBoardPlan] = useState(initialBoardPlan);
+  const [displayDeviceKey, setDisplayDeviceKey] = useState<string | null>(null);
   const [cursorVisible, setCursorVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,6 +140,17 @@ export default function LiveBoard({
   const exitFullscreen = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen?.();
   }, []);
+
+  const displayMediaItems = useMemo(() => {
+    if (board.visibility !== "private" || !displayDeviceKey) {
+      return mediaItems;
+    }
+
+    return mediaItems.map((item) => ({
+      ...item,
+      filePath: withDisplayAccessQuery(item.filePath, displayDeviceKey),
+    }));
+  }, [board.visibility, displayDeviceKey, mediaItems]);
 
   // --- SSE live updates ---
   const refetchData = useCallback(async () => {
@@ -170,6 +195,7 @@ export default function LiveBoard({
 
   useEffect(() => {
     const deviceKey = getOrCreateDeviceKey();
+    const raf = requestAnimationFrame(() => setDisplayDeviceKey(deviceKey));
     let stopped = false;
 
     const sendHeartbeat = async () => {
@@ -191,6 +217,7 @@ export default function LiveBoard({
 
     return () => {
       stopped = true;
+      cancelAnimationFrame(raf);
       window.clearInterval(interval);
     };
   }, [initialBoard.id]);
@@ -203,7 +230,7 @@ export default function LiveBoard({
     >
       <TemplateComponent
         board={board}
-        mediaItems={mediaItems}
+        mediaItems={displayMediaItems}
         messages={messages}
         boardPlan={boardPlan}
       />

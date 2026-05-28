@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 
 export type ClockLayout = "standard" | "compact" | "large-time" | "date-top";
@@ -12,6 +12,8 @@ interface DateTimeClockProps {
   is24Hour?: boolean;
   /** Font size in px for the time display */
   timeFontSize?: number;
+  /** Font size in px for the date display. Defaults to a ratio of timeFontSize. */
+  dateFontSize?: number;
   /** Text color */
   color?: string;
   /** Background opacity 0-1 */
@@ -20,46 +22,68 @@ interface DateTimeClockProps {
   layout?: ClockLayout;
   /** Custom font family */
   fontFamily?: string;
+  className?: string;
+}
+
+const CLOCK_SETTLE_MS = 20;
+
+function delayToNextSecond() {
+  const elapsedInSecond = Date.now() % 1000;
+  return Math.max(16, 1000 - elapsedInSecond + CLOCK_SETTLE_MS);
 }
 
 export function DateTimeClock({
   is24Hour = true,
   timeFontSize = 48,
+  dateFontSize,
   color = "#ffffff",
   bgOpacity = 0.5,
   layout = "standard",
   fontFamily,
+  className,
 }: DateTimeClockProps) {
-  const [now, setNow] = useState<Date | null>(null);
+  const [now, setNow] = useState(() => new Date());
   const { locale, formatDate } = useLocale();
 
   useEffect(() => {
-    const initialTimer = setTimeout(() => setNow(new Date()), 0);
-    const timer = setInterval(() => setNow(new Date()), 1000);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = () => {
+      setNow(new Date());
+      schedule();
+    };
+
+    const schedule = () => {
+      if (stopped) return;
+      timer = setTimeout(tick, delayToNextSecond());
+    };
+
+    schedule();
+
     return () => {
-      clearTimeout(initialTimer);
-      clearInterval(timer);
+      stopped = true;
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
-  if (!now) return null;
+  const timeFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: !is24Hour,
+      }),
+    [is24Hour, locale],
+  );
 
-  const parts = new Intl.DateTimeFormat(locale, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: !is24Hour,
-  }).formatToParts(now);
+  const parts = timeFormatter.formatToParts(now);
   const hoursStr = parts.find((part) => part.type === "hour")?.value ?? "00";
   const minutes = parts.find((part) => part.type === "minute")?.value ?? "00";
   const seconds = parts.find((part) => part.type === "second")?.value ?? "00";
   const period = parts.find((part) => part.type === "dayPeriod")?.value ?? "";
-  const timeStr = new Intl.DateTimeFormat(locale, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: !is24Hour,
-  }).format(now);
+  const timeStr = timeFormatter.format(now);
   const dateStr = formatDate(now, {
     year: "numeric",
     month: "2-digit",
@@ -67,15 +91,16 @@ export function DateTimeClock({
     weekday: "short",
   });
 
-  const dateFontSize = Math.max(14, Math.round(timeFontSize * 0.35));
+  const resolvedDateFontSize = dateFontSize ?? Math.max(14, Math.round(timeFontSize * 0.35));
 
   const fontStyle = fontFamily || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
   const hasBackground = bgOpacity > 0;
+  const rootClassName = className ?? "";
 
   if (layout === "compact") {
     return (
       <div
-        className={`inline-flex items-center gap-4 ${hasBackground ? "rounded-lg px-5 py-2" : ""}`}
+        className={`inline-flex items-center gap-4 ${hasBackground ? "rounded-lg px-5 py-2" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -90,7 +115,7 @@ export function DateTimeClock({
         </span>
         <span
           className="font-medium opacity-90"
-          style={{ fontSize: dateFontSize }}
+          style={{ fontSize: resolvedDateFontSize }}
         >
           {dateStr}
         </span>
@@ -101,7 +126,7 @@ export function DateTimeClock({
   if (layout === "large-time") {
     return (
       <div
-        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-8 py-4" : ""}`}
+        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-8 py-4" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -122,7 +147,7 @@ export function DateTimeClock({
         </span>
         <span
           className="mt-1 font-medium opacity-80"
-          style={{ fontSize: dateFontSize }}
+          style={{ fontSize: resolvedDateFontSize }}
         >
           {dateStr}
         </span>
@@ -133,7 +158,7 @@ export function DateTimeClock({
   if (layout === "date-top") {
     return (
       <div
-        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""}`}
+        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -142,7 +167,7 @@ export function DateTimeClock({
       >
         <span
           className="font-medium opacity-90"
-          style={{ fontSize: dateFontSize }}
+          style={{ fontSize: resolvedDateFontSize }}
         >
           {dateStr}
         </span>
@@ -159,7 +184,7 @@ export function DateTimeClock({
   // "standard" layout (default)
   return (
     <div
-      className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""}`}
+      className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
       style={{
         backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
         color,
@@ -174,7 +199,7 @@ export function DateTimeClock({
       </span>
       <span
         className="mt-1 font-medium opacity-90"
-        style={{ fontSize: dateFontSize }}
+        style={{ fontSize: resolvedDateFontSize }}
       >
         {dateStr}
       </span>

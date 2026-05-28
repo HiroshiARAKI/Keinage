@@ -26,15 +26,20 @@ interface WeatherDisplayProps {
   boardId?: string;
   color?: string;
   bgOpacity?: number;
+  /** Base font size in px */
+  fontSize?: number;
   /** Custom font family */
   fontFamily?: string;
+  className?: string;
 }
 
 export function WeatherDisplay({
   boardId,
   color = "#ffffff",
   bgOpacity = 0.5,
+  fontSize = 18,
   fontFamily,
+  className,
 }: WeatherDisplayProps) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const { t, translateWeatherTelop } = useLocale();
@@ -70,10 +75,14 @@ export function WeatherDisplay({
   const rain = weather.chanceOfRain;
   /** "--%" → "0%" */
   const r = (v: string) => (v === "--%" ? "0%" : v);
+  const iconWidth = Math.max(48, Math.round(fontSize * 5));
+  const iconHeight = Math.max(38, Math.round(fontSize * 4));
+  const headingFontSize = Math.round(fontSize * 1.1);
+  const detailFontSize = Math.max(12, Math.round(fontSize * 0.9));
 
   return (
     <div
-      className="flex items-center gap-4 rounded-xl px-5 py-3"
+      className={`flex items-center gap-4 rounded-xl px-5 py-3 ${className ?? ""}`}
       style={{
         backgroundColor: `rgba(0,0,0,${bgOpacity})`,
         color,
@@ -85,16 +94,19 @@ export function WeatherDisplay({
         <Image
           src={weather.image.url}
           alt={weather.image.title || weather.telop}
-          width={90}
-          height={72}
+          width={iconWidth}
+          height={iconHeight}
           className="shrink-0"
           unoptimized
         />
       )}
 
-      <div className="flex flex-col gap-1 text-lg leading-snug">
+      <div
+        className="flex flex-col gap-1 leading-snug"
+        style={{ fontSize }}
+      >
         {/* Location header */}
-        <span className="font-bold text-xl">
+        <span className="font-bold" style={{ fontSize: headingFontSize }}>
           {t("weather.current", {
             city: weather.location?.city ?? "",
             telop: translateWeatherTelop(weather.telop),
@@ -116,7 +128,10 @@ export function WeatherDisplay({
         )}
 
         {/* Chance of rain — all time slots */}
-        <div className="flex items-center gap-1 opacity-80 text-base">
+        <div
+          className="flex items-center gap-1 opacity-80"
+          style={{ fontSize: detailFontSize }}
+        >
           <span>{t("weather.rainChance")}:</span>
           <span>{t("weather.slot00_06", { value: r(rain.T00_06) })}</span>
           <span className="opacity-40">|</span>

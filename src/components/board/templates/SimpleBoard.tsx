@@ -5,8 +5,12 @@
 import { MediaSlider } from "@/components/board/MediaSlider";
 import { TickerText } from "@/components/board/TickerText";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
-import { DateTimeClock } from "@/components/board/DateTimeClock";
-import { WeatherDisplay } from "@/components/board/WeatherDisplay";
+import {
+  ClockWeatherGroup,
+  normalizeClockWeatherState,
+  type ClockWeatherAnchor,
+  type ClockWeatherArrangement,
+} from "@/components/board/ClockWeatherGroup";
 import { ScheduledMediaFallback } from "@/components/board/ScheduledMediaFallback";
 import { useScheduleNow } from "@/hooks/useScheduleNow";
 import {
@@ -27,6 +31,11 @@ export const simpleBoardDefaultConfig = {
   tickerPosition: "bottom" as "top" | "bottom",
   showClock: false,
   showWeather: false,
+  clockFontSize: 36,
+  clockDateFontSize: 14,
+  weatherFontSize: 18,
+  clockWeatherAnchor: "right-split" as ClockWeatherAnchor,
+  clockWeatherArrangement: "vertical-clock-top" as ClockWeatherArrangement,
   objectFit: "contain" as "contain" | "cover",
   fallbackMediaId: "",
   mediaSchedules: {},
@@ -37,7 +46,16 @@ type SimpleBoardConfig = typeof simpleBoardDefaultConfig;
 
 function parseConfig(raw: unknown): SimpleBoardConfig {
   const cfg = (raw && typeof raw === "object" ? raw : {}) as Partial<SimpleBoardConfig>;
-  return { ...simpleBoardDefaultConfig, ...cfg };
+  const merged = { ...simpleBoardDefaultConfig, ...cfg };
+  const clockWeatherState = normalizeClockWeatherState({
+    anchor: cfg.clockWeatherAnchor,
+    arrangement: cfg.clockWeatherArrangement,
+    placement: (cfg as { clockWeatherPlacement?: unknown }).clockWeatherPlacement,
+    layout: (cfg as { clockWeatherLayout?: unknown }).clockWeatherLayout,
+  });
+  merged.clockWeatherAnchor = clockWeatherState.anchor;
+  merged.clockWeatherArrangement = clockWeatherState.arrangement;
+  return merged;
 }
 
 export default function SimpleBoard({
@@ -119,25 +137,27 @@ export default function SimpleBoard({
 
         {/* Clock & Weather overlay */}
         {(config.showClock || config.showWeather) && (
-          <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
-            {config.showClock && (
-              <DateTimeClock
-                timeFontSize={36}
-                color="#ffffff"
-                bgOpacity={0.5}
-                layout="compact"
-                fontFamily={config.tickerFontFamily || undefined}
-              />
-            )}
-            {config.showWeather && (
-              <WeatherDisplay
-                boardId={board.id}
-                color="#ffffff"
-                bgOpacity={0.5}
-                fontFamily={config.tickerFontFamily || undefined}
-              />
-            )}
-          </div>
+          <ClockWeatherGroup
+            boardId={board.id}
+            showClock={config.showClock}
+            showWeather={config.showWeather}
+            anchor={config.clockWeatherAnchor}
+            arrangement={config.clockWeatherArrangement}
+            clock={{
+              timeFontSize: config.clockFontSize,
+              dateFontSize: config.clockDateFontSize,
+              color: "#ffffff",
+              bgOpacity: 0.5,
+              layout: "compact",
+              fontFamily: config.tickerFontFamily || undefined,
+            }}
+            weather={{
+              color: "#ffffff",
+              bgOpacity: 0.5,
+              fontSize: config.weatherFontSize,
+              fontFamily: config.tickerFontFamily || undefined,
+            }}
+          />
         )}
       </div>
 
