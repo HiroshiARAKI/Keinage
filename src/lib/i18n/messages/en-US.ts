@@ -428,6 +428,7 @@ export const enUS = {
   "configEditor.mediaMode": "Media display mode",
   "configEditor.objectFitContain": "Fit entire media (may show margins)",
   "configEditor.objectFitCover": "Fill screen (may crop)",
+  "configEditor.randomPlayback": "Random playback",
   "schedule.title": "Schedule",
   "schedule.plan.none": "Scheduling is not available on this plan.",
   "schedule.plan.timeWeekday": "You can set time ranges and weekdays. Date ranges are available on Standard and higher.",

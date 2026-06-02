@@ -430,6 +430,7 @@ export const jaJP = {
   "configEditor.mediaMode": "メディア表示モード",
   "configEditor.objectFitContain": "全体表示（余白ができる場合あり）",
   "configEditor.objectFitCover": "全面表示（トリミングされる場合あり）",
+  "configEditor.randomPlayback": "ランダム再生",
   "schedule.title": "スケジュール",
   "schedule.plan.none": "このプランではスケジュール機能は利用できません",
   "schedule.plan.timeWeekday": "時間帯と曜日を指定できます。日付期間は Standard 以上で利用できます",

@@ -430,6 +430,7 @@ export const zhCN = {
   "configEditor.mediaMode": "媒体显示模式",
   "configEditor.objectFitContain": "完整显示（可能留白）",
   "configEditor.objectFitCover": "铺满显示（可能裁切）",
+  "configEditor.randomPlayback": "随机播放",
   "schedule.title": "排程",
   "schedule.plan.none": "当前套餐不支持排程功能。",
   "schedule.plan.timeWeekday": "可设置时间段和星期。日期范围在 Standard 及以上套餐可用。",
