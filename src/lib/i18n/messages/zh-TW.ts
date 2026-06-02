@@ -25,6 +25,7 @@ export const zhTW = {
   "dashboard.navBilling": "方案與付款",
   "dashboard.navStatus": "狀態",
   "dashboard.navContact": "聯絡",
+  "dashboard.navPrivacyPolicy": "隱私權政策",
   "dashboard.navAnnouncements": "Announcements",
   "dashboard.navAnnouncementAdmin": "Admin notices",
   "announcements.pageTitle": "Announcements",

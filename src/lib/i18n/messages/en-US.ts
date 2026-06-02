@@ -45,6 +45,7 @@ export const enUS = {
   "dashboard.navStatus": "Status",
   "dashboard.navSettings": "Settings",
   "dashboard.navContact": "Contact",
+  "dashboard.navPrivacyPolicy": "Privacy Policy",
   "dashboard.brandFor": "for {organizationName}",
   "dashboard.navAnnouncements": "Announcements",
   "dashboard.navAnnouncementAdmin": "Admin notices",

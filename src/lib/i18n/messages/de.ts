@@ -37,6 +37,7 @@ export const de = {
   "dashboard.navStatus": "Status",
   "dashboard.navSettings": "Einstellungen",
   "dashboard.navContact": "Kontakt",
+  "dashboard.navPrivacyPolicy": "Datenschutzerklärung",
   "dashboard.navAnnouncements": "Announcements",
   "dashboard.navAnnouncementAdmin": "Admin notices",
   "announcements.pageTitle": "Announcements",
