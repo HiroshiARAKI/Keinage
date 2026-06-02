@@ -40,6 +40,7 @@ export const photoClockDefaultConfig = {
   showWeather: false,
   weatherFontSize: 18,
   objectFit: "contain" as "contain" | "cover",
+  randomPlayback: false,
   fontFamily: "",
   fallbackMediaId: "",
   mediaSchedules: {},
@@ -111,6 +112,7 @@ export default function PhotoClockBoard({
         <MediaSlider
           mediaItems={activeMedia}
           objectFit={config.objectFit}
+          playbackOrder={config.randomPlayback ? "random" : "sequential"}
         />
       ) : (
         <ScheduledMediaFallback

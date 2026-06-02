@@ -90,6 +90,7 @@ export function PhotoClockConfigEditor({
   const showWeather = (config.showWeather as boolean) ?? false;
   const weatherFontSize = (config.weatherFontSize as number) ?? 18;
   const objectFit = (config.objectFit as string) ?? "contain";
+  const randomPlayback = (config.randomPlayback as boolean) ?? false;
   const fontFamily = (config.fontFamily as string) ?? "";
   const clockOnlyState = clockOnlyStateFromPosition(clockPosition);
 
@@ -136,6 +137,17 @@ export function PhotoClockConfigEditor({
             <SelectItem value="cover">{t("configEditor.objectFitCover")}</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="flex flex-wrap items-start gap-3">
+        <Switch
+          id="cfg-randomPlayback"
+          checked={randomPlayback}
+          onCheckedChange={(v) => update("randomPlayback", v)}
+        />
+        <Label htmlFor="cfg-randomPlayback" className="min-w-0 flex-1 leading-snug">
+          {t("configEditor.randomPlayback")}
+        </Label>
       </div>
 
       {!showWeather && (
