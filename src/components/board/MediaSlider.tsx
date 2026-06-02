@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { startTransition, useState, useEffect, useCallback, useRef } from "react";
+import { startTransition, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { clampMediaDuration, DEFAULT_MEDIA_DURATION_SECONDS } from "@/lib/media-duration";
@@ -12,11 +12,80 @@ import type { MediaItem } from "@/types";
 /** How many upcoming images to preload ahead of the current slide. */
 const PRELOAD_AHEAD = 2;
 const PRELOAD_DELAY_MS = 120;
+const decodedImageCache = new Map<string, Promise<void>>();
+const decodedImages = new Set<string>();
+
+function decodeImage(src: string, fetchPriority: "high" | "low" | "auto" = "auto") {
+  const cached = decodedImageCache.get(src);
+  if (cached) return cached;
+
+  const promise = new Promise<void>((resolve, reject) => {
+    const img = new Image();
+    let settled = false;
+
+    img.decoding = "async";
+    if ("fetchPriority" in img) {
+      (img as HTMLImageElement & { fetchPriority: "high" | "low" | "auto" }).fetchPriority =
+        fetchPriority;
+    }
+
+    const resolveDecoded = () => {
+      if (settled) return;
+      settled = true;
+      const decode = img.decode?.();
+      if (decode) {
+        void decode
+          .catch(() => {
+            // The image is loaded, so keep the slideshow moving even if decode() is unavailable/fails.
+          })
+          .then(() => resolve());
+        return;
+      }
+      resolve();
+    };
+
+    img.onload = resolveDecoded;
+    img.onerror = () => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`Failed to load image: ${src}`));
+    };
+    img.src = src;
+
+    if (img.complete && img.naturalWidth > 0) {
+      resolveDecoded();
+    }
+  })
+    .then(() => {
+      decodedImages.add(src);
+    })
+    .catch((error) => {
+      decodedImageCache.delete(src);
+      throw error;
+    });
+
+  decodedImageCache.set(src, promise);
+  return promise;
+}
+
+function shuffledIndexes(length: number, excludeIndex: number) {
+  const indexes = Array.from({ length }, (_, index) => index).filter(
+    (index) => index !== excludeIndex,
+  );
+
+  for (let index = indexes.length - 1; index > 0; index--) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [indexes[index], indexes[swapIndex]] = [indexes[swapIndex], indexes[index]];
+  }
+
+  return indexes;
+}
 
 interface MediaSliderProps {
   mediaItems: MediaItem[];
   /** How media fits the container: "contain" (show all) or "cover" (fill, may crop) */
   objectFit?: "contain" | "cover";
+  playbackOrder?: "sequential" | "random";
 }
 
 interface DeferredVideoSlideProps {
@@ -24,6 +93,12 @@ interface DeferredVideoSlideProps {
   fitClass: string;
   loop: boolean;
   onEnded: () => void;
+}
+
+interface DecodedImageSlideProps {
+  item: MediaItem;
+  fitClass: string;
+  onReady: () => void;
 }
 
 function DisabledVideoSlide({ item }: { item: MediaItem }) {
@@ -39,6 +114,51 @@ function DisabledVideoSlide({ item }: { item: MediaItem }) {
         <p className="text-lg font-semibold">{t("board.videoUnavailableTitle")}</p>
         <p className="mt-2 text-sm text-white/75">{t(messageKey)}</p>
       </div>
+    </div>
+  );
+}
+
+function DecodedImageSlide({ item, fitClass, onReady }: DecodedImageSlideProps) {
+  const [isReady, setIsReady] = useState(() => decodedImages.has(item.filePath));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void decodeImage(item.filePath, "high")
+      .catch((error) => {
+        console.error("[MediaSlider] Failed to decode image", {
+          mediaId: item.id,
+          filePath: item.filePath,
+          error,
+        });
+      })
+      .then(() => {
+        if (cancelled) return;
+        setIsReady(true);
+        onReady();
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [item.filePath, item.id, onReady]);
+
+  useEffect(() => {
+    if (isReady) {
+      onReady();
+    }
+  }, [isReady, onReady]);
+
+  return (
+    <div className="h-full w-full bg-black">
+      {isReady && (
+        <img
+          src={item.filePath}
+          alt=""
+          decoding="async"
+          className={`h-full w-full ${fitClass}`}
+        />
+      )}
     </div>
   );
 }
@@ -115,23 +235,74 @@ function DeferredVideoSlide({ item, fitClass, loop, onEnded }: DeferredVideoSlid
 export function MediaSlider({
   mediaItems,
   objectFit = "contain",
+  playbackOrder = "sequential",
 }: MediaSliderProps) {
   const { t } = useLocale();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [readyImageKey, setReadyImageKey] = useState<string | null>(null);
-  const preloadedRef = useRef<Set<string>>(new Set());
   const videoPreloadRef = useRef<Map<string, HTMLVideoElement>>(new Map());
-  const currentImageRef = useRef<HTMLImageElement | null>(null);
-
-  const advance = useCallback(() => {
-    startTransition(() => {
-      setReadyImageKey(null);
-      setCurrentIndex((prev) => (prev + 1) % mediaItems.length);
-    });
-  }, [mediaItems.length]);
-
+  const advanceTokenRef = useRef(0);
+  const randomQueueRef = useRef<number[]>([]);
+  const mediaKey = useMemo(
+    () => mediaItems.map((item) => `${item.id}:${item.filePath}`).join("|"),
+    [mediaItems],
+  );
   const safeCurrentIndex =
     mediaItems.length === 0 ? 0 : Math.min(currentIndex, mediaItems.length - 1);
+
+  useEffect(() => {
+    randomQueueRef.current = [];
+  }, [mediaKey, playbackOrder]);
+
+  const ensureRandomQueue = useCallback(() => {
+    randomQueueRef.current = randomQueueRef.current.filter(
+      (index) => index >= 0 && index < mediaItems.length && index !== safeCurrentIndex,
+    );
+    if (randomQueueRef.current.length === 0) {
+      randomQueueRef.current = shuffledIndexes(mediaItems.length, safeCurrentIndex);
+    }
+    return randomQueueRef.current;
+  }, [mediaItems.length, safeCurrentIndex]);
+
+  const nextIndex = useCallback(() => {
+    if (mediaItems.length <= 1) return safeCurrentIndex;
+    if (playbackOrder !== "random") {
+      return (safeCurrentIndex + 1) % mediaItems.length;
+    }
+    return ensureRandomQueue().shift() ?? ((safeCurrentIndex + 1) % mediaItems.length);
+  }, [ensureRandomQueue, mediaItems.length, playbackOrder, safeCurrentIndex]);
+
+  const advance = useCallback(() => {
+    if (mediaItems.length <= 0) return;
+
+    const upcomingIndex = nextIndex();
+    const next = mediaItems[upcomingIndex];
+    const token = advanceTokenRef.current + 1;
+    advanceTokenRef.current = token;
+
+    const commit = () => {
+      if (advanceTokenRef.current !== token) return;
+      startTransition(() => {
+        setReadyImageKey(null);
+        setCurrentIndex(upcomingIndex);
+      });
+    };
+
+    if (next?.type === "image") {
+      void decodeImage(next.filePath, "high")
+        .catch((error) => {
+          console.error("[MediaSlider] Failed to preload next image", {
+            mediaId: next.id,
+            filePath: next.filePath,
+            error,
+          });
+        })
+        .then(commit);
+      return;
+    }
+
+    commit();
+  }, [mediaItems, nextIndex]);
 
   // --- Preload upcoming media after the active slide has had a chance to paint. ---
   useEffect(() => {
@@ -139,18 +310,29 @@ export function MediaSlider({
 
     const timers: ReturnType<typeof setTimeout>[] = [];
 
-    for (let offset = 1; offset <= PRELOAD_AHEAD; offset++) {
-      const idx = (safeCurrentIndex + offset) % mediaItems.length;
-      const item = mediaItems[idx];
-      if (!item || preloadedRef.current.has(item.filePath)) continue;
+    const preloadIndexes =
+      playbackOrder === "random"
+        ? ensureRandomQueue().slice(0, PRELOAD_AHEAD)
+        : Array.from(
+            { length: PRELOAD_AHEAD },
+            (_, offset) => (safeCurrentIndex + offset + 1) % mediaItems.length,
+          );
 
-      preloadedRef.current.add(item.filePath);
+    preloadIndexes.forEach((idx, offset) => {
+      const item = mediaItems[idx];
+      if (!item) return;
+
       const timer = setTimeout(() => {
         if (item.type === "image") {
-          const img = new Image();
-          img.decoding = "async";
-          img.src = item.filePath;
+          void decodeImage(item.filePath, offset === 1 ? "high" : "low").catch((error) => {
+            console.error("[MediaSlider] Failed to preload image", {
+              mediaId: item.id,
+              filePath: item.filePath,
+              error,
+            });
+          });
         } else if (item.playbackStatus === undefined || item.playbackStatus === "available") {
+          if (videoPreloadRef.current.has(item.filePath)) return;
           const video = document.createElement("video");
           video.preload = "metadata";
           video.muted = true;
@@ -159,14 +341,14 @@ export function MediaSlider({
           video.load();
           videoPreloadRef.current.set(item.filePath, video);
         }
-      }, PRELOAD_DELAY_MS * offset);
+      }, PRELOAD_DELAY_MS * (offset + 1));
       timers.push(timer);
-    }
+    });
 
     return () => {
       for (const timer of timers) clearTimeout(timer);
     };
-  }, [safeCurrentIndex, mediaItems]);
+  }, [ensureRandomQueue, mediaItems, playbackOrder, safeCurrentIndex]);
 
   const current = mediaItems[safeCurrentIndex];
   const currentKey = current ? `${current.id}:${current.filePath}` : "";
@@ -181,28 +363,6 @@ export function MediaSlider({
       setReadyImageKey(currentKey);
     }
   }, [currentKey]);
-
-  const setCurrentImageNode = useCallback(
-    (node: HTMLImageElement | null) => {
-      currentImageRef.current = node;
-      if (node?.complete) {
-        markCurrentImageReady();
-      }
-    },
-    [markCurrentImageReady],
-  );
-
-  useEffect(() => {
-    if (currentType !== "image") return;
-
-    const raf = requestAnimationFrame(() => {
-      if (currentImageRef.current?.complete) {
-        markCurrentImageReady();
-      }
-    });
-
-    return () => cancelAnimationFrame(raf);
-  }, [currentType, currentKey, markCurrentImageReady]);
 
   // --- Auto-advance timer (starts only after the current image has loaded) ---
   useEffect(() => {
@@ -280,14 +440,10 @@ export function MediaSlider({
               />
             )
           ) : (
-            <img
-              ref={setCurrentImageNode}
-              src={current.filePath}
-              alt=""
-              decoding="async"
-              className={`h-full w-full ${fitClass}`}
-              onLoad={markCurrentImageReady}
-              onError={markCurrentImageReady}
+            <DecodedImageSlide
+              item={current}
+              fitClass={fitClass}
+              onReady={markCurrentImageReady}
             />
           )}
         </motion.div>

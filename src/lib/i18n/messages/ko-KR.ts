@@ -38,6 +38,7 @@ export const koKR = {
   "dashboard.navStatus": "상태",
   "dashboard.navSettings": "설정",
   "dashboard.navContact": "문의",
+  "dashboard.navPrivacyPolicy": "개인정보 처리방침",
   "dashboard.navAnnouncements": "Announcements",
   "dashboard.navAnnouncementAdmin": "Admin notices",
   "announcements.pageTitle": "Announcements",
