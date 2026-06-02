@@ -45,7 +45,7 @@ type ParsedByteRange = {
 
 function cacheControlForAccess(requiresPrivateScope: boolean): string {
   return requiresPrivateScope
-    ? "private, no-store"
+    ? "private, max-age=3600, must-revalidate"
     : "public, max-age=31536000, immutable";
 }
 
