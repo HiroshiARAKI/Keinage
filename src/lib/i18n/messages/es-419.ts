@@ -37,6 +37,7 @@ export const es419 = {
   "dashboard.navStatus": "Estado",
   "dashboard.navSettings": "Configuración",
   "dashboard.navContact": "Contacto",
+  "dashboard.navPrivacyPolicy": "Política de privacidad",
   "dashboard.navAnnouncements": "Announcements",
   "dashboard.navAnnouncementAdmin": "Admin notices",
   "announcements.pageTitle": "Announcements",

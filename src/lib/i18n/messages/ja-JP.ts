@@ -47,6 +47,7 @@ export const jaJP = {
   "dashboard.navStatus": "ステータス",
   "dashboard.navSettings": "設定",
   "dashboard.navContact": "問い合わせ",
+  "dashboard.navPrivacyPolicy": "プライバシーポリシー",
   "dashboard.brandFor": "for {organizationName}",
   "dashboard.navAnnouncements": "お知らせ",
   "dashboard.navAnnouncementAdmin": "運営通知",

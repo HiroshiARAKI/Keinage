@@ -47,6 +47,7 @@ export const zhCN = {
   "dashboard.navStatus": "状态",
   "dashboard.navSettings": "设置",
   "dashboard.navContact": "联系",
+  "dashboard.navPrivacyPolicy": "隐私政策",
   "dashboard.brandFor": "for {organizationName}",
   "dashboard.navAnnouncements": "Announcements",
   "dashboard.navAnnouncementAdmin": "Admin notices",

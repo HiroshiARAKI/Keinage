@@ -8,9 +8,11 @@ import {
   CreditCard,
   Activity,
   Bell,
+  ExternalLink,
   MessageCircle,
   LayoutDashboard,
   Settings,
+  Shield,
   Users,
   Menu,
   X,
@@ -55,6 +57,31 @@ function SidebarLink({
       <Icon className="size-4" />
       {children}
     </Link>
+  );
+}
+
+function SidebarExternalLink({
+  href,
+  icon: Icon,
+  children,
+  onClick,
+}: {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={onClick}
+      className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+    >
+      <Icon className="size-4 shrink-0" />
+      <span className="truncate">{children}</span>
+    </a>
   );
 }
 
@@ -147,9 +174,15 @@ export function DashboardShell({
         <SidebarLink href="/settings" icon={Settings} onClick={closeSidebar}>
           {t("dashboard.navSettings")}
         </SidebarLink>
+        <SidebarExternalLink href="https://keinage.com/privacy" icon={Shield} onClick={closeSidebar}>
+          {t("dashboard.navPrivacyPolicy")}
+        </SidebarExternalLink>
       </nav>
       <Separator />
-      <div className="px-2 py-3">
+      <div className="space-y-1 px-2 py-3">
+        <SidebarExternalLink href="https://keinage.com" icon={ExternalLink} onClick={closeSidebar}>
+          keinage.com
+        </SidebarExternalLink>
         <LogoutButton />
       </div>
     </>
