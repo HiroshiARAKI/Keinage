@@ -218,3 +218,17 @@ export async function getAdminSessionUser() {
 
   return session;
 }
+
+/** Return the current session only when the authenticated user is an Owner admin. */
+export async function getOwnerAdminSessionUser() {
+  const session = await getAdminSessionUser();
+  if (
+    !session
+    || session.user.attribute !== "owner"
+    || session.user.ownerUserId !== null
+  ) {
+    return null;
+  }
+
+  return session;
+}

@@ -3,12 +3,14 @@
 import { NextResponse } from "next/server";
 import { getAdminSessionUser } from "@/lib/auth";
 import { listOwnerSettings, upsertOwnerSettings } from "@/lib/owner-settings";
-import { resolveOwnerUserId } from "@/lib/ownership";
+import { isOwnerUser, resolveOwnerUserId } from "@/lib/ownership";
 import {
   assertCanSetImageMaxLongEdge,
   isPlanLimitError,
   planLimitErrorBody,
 } from "@/lib/plan-enforcement";
+
+const OWNER_ONLY_SETTING_KEYS = new Set(["authExpireDays"]);
 
 /** GET /api/settings — get all settings as key-value object */
 export async function GET() {
@@ -40,6 +42,16 @@ export async function PATCH(request: Request) {
   for (const [key, value] of entries) {
     if (typeof key !== "string" || typeof value !== "string") continue;
     updates[key] = value;
+  }
+
+  const containsOwnerOnlySetting = Object.keys(updates).some((key) =>
+    OWNER_ONLY_SETTING_KEYS.has(key),
+  );
+  if (containsOwnerOnlySetting && !isOwnerUser(session.user)) {
+    return NextResponse.json(
+      { error: "この設定を変更できるのはOwnerのみです", code: "owner_required" },
+      { status: 403 },
+    );
   }
 
   const ownerUserId = resolveOwnerUserId(session.user);
