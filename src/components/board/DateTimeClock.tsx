@@ -42,12 +42,13 @@ export function DateTimeClock({
   fontFamily,
   className,
 }: DateTimeClockProps) {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
   const { locale, formatDate } = useLocale();
 
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let raf: number | null = null;
 
     const tick = () => {
       setNow(new Date());
@@ -59,10 +60,11 @@ export function DateTimeClock({
       timer = setTimeout(tick, delayToNextSecond());
     };
 
-    schedule();
+    raf = requestAnimationFrame(tick);
 
     return () => {
       stopped = true;
+      if (raf) cancelAnimationFrame(raf);
       if (timer) clearTimeout(timer);
     };
   }, []);
@@ -78,24 +80,27 @@ export function DateTimeClock({
     [is24Hour, locale],
   );
 
-  const parts = timeFormatter.formatToParts(now);
+  const parts = now ? timeFormatter.formatToParts(now) : [];
   const hoursStr = parts.find((part) => part.type === "hour")?.value ?? "00";
   const minutes = parts.find((part) => part.type === "minute")?.value ?? "00";
   const seconds = parts.find((part) => part.type === "second")?.value ?? "00";
   const period = parts.find((part) => part.type === "dayPeriod")?.value ?? "";
-  const timeStr = timeFormatter.format(now);
-  const dateStr = formatDate(now, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    weekday: "short",
-  });
+  const timeStr = now ? timeFormatter.format(now) : "00:00:00";
+  const dateStr = now
+    ? formatDate(now, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        weekday: "short",
+      })
+    : "0000/00/00";
 
   const resolvedDateFontSize = dateFontSize ?? Math.max(14, Math.round(timeFontSize * 0.35));
 
   const fontStyle = fontFamily || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
   const hasBackground = bgOpacity > 0;
   const rootClassName = className ?? "";
+  const visibility = now ? undefined : "hidden";
 
   if (layout === "compact") {
     return (
@@ -105,6 +110,7 @@ export function DateTimeClock({
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
           fontFamily: fontStyle,
+          visibility,
         }}
       >
         <span
@@ -131,6 +137,7 @@ export function DateTimeClock({
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
           fontFamily: fontStyle,
+          visibility,
         }}
       >
         <span
@@ -163,6 +170,7 @@ export function DateTimeClock({
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
           fontFamily: fontStyle,
+          visibility,
         }}
       >
         <span
@@ -189,6 +197,7 @@ export function DateTimeClock({
         backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
         color,
         fontFamily: fontStyle,
+        visibility,
       }}
     >
       <span
