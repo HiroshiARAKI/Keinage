@@ -170,9 +170,9 @@ Owner退会時、`BILLING_MODE=stripe` かつキャンセル可能な Stripe sub
 
 新規アップロードの storage key は Owner / board scope を含みます。`STORAGE_DELIVERY_MODE=cloudfront-signed-url` の場合、board API のメディアURLは `/uploads/<mediaId>` 形式になり、`/uploads/<mediaId>` が認可後に CloudFront Signed URL へ 302 redirect します。署名付き配信を使わない public board のメディアは `S3_PUBLIC_BASE_URL`、`STORAGE_PUBLIC_BASE_URL`、`CLOUDFRONT_BASE_URL` のいずれかが設定されている場合に CDN URL として返されます。private board のメディアは `/uploads/<path>` route 経由の認可配信を維持します。
 
-`GET /uploads/<path>` は動画のシークと自然なループ再生のために `Range: bytes=...` に対応し、部分配信時は `206 Partial Content`、`Content-Range`、`Accept-Ranges: bytes` を返します。範囲外の要求は `416 Range Not Satisfiable` を返します。
+`GET /uploads/<path>` は、対象 storage key または対応するサムネイル元の `media_items` 参照がDBに存在しない場合は 404 を返します。これにより、退会時に物理削除へ失敗した残存ファイルや S3 direct upload が complete されずDB登録されなかった孤立オブジェクトは、raw storage key を知っていてもアプリ経由では配信されません。動画のシークと自然なループ再生のために `Range: bytes=...` に対応し、部分配信時は `206 Partial Content`、`Content-Range`、`Accept-Ranges: bytes` を返します。範囲外の要求は `416 Range Not Satisfiable` を返します。
 
-S3 storage 利用時の動画アップロードは、ブラウザが `/api/media/direct/init` で Presigned PUT URL を取得し、S3 へ直接 PUT した後に `/api/media/direct/complete` で DB 登録します。Keinage API は署名発行前と完了登録前に Owner / board / plan / 容量 / 動画解像度を確認し、完了時は `HeadObject` で実体サイズを検証します。S3 未設定時は既存の `/api/media` にフォールバックします。Multipart Upload と未完了 multipart cleanup は大容量アップロード最適化の後続課題です。
+S3 storage 利用時の動画アップロードは、ブラウザが `/api/media/direct/init` で Presigned PUT URL を取得し、S3 へ直接 PUT した後に `/api/media/direct/complete` で DB 登録します。Keinage API は署名発行前と完了登録前に Owner / board / plan / 容量 / 動画解像度を確認し、完了時は `HeadObject` で実体サイズを検証します。complete されないオブジェクトはDB参照がないため配信対象になりません。S3 未設定時は既存の `/api/media` にフォールバックします。Multipart Upload と未完了 multipart cleanup は大容量アップロード最適化の後続課題です。
 
 サーバー経由アップロードでは、動画は正式保存前に一時ファイルへ書き出し、`ffprobe` で width / height / rotation を取得して plan の解像度制限を判定します。一時ファイルは判定後に削除され、制限超過時は正式保存されません。Lite は FHD 以下、Standard / Standard+ は 4K 以下を許可します。
 

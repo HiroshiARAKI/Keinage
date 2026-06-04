@@ -337,8 +337,12 @@ export async function GET(
         : or(...candidateMediaPaths.map((filePath) => eq(mediaItems.filePath, filePath))),
     );
 
+  if (mediaRefs.length === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const access = await canAccessMediaRef(request, mediaRefs);
-  if (mediaRefs.length > 0 && !access.allowed) {
+  if (!access.allowed) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
