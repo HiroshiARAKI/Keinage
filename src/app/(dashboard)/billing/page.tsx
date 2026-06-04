@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { getEffectivePlanForUser } from "@/lib/billing";
 import { getRequestI18n } from "@/lib/i18n-server";
+import { isOwnerUser } from "@/lib/ownership";
 import { getOwnerUsage } from "@/lib/owner-usage";
 import { getBillingConfig } from "@/lib/plans";
 import { getPlanBoardSelectionState } from "@/lib/plan-board-selection";
@@ -66,6 +67,7 @@ export default async function BillingPage({
       usage={usage}
       boardSelection={boardSelection}
       billingNotice={toBillingNotice(resolvedSearchParams.billing)}
+      isOwner={isOwnerUser(session.user)}
     />
   );
 }

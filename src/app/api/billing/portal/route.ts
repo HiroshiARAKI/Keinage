@@ -1,9 +1,8 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSessionUser } from "@/lib/auth";
+import { getOwnerAdminSessionUser } from "@/lib/auth";
 import { getOwnerSubscription } from "@/lib/billing";
-import { resolveOwnerUserId } from "@/lib/ownership";
 import { buildPublicAppUrl } from "@/lib/public-origin";
 import { getBillingConfig } from "@/lib/plans";
 import {
@@ -38,9 +37,12 @@ function errorResponse(error: unknown) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getAdminSessionUser();
+  const session = await getOwnerAdminSessionUser();
   if (!session) {
-    return NextResponse.json({ error: "管理者権限が必要です" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Owner権限が必要です", code: "owner_required" },
+      { status: 403 },
+    );
   }
 
   const { billingMode } = getBillingConfig();
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
       { status: 403 },
     );
   }
-  const ownerUserId = resolveOwnerUserId(session.user);
+  const ownerUserId = session.user.id;
   const billingRateLimit = await consumeRateLimit({
     rateLimitKey: buildRateLimitKey({
       flow: "billing",

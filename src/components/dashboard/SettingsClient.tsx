@@ -537,6 +537,8 @@ export function SettingsClient({
   }
 
   async function handleAuthExpirySave(days: number) {
+    if (!isOwner) return;
+
     setAuthExpirySaving(true);
     setAuthExpirySaved(null);
     try {
@@ -1195,8 +1197,8 @@ export function SettingsClient({
             </div>
           )}
 
-          {/* Auth Expiry / Login Cache Period - admin only */}
-          {role === "admin" && <div className="border-t pt-4">
+          {/* Auth Expiry / Login Cache Period - Owner only */}
+          {isOwner && <div className="border-t pt-4">
             <h3 className="mb-2 text-sm font-medium">{t("settings.authCacheTitle")}</h3>
             <p className="mb-4 text-sm text-muted-foreground">
               {t("settings.authCacheDescription")}

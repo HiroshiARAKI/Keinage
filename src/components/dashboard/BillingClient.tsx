@@ -229,11 +229,13 @@ export function BillingClient({
   usage,
   boardSelection,
   billingNotice,
+  isOwner,
 }: {
   effectivePlan: EffectivePlan;
   usage: OwnerUsage;
   boardSelection: PlanBoardSelectionState;
   billingNotice: BillingNotice;
+  isOwner: boolean;
 }) {
   const { t, formatDate } = useLocale();
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
@@ -248,6 +250,7 @@ export function BillingClient({
   const isBillingActive =
     effectivePlan.billingMode === "stripe"
     && effectivePlan.planEnforcementMode === "billing";
+  const canManageBilling = isOwner && isBillingActive;
   const isUnlimitedMode =
     effectivePlan.planEnforcementMode === "unlimited"
     || currentPlanCode === "unlimited";
@@ -448,7 +451,7 @@ export function BillingClient({
             {t("billing.description")}
           </p>
         </div>
-        {isBillingActive && isPaidPlan && (
+        {canManageBilling && isPaidPlan && (
           <Button onClick={openPortal} disabled={loadingAction === "portal"}>
             <CreditCard className="size-4" />
             {t("billing.manageButton")}
@@ -467,6 +470,12 @@ export function BillingClient({
         <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {isBillingActive && !isOwner && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+          {t("billing.ownerRequiredNotice")}
         </div>
       )}
 
@@ -740,7 +749,11 @@ export function BillingClient({
                 {t("billing.recommendedDescription", { plan: getPlanName(recommendedPlan) })}
               </p>
             </div>
-            {isPaidPlan ? (
+            {!isOwner ? (
+              <span className="text-sm text-muted-foreground">
+                {t("billing.ownerRequiredAction")}
+              </span>
+            ) : isPaidPlan ? (
               <Button variant="outline" onClick={openPortal} disabled={loadingAction === "portal"}>
                 {t("billing.portalChange")}
                 <ExternalLink className="size-3.5" />
@@ -849,7 +862,7 @@ export function BillingClient({
                     </div>
                   )}
 
-                  {!isCurrentPlan && paidCode && isBillingActive && !isPaidPlan && (
+                  {!isCurrentPlan && paidCode && canManageBilling && !isPaidPlan && (
                     <>
                       <Button
                         size="sm"
@@ -871,7 +884,7 @@ export function BillingClient({
                     </>
                   )}
 
-                  {!isCurrentPlan && paidCode && isBillingActive && isPaidPlan && (
+                  {!isCurrentPlan && paidCode && canManageBilling && isPaidPlan && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -881,6 +894,12 @@ export function BillingClient({
                       {t("billing.portalChange")}
                       <ExternalLink className="size-3.5" />
                     </Button>
+                  )}
+
+                  {!isCurrentPlan && paidCode && isBillingActive && !isOwner && (
+                    <span className="text-sm text-muted-foreground">
+                      {t("billing.ownerRequiredAction")}
+                    </span>
                   )}
 
                   {!isBillingActive && paidCode && (
