@@ -170,9 +170,9 @@ Owner退会時、`BILLING_MODE=stripe` かつキャンセル可能な Stripe sub
 
 新規アップロードの storage key は Owner / board scope を含みます。`STORAGE_DELIVERY_MODE=cloudfront-signed-url` の場合、board API のメディアURLは `/uploads/<mediaId>` 形式になり、`/uploads/<mediaId>` が認可後に CloudFront Signed URL へ 302 redirect します。署名付き配信を使わない public board のメディアは `S3_PUBLIC_BASE_URL`、`STORAGE_PUBLIC_BASE_URL`、`CLOUDFRONT_BASE_URL` のいずれかが設定されている場合に CDN URL として返されます。private board のメディアは `/uploads/<path>` route 経由の認可配信を維持します。
 
-`GET /uploads/<path>` は動画のシークと自然なループ再生のために `Range: bytes=...` に対応し、部分配信時は `206 Partial Content`、`Content-Range`、`Accept-Ranges: bytes` を返します。範囲外の要求は `416 Range Not Satisfiable` を返します。
+`GET /uploads/<path>` は、対象 storage key または対応するサムネイル元の `media_items` 参照がDBに存在しない場合は 404 を返します。これにより、退会時に物理削除へ失敗した残存ファイルや S3 direct upload が complete されずDB登録されなかった孤立オブジェクトは、raw storage key を知っていてもアプリ経由では配信されません。動画のシークと自然なループ再生のために `Range: bytes=...` に対応し、部分配信時は `206 Partial Content`、`Content-Range`、`Accept-Ranges: bytes` を返します。範囲外の要求は `416 Range Not Satisfiable` を返します。
 
-S3 storage 利用時の動画アップロードは、ブラウザが `/api/media/direct/init` で Presigned PUT URL を取得し、S3 へ直接 PUT した後に `/api/media/direct/complete` で DB 登録します。Keinage API は署名発行前と完了登録前に Owner / board / plan / 容量 / 動画解像度を確認し、完了時は `HeadObject` で実体サイズを検証します。S3 未設定時は既存の `/api/media` にフォールバックします。Multipart Upload と未完了 multipart cleanup は大容量アップロード最適化の後続課題です。
+S3 storage 利用時の動画アップロードは、ブラウザが `/api/media/direct/init` で Presigned PUT URL を取得し、S3 へ直接 PUT した後に `/api/media/direct/complete` で DB 登録します。Keinage API は署名発行前と完了登録前に Owner / board / plan / 容量 / 動画解像度を確認し、完了時は `HeadObject` で実体サイズと Content-Type を検証します。complete されないオブジェクトはDB参照がないため配信対象になりません。S3 未設定時は既存の `/api/media` にフォールバックします。Multipart Upload と未完了 multipart cleanup は大容量アップロード最適化の後続課題です。
 
 サーバー経由アップロードでは、動画は正式保存前に一時ファイルへ書き出し、`ffprobe` で width / height / rotation を取得して plan の解像度制限を判定します。一時ファイルは判定後に削除され、制限超過時は正式保存されません。Lite は FHD 以下、Standard / Standard+ は 4K 以下を許可します。
 
@@ -225,11 +225,13 @@ Super Ownerは通常のOwner登録・ログイン経路で認証し、`SUPER_OWN
 | `GET` | `/api/billing/plan` | Owner の有効プラン状態を取得 | `admin` |
 | `GET` | `/api/billing/board-activation` | 現在または予約中プランで有効にするボード候補を取得 | `admin` |
 | `POST` | `/api/billing/board-activation` | 有効ボード候補を保存、または現在プランの有効ボードを適用 | `admin` |
-| `POST` | `/api/billing/checkout` | 有料プランの Checkout Session を作成 | `admin` |
-| `POST` | `/api/billing/portal` | 支払い管理 Session を作成 | `admin` |
+| `POST` | `/api/billing/checkout` | 有料プランの Checkout Session を作成 | Owner `admin` |
+| `POST` | `/api/billing/portal` | 支払い管理 Session を作成 | Owner `admin` |
 | `POST` | `/api/billing/webhook` | 決済 webhook を署名検証し、Owner subscription を同期 | webhook signature |
 
 `/api/billing/board-activation` は、ダウングレード予約中は `pending_active_board_ids` を保存し、現行プランへの即時適用時だけボードの `status` を更新します。
+
+Checkout / Portal のように支払い方法・契約変更・解約につながる課金操作は Owner user の `admin` だけが実行できます。Shared user の `admin` は `/api/billing/plan` と `/api/billing/board-activation` で利用状況確認と有効ボード候補の調整を行えます。
 
 `BILLING_MODE=disabled` では `/billing` 導線は表示されず、`/api/billing/webhook` は 404 を返します。webhook は raw body と `STRIPE_WEBHOOK_SECRET` で署名検証し、event id を保存して重複処理を避けます。
 
@@ -244,13 +246,13 @@ Plan 制限に到達した場合、ボード作成・更新やメディア追加
 | Method | Path | 内容 | 認証 |
 | --- | --- | --- | --- |
 | `GET` | `/api/settings` | Owner 設定取得 | `admin` |
-| `PATCH` | `/api/settings` | Owner 設定更新 | `admin` |
+| `PATCH` | `/api/settings` | Owner 設定更新 | `admin` / 一部 Owner `admin` |
 | `GET` | `/api/board-devices` | 表示端末の最終アクセス状態を取得 | `admin` |
 | `GET` | `/api/weather` | 天気情報取得 | 不要 |
 | `GET` | `/api/version` | 現在バージョンと最新リリース情報 | 不要 |
 | `GET` | `/api/network` | ネットワーク情報取得 | 不要 |
 
-`/api/weather` は外部天気 API の結果を一定時間キャッシュします。`/api/version` は GitHub Releases API を参照します。
+`/api/settings` の `authExpireDays` はOwnerスコープ全体のセキュリティ設定のため Owner user の `admin` だけが更新できます。`/api/weather` は外部天気 API の結果を一定時間キャッシュします。`/api/version` は GitHub Releases API を参照します。
 
 ## 12. SSE API
 

@@ -64,6 +64,14 @@ function planLimitResponse(error: unknown) {
   return null;
 }
 
+function normalizeContentType(contentType: string) {
+  return contentType.split(";")[0]?.trim().toLowerCase() ?? "";
+}
+
+function contentTypesMatch(storedContentType: string, declaredContentType: string) {
+  return normalizeContentType(storedContentType) === normalizeContentType(declaredContentType);
+}
+
 export async function POST(request: NextRequest) {
   try {
     return await handlePost(request);
@@ -177,6 +185,12 @@ async function handlePost(request: NextRequest) {
       { status: 400 },
     );
   }
+  if (!contentTypesMatch(object.contentType, contentType)) {
+    return NextResponse.json(
+      { error: "Uploaded object content type does not match" },
+      { status: 400 },
+    );
+  }
 
   let posterSizeBytes = 0;
   if (poster) {
@@ -187,6 +201,12 @@ async function handlePost(request: NextRequest) {
     if (posterObject.contentLength !== poster.sizeBytes) {
       return NextResponse.json(
         { error: "Uploaded poster size does not match" },
+        { status: 400 },
+      );
+    }
+    if (!contentTypesMatch(posterObject.contentType, poster.contentType)) {
+      return NextResponse.json(
+        { error: "Uploaded poster content type does not match" },
         { status: 400 },
       );
     }

@@ -243,6 +243,9 @@ export function MediaSlider({
   const videoPreloadRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const advanceTokenRef = useRef(0);
   const randomQueueRef = useRef<number[]>([]);
+  const mediaItemsRef = useRef(mediaItems);
+  const currentIndexRef = useRef(0);
+  const playbackOrderRef = useRef(playbackOrder);
   const mediaKey = useMemo(
     () => mediaItems.map((item) => `${item.id}:${item.filePath}`).join("|"),
     [mediaItems],
@@ -251,32 +254,49 @@ export function MediaSlider({
     mediaItems.length === 0 ? 0 : Math.min(currentIndex, mediaItems.length - 1);
 
   useEffect(() => {
+    mediaItemsRef.current = mediaItems;
+  }, [mediaItems]);
+
+  useEffect(() => {
+    currentIndexRef.current = safeCurrentIndex;
+  }, [safeCurrentIndex]);
+
+  useEffect(() => {
+    playbackOrderRef.current = playbackOrder;
+  }, [playbackOrder]);
+
+  useEffect(() => {
     randomQueueRef.current = [];
   }, [mediaKey, playbackOrder]);
 
   const ensureRandomQueue = useCallback(() => {
+    const items = mediaItemsRef.current;
+    const activeIndex = currentIndexRef.current;
     randomQueueRef.current = randomQueueRef.current.filter(
-      (index) => index >= 0 && index < mediaItems.length && index !== safeCurrentIndex,
+      (index) => index >= 0 && index < items.length && index !== activeIndex,
     );
     if (randomQueueRef.current.length === 0) {
-      randomQueueRef.current = shuffledIndexes(mediaItems.length, safeCurrentIndex);
+      randomQueueRef.current = shuffledIndexes(items.length, activeIndex);
     }
     return randomQueueRef.current;
-  }, [mediaItems.length, safeCurrentIndex]);
+  }, []);
 
   const nextIndex = useCallback(() => {
-    if (mediaItems.length <= 1) return safeCurrentIndex;
-    if (playbackOrder !== "random") {
-      return (safeCurrentIndex + 1) % mediaItems.length;
+    const items = mediaItemsRef.current;
+    const activeIndex = currentIndexRef.current;
+    if (items.length <= 1) return activeIndex;
+    if (playbackOrderRef.current !== "random") {
+      return (activeIndex + 1) % items.length;
     }
-    return ensureRandomQueue().shift() ?? ((safeCurrentIndex + 1) % mediaItems.length);
-  }, [ensureRandomQueue, mediaItems.length, playbackOrder, safeCurrentIndex]);
+    return ensureRandomQueue().shift() ?? ((activeIndex + 1) % items.length);
+  }, [ensureRandomQueue]);
 
   const advance = useCallback(() => {
-    if (mediaItems.length <= 0) return;
+    const items = mediaItemsRef.current;
+    if (items.length <= 0) return;
 
     const upcomingIndex = nextIndex();
-    const next = mediaItems[upcomingIndex];
+    const next = items[upcomingIndex];
     const token = advanceTokenRef.current + 1;
     advanceTokenRef.current = token;
 
@@ -302,7 +322,7 @@ export function MediaSlider({
     }
 
     commit();
-  }, [mediaItems, nextIndex]);
+  }, [nextIndex]);
 
   // --- Preload upcoming media after the active slide has had a chance to paint. ---
   useEffect(() => {

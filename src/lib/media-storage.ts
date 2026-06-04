@@ -19,6 +19,7 @@ import {
 const LOCAL_UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 const PUBLIC_UPLOAD_PREFIX = "/uploads/";
 const THUMB_PREFIX = "thumbs/";
+const DEFAULT_BINARY_CONTENT_TYPE = "application/octet-stream";
 
 const MIME_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -558,7 +559,7 @@ export async function headStoredObject(key: string): Promise<StoredObjectMetadat
 
     return {
       contentLength: Number(response.ContentLength ?? 0),
-      contentType: response.ContentType ?? mimeTypeFromKey(safeKey),
+      contentType: response.ContentType ?? DEFAULT_BINARY_CONTENT_TYPE,
     };
   } catch (error) {
     if (isNotFoundError(error)) {
