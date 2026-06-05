@@ -117,7 +117,6 @@ export const jaJP = {
   "announcements.severity.critical": "重大",
   "announcements.requiredLabel.review": "要確認",
   "announcements.requiredLabel.important": "重要",
-  "announcements.requiredLabel.discontinued": "運用を廃止",
   "announcements.target.all": "全ユーザー",
   "announcements.target.free": "Free",
   "announcements.target.paid": "有料",

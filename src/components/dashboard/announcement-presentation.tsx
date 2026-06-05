@@ -74,8 +74,6 @@ export function getRequiredAnnouncementLabelKey(severity: AnnouncementSeverity) 
       return "announcements.requiredLabel.review";
     case "high":
       return "announcements.requiredLabel.important";
-    case "critical":
-      return "announcements.requiredLabel.discontinued";
     default:
       return null;
   }

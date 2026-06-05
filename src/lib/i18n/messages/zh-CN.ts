@@ -117,7 +117,6 @@ export const zhCN = {
   "announcements.severity.critical": "Critical",
   "announcements.requiredLabel.review": "Review required",
   "announcements.requiredLabel.important": "Important",
-  "announcements.requiredLabel.discontinued": "Service discontinued",
   "announcements.target.all": "All users",
   "announcements.target.free": "Free",
   "announcements.target.paid": "Paid",
