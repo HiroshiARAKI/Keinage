@@ -295,7 +295,7 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
                     {requiresAcknowledgement && appearance ? (
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <AnnouncementRequiredMark type={announcement.type} label={requiredLabel} />
-                        <Badge variant="outline" className={appearance.badgeClassName}>
+                        <Badge variant="secondary" className={appearance.badgeClassName}>
                           {label("type", announcement.type)}
                         </Badge>
                       </div>

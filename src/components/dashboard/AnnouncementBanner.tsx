@@ -135,7 +135,7 @@ export function AnnouncementBanner() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <AnnouncementRequiredMark type={required.type} label={requiredLabel} />
-              <Badge variant="outline" className={requiredAppearance?.badgeClassName}>
+              <Badge variant="secondary" className={requiredAppearance?.badgeClassName}>
                 {t(`announcements.type.${required.type}` as Parameters<typeof t>[0])}
               </Badge>
             </div>
