@@ -18,7 +18,7 @@ const APPEARANCES = {
     panelClassName: "border-sky-400 bg-sky-50/92 shadow-[0_12px_28px_-20px_rgba(3,105,161,0.28)] dark:border-sky-900/70 dark:bg-sky-950/35",
     badgeClassName: "border-transparent bg-sky-700 text-white shadow-sm dark:bg-sky-600 dark:text-white",
     iconShellClassName: "inline-flex size-7 items-center justify-center rounded-xl bg-sky-700 text-white shadow-sm dark:bg-sky-600",
-    iconGlyphClassName: "text-[0.85rem] font-black leading-none text-white",
+      iconGlyphClassName: "size-3 text-white",
     labelClassName: "inline-flex items-center rounded-full bg-sky-700 px-2.5 py-0.5 text-[0.68rem] font-semibold text-white shadow-sm dark:bg-sky-600",
     glyph: "info",
   },
