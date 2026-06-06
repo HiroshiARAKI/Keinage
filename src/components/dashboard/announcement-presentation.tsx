@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, BadgeInfo, BadgeJapaneseYen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type AnnouncementType = "info" | "maintenance" | "incident" | "billing" | "legal" | "termination";
@@ -89,13 +89,9 @@ export function AnnouncementRequiredMark(input: {
   return (
     <div className={cn("inline-flex items-center gap-2", input.className)}>
       <span className={appearance.iconShellClassName}>
-        {appearance.glyph === "alert" ? (
-          <AlertTriangle className={appearance.iconGlyphClassName} />
-        ) : (
-          <span className={appearance.iconGlyphClassName}>
-            {appearance.glyph === "yen" ? "¥" : "i"}
-          </span>
-        )}
+        {appearance.glyph === "alert" ? <AlertTriangle className={appearance.iconGlyphClassName} /> : null}
+        {appearance.glyph === "info" ? <BadgeInfo className={appearance.iconGlyphClassName} /> : null}
+        {appearance.glyph === "yen" ? <BadgeJapaneseYen className={appearance.iconGlyphClassName} /> : null}
       </span>
       {input.label ? <span className={appearance.labelClassName}>{input.label}</span> : null}
     </div>
