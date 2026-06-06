@@ -2,55 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, ExternalLink, X } from "lucide-react";
+import { useAnnouncements } from "@/components/dashboard/AnnouncementProvider";
 import {
   AnnouncementRequiredMark,
   getAnnouncementAppearance,
   getRequiredAnnouncementLabelKey,
-  type AnnouncementSeverity,
-  type AnnouncementType,
 } from "@/components/dashboard/announcement-presentation";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-interface Announcement {
-  id: string;
-  title: string;
-  body: string;
-  type: AnnouncementType;
-  severity: AnnouncementSeverity;
-  requireAcknowledgement: boolean;
-  readAt: string | null;
-  acknowledgedAt: string | null;
-}
-
-async function postAnnouncementAction(id: string, action: "read" | "acknowledge") {
-  await fetch(`/api/announcements/${id}/${action}`, { method: "POST" });
-}
-
 export function AnnouncementBanner() {
   const { t } = useLocale();
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const { announcements, markAnnouncement } = useAnnouncements();
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadAnnouncements() {
-      const res = await fetch("/api/announcements", { cache: "no-store" });
-      if (!res.ok || cancelled) return;
-      const data = await res.json() as { announcements?: Announcement[] };
-      if (!cancelled) {
-        setAnnouncements(data.announcements ?? []);
-      }
-    }
-    void loadAnnouncements();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const important = useMemo(
     () => announcements.find((announcement) => (
@@ -76,22 +44,11 @@ export function AnnouncementBanner() {
   })() : null;
 
   async function markRead(id: string) {
-    setAnnouncements((current) => current.map((announcement) => (
-      announcement.id === id
-        ? { ...announcement, readAt: new Date().toISOString() }
-        : announcement
-    )));
-    await postAnnouncementAction(id, "read");
+    await markAnnouncement(id, "read");
   }
 
   async function acknowledge(id: string) {
-    const now = new Date().toISOString();
-    setAnnouncements((current) => current.map((announcement) => (
-      announcement.id === id
-        ? { ...announcement, readAt: now, acknowledgedAt: now }
-        : announcement
-    )));
-    await postAnnouncementAction(id, "acknowledge");
+    await markAnnouncement(id, "acknowledge");
   }
 
   return (

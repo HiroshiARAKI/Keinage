@@ -20,6 +20,12 @@ import {
   type AnnouncementSeverity,
   type AnnouncementType,
 } from "@/components/dashboard/announcement-presentation";
+import {
+  type Announcement,
+  type AnnouncementStatus,
+  type AnnouncementTargetScope,
+  useAnnouncements,
+} from "@/components/dashboard/AnnouncementProvider";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,30 +48,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-
-type AnnouncementTargetScope = "all" | "free" | "paid" | "lite" | "standard" | "standard_plus";
-type AnnouncementStatus = "draft" | "published" | "archived";
-
-interface Announcement {
-  id: string;
-  title: string;
-  body: string;
-  type: AnnouncementType;
-  severity: AnnouncementSeverity;
-  targetScope: AnnouncementTargetScope;
-  publishStatus: AnnouncementStatus;
-  startsAt: string | null;
-  endsAt: string | null;
-  sendEmail: boolean;
-  emailSentAt: string | null;
-  emailLastError: string | null;
-  requireAcknowledgement: boolean;
-  publishedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  readAt?: string | null;
-  acknowledgedAt?: string | null;
-}
 
 const TYPES: AnnouncementType[] = ["info", "maintenance", "incident", "billing", "legal", "termination"];
 const SEVERITIES: AnnouncementSeverity[] = ["low", "medium", "high"];
@@ -106,24 +88,18 @@ function severityVariant(severity: AnnouncementSeverity) {
 
 export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean }) {
   const { t, formatDateTime } = useLocale();
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const {
+    announcements,
+    loading,
+    markAnnouncement,
+    refreshAnnouncements,
+  } = useAnnouncements();
   const [adminAnnouncements, setAdminAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(isSuperOwner);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
-
-  const fetchAnnouncements = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch("/api/announcements", { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json() as { announcements?: Announcement[] };
-      setAnnouncements(data.announcements ?? []);
-    }
-    setLoading(false);
-  }, []);
 
   const fetchAdminAnnouncements = useCallback(async () => {
     if (!isSuperOwner) return;
@@ -137,29 +113,23 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
   }, [isSuperOwner]);
 
   useEffect(() => {
+    if (!isSuperOwner) {
+      return;
+    }
+
     let cancelled = false;
-    async function loadInitial() {
-      const [userRes, adminRes] = await Promise.all([
-        fetch("/api/announcements", { cache: "no-store" }),
-        isSuperOwner
-          ? fetch("/api/super-owner/announcements", { cache: "no-store" })
-          : Promise.resolve(null),
-      ]);
+    async function loadAdminAnnouncements() {
+      const adminRes = await fetch("/api/super-owner/announcements", { cache: "no-store" });
       if (cancelled) return;
-      if (userRes.ok) {
-        const data = await userRes.json() as { announcements?: Announcement[] };
-        if (!cancelled) setAnnouncements(data.announcements ?? []);
-      }
-      if (adminRes?.ok) {
+      if (adminRes.ok) {
         const data = await adminRes.json() as { announcements?: Announcement[] };
         if (!cancelled) setAdminAnnouncements(data.announcements ?? []);
       }
       if (!cancelled) {
-        setLoading(false);
         setAdminLoading(false);
       }
     }
-    void loadInitial();
+    void loadAdminAnnouncements();
     return () => {
       cancelled = true;
     };
@@ -195,17 +165,7 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
   }
 
   async function mark(id: string, action: "read" | "acknowledge") {
-    const now = new Date().toISOString();
-    setAnnouncements((current) => current.map((announcement) => (
-      announcement.id === id
-        ? {
-            ...announcement,
-            readAt: now,
-            acknowledgedAt: action === "acknowledge" ? now : announcement.acknowledgedAt,
-          }
-        : announcement
-    )));
-    await fetch(`/api/announcements/${id}/${action}`, { method: "POST" });
+    await markAnnouncement(id, action);
   }
 
   async function saveAnnouncement(event: React.FormEvent) {
@@ -240,7 +200,7 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
     }
     setMessage(t("announcements.saved"));
     setForm(EMPTY_FORM);
-    await Promise.all([fetchAdminAnnouncements(), fetchAnnouncements()]);
+    await Promise.all([fetchAdminAnnouncements(), refreshAnnouncements()]);
     setSaving(false);
   }
 
@@ -253,7 +213,7 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
       return;
     }
     setMessage(action === "publish" ? t("announcements.published") : t("announcements.archived"));
-    await Promise.all([fetchAdminAnnouncements(), fetchAnnouncements()]);
+    await Promise.all([fetchAdminAnnouncements(), refreshAnnouncements()]);
   }
 
   return (
