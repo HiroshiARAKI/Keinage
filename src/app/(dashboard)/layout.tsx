@@ -21,6 +21,7 @@ import { getBillingConfig } from "@/lib/plans";
 import { getWebAuthnRedirectForSession } from "@/lib/webauthn";
 import { ThemeProvider } from "@/components/dashboard/ThemeProvider";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { isSharedUserLoginAllowed } from "@/lib/shared-user-plan";
 
 export default async function DashboardLayout({
   children,
@@ -57,6 +58,9 @@ export default async function DashboardLayout({
       console.log("[dashboard/layout] Session not found or expired -> /pin");
     }
     redirect("/pin");
+  }
+  if (!isSharedUserLoginAllowed(session.user)) {
+    redirect("/pin/login?error=shared-user-inactive-due-to-plan");
   }
 
   // Check full-auth validity

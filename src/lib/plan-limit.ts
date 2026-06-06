@@ -4,6 +4,7 @@ import type { MessageKey } from "@/lib/i18n";
 
 export type PlanLimitCode =
   | "plan_limit_board_count"
+  | "plan_limit_shared_user_count"
   | "plan_limit_storage"
   | "plan_limit_image_count"
   | "plan_limit_video_disabled"
@@ -13,6 +14,7 @@ export type PlanLimitCode =
 
 export const PLAN_LIMIT_MESSAGE_KEYS = {
   plan_limit_board_count: "planLimit.boardCount",
+  plan_limit_shared_user_count: "planLimit.sharedUserCount",
   plan_limit_storage: "planLimit.storage",
   plan_limit_image_count: "planLimit.imageCount",
   plan_limit_video_disabled: "planLimit.videoDisabled",

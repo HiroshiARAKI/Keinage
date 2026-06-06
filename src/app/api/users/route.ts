@@ -18,6 +18,13 @@ import {
   isValidSignupUserId,
   normalizeSignupEmail,
 } from "@/lib/signup";
+import {
+  assertCanInviteSharedUser,
+  getSharedUserPlanUsage,
+  SharedUserLimitError,
+  sharedUserLimitErrorBody,
+  withSharedUserPlanLock,
+} from "@/lib/shared-user-plan";
 
 /** GET /api/users — list all users (admin only) */
 export async function GET() {
@@ -36,6 +43,7 @@ export async function GET() {
       email: users.email,
       attribute: users.attribute,
       role: users.role,
+      status: users.status,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -51,12 +59,35 @@ export async function GET() {
       email: ownerUser.email,
       attribute: ownerUser.attribute,
       role: ownerUser.role,
+      status: ownerUser.status,
       createdAt: ownerUser.createdAt,
     },
     ...allUsers.filter((user) => user.id !== ownerUser.id),
   ] : allUsers;
 
-  return NextResponse.json(scopedUsers);
+  const now = new Date().toISOString();
+  const [invitations, usage] = await Promise.all([
+    db
+      .select({
+        id: sharedSignupRequests.id,
+        userId: sharedSignupRequests.userId,
+        email: sharedSignupRequests.email,
+        role: sharedSignupRequests.role,
+        status: sharedSignupRequests.status,
+        expiresAt: sharedSignupRequests.expiresAt,
+        createdAt: sharedSignupRequests.createdAt,
+      })
+      .from(sharedSignupRequests)
+      .where(and(
+        eq(sharedSignupRequests.ownerUserId, ownerUserId),
+        isNull(sharedSignupRequests.completedAt),
+        gt(sharedSignupRequests.expiresAt, now),
+      ))
+      .orderBy(sharedSignupRequests.createdAt),
+    getSharedUserPlanUsage(ownerUserId),
+  ]);
+
+  return NextResponse.json({ users: scopedUsers, invitations, usage });
 }
 
 /** POST /api/users — invite a new shared user (admin only) */
@@ -153,14 +184,27 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const [signupRequest] = await db.insert(sharedSignupRequests).values({
-    ownerUserId,
-    userId: normalizedUserId,
-    email: normalizedEmail,
-    role: normalizedRole,
-    token,
-    expiresAt: computeSignupExpiry(),
-  }).returning();
+  let signupRequest: typeof sharedSignupRequests.$inferSelect;
+  try {
+    signupRequest = await withSharedUserPlanLock(ownerUserId, async (transaction) => {
+      await assertCanInviteSharedUser(ownerUserId, transaction);
+      const [created] = await transaction.insert(sharedSignupRequests).values({
+        ownerUserId,
+        userId: normalizedUserId,
+        email: normalizedEmail,
+        role: normalizedRole,
+        status: "invited",
+        token,
+        expiresAt: computeSignupExpiry(),
+      }).returning();
+      return created;
+    });
+  } catch (error) {
+    if (error instanceof SharedUserLimitError) {
+      return NextResponse.json(sharedUserLimitErrorBody(error), { status: 403 });
+    }
+    throw error;
+  }
 
   const mailSent = smtpConfigured
     ? await sendSharedSignupEmail(normalizedEmail, signupUrl)

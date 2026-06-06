@@ -41,6 +41,7 @@ import {
 } from "@/lib/webauthn";
 import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 import { sendSecurityNotification } from "@/lib/security-notifications";
+import { isSharedUserLoginAllowed } from "@/lib/shared-user-plan";
 
 /** POST /api/auth/credentials/login — email/userId + password login */
 export async function POST(request: NextRequest) {
@@ -132,6 +133,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "ユーザーIDまたはパスワードが正しくありません" },
       { status: 401 },
+    );
+  }
+
+  if (!isSharedUserLoginAllowed(user)) {
+    await writeUserAuditLog({
+      user,
+      action: "login_failed",
+      result: "denied",
+      reason: "inactive_due_to_plan",
+      request,
+      metadata: { method: "credentials" },
+    });
+    return NextResponse.json(
+      {
+        error:
+          "このShared userは現在のプラン上限を超えているため利用できません。Ownerにお問い合わせください。",
+        inactiveDueToPlan: true,
+      },
+      { status: 403 },
     );
   }
 

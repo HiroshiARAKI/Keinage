@@ -152,7 +152,8 @@ export async function GET(request: NextRequest) {
           where: and(
             eq(sharedSignupRequests.token, sharedSignupToken),
             isNull(sharedSignupRequests.completedAt),
-            gt(sharedSignupRequests.expiresAt, now),
+      gt(sharedSignupRequests.expiresAt, now),
+      eq(sharedSignupRequests.status, "invited"),
           ),
         })
       : null;

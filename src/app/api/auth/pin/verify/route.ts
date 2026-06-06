@@ -47,6 +47,7 @@ import {
 } from "@/lib/webauthn";
 import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
 import { sendSecurityNotification } from "@/lib/security-notifications";
+import { isSharedUserLoginAllowed } from "@/lib/shared-user-plan";
 
 /** POST /api/auth/pin/verify — verify PIN and issue session */
 export async function POST(request: NextRequest) {
@@ -133,6 +134,26 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(
       { error: "メールアドレスとパスワードによる認証が必要です", requiresFullAuth: true },
+      { status: 403 },
+    );
+  }
+
+  if (!isSharedUserLoginAllowed(adminUser)) {
+    await writeUserAuditLog({
+      user: adminUser,
+      action: "login_failed",
+      result: "denied",
+      reason: "inactive_due_to_plan",
+      request,
+      metadata: { method: "pin" },
+    });
+    return NextResponse.json(
+      {
+        error:
+          "このShared userは現在のプラン上限を超えているため利用できません。Ownerにお問い合わせください。",
+        requiresFullAuth: true,
+        inactiveDueToPlan: true,
+      },
       { status: 403 },
     );
   }

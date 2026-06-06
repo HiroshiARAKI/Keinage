@@ -28,6 +28,12 @@ import {
   isWebAuthnVerifiedAtSessionCreation,
 } from "@/lib/webauthn";
 import { writeAuditLog, writeUserAuditLog } from "@/lib/audit-log";
+import {
+  assertCanCompleteSharedInvitation,
+  isSharedUserLoginAllowed,
+  SharedUserLimitError,
+  withSharedUserPlanLock,
+} from "@/lib/shared-user-plan";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
 const GOOGLE_USER_ID_FALLBACK = "google-user";
@@ -223,6 +229,18 @@ export async function GET(request: NextRequest) {
       user = existingGoogleOnlyUser;
     }
 
+    if (!isSharedUserLoginAllowed(user)) {
+      await writeUserAuditLog({
+        user,
+        action: "login_failed",
+        result: "denied",
+        reason: "inactive_due_to_plan",
+        request,
+        metadata: { method: "google" },
+      });
+      return errorRedirect(request, "/pin/login", "shared-user-inactive-due-to-plan");
+    }
+
     await db
       .update(users)
       .set(buildSuccessfulAuthState(now))
@@ -342,6 +360,7 @@ export async function GET(request: NextRequest) {
         eq(sharedSignupRequests.token, flow.sharedSignupToken),
         isNull(sharedSignupRequests.completedAt),
         gt(sharedSignupRequests.expiresAt, now),
+        eq(sharedSignupRequests.status, "invited"),
       ),
     });
     if (!signupRequest) {
@@ -367,30 +386,60 @@ export async function GET(request: NextRequest) {
       return errorRedirect(request, "/signup/shared", "user-already-exists");
     }
 
-    const [createdUser] = await db
-      .insert(users)
-      .values({
-        userId: signupRequest.userId,
-        email: signupRequest.email,
-        passwordHash: null,
-        attribute: "shared",
-        ownerUserId: signupRequest.ownerUserId,
-        role: signupRequest.role,
-        lastFullAuthAt: now,
-      })
-      .returning();
+    let createdUser: typeof users.$inferSelect;
+    try {
+      createdUser = await withSharedUserPlanLock(
+        signupRequest.ownerUserId,
+        async (transaction) => {
+          const currentInvitation = await transaction.query.sharedSignupRequests.findFirst({
+            where: and(
+              eq(sharedSignupRequests.id, signupRequest.id),
+              eq(sharedSignupRequests.status, "invited"),
+              isNull(sharedSignupRequests.completedAt),
+              gt(sharedSignupRequests.expiresAt, now),
+            ),
+          });
+          if (!currentInvitation) {
+            throw new Error("shared_invitation_unavailable");
+          }
+          await assertCanCompleteSharedInvitation(signupRequest.ownerUserId, transaction);
 
-    await db.insert(authAccounts).values({
-      userId: createdUser.id,
-      provider: GOOGLE_AUTH_PROVIDER,
-      providerAccountId: googleUser.sub,
-      email: signupRequest.email,
-    });
+          const [user] = await transaction
+            .insert(users)
+            .values({
+              userId: signupRequest.userId,
+              email: signupRequest.email,
+              passwordHash: null,
+              attribute: "shared",
+              ownerUserId: signupRequest.ownerUserId,
+              role: signupRequest.role,
+              status: "active",
+              lastFullAuthAt: now,
+            })
+            .returning();
 
-    await db
-      .update(sharedSignupRequests)
-      .set({ completedAt: now })
-      .where(eq(sharedSignupRequests.id, signupRequest.id));
+          await transaction.insert(authAccounts).values({
+            userId: user.id,
+            provider: GOOGLE_AUTH_PROVIDER,
+            providerAccountId: googleUser.sub,
+            email: signupRequest.email,
+          });
+          await transaction
+            .update(sharedSignupRequests)
+            .set({ completedAt: now, status: "completed" })
+            .where(eq(sharedSignupRequests.id, signupRequest.id));
+          return user;
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof SharedUserLimitError
+        || (error instanceof Error && error.message === "shared_invitation_unavailable")
+      ) {
+        return errorRedirect(request, "/signup/shared", "shared-user-limit-reached");
+      }
+      throw error;
+    }
 
     await sendSignupCompletedEmail({
       to: createdUser.email,

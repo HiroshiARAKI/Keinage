@@ -195,9 +195,9 @@ S3 storage 利用時の動画アップロードは、ブラウザが `/api/media
 
 | Method | Path | 内容 | 認証 |
 | --- | --- | --- | --- |
-| `GET` | `/api/users` | Owner 配下のユーザー一覧 | `admin` |
+| `GET` | `/api/users` | Owner 配下のユーザー、招待、Shared user利用数・上限を取得 | `admin` |
 | `POST` | `/api/users` | Shared user 招待作成 | `admin` |
-| `PATCH` | `/api/users/<id>` | Shared user のロールなどを更新 | `admin` |
+| `PATCH` | `/api/users/<id>` | Shared user のロール、プラン適用状態を更新 | `admin` |
 | `DELETE` | `/api/users/<id>` | Shared user 削除 | `admin` |
 | `GET` | `/api/super-owner/status` | Super Owner認証状態を確認 | `super_owner` |
 | `GET` | `/api/super-owner/audit-logs` | 監査ログ一覧を取得。`action`、`result`、`actor_user_id`、`target_type`、`created_from`、`created_to`、`limit` で絞り込み | `super_owner` |
@@ -209,6 +209,8 @@ S3 storage 利用時の動画アップロードは、ブラウザが `/api/media
 | `PATCH` | `/api/super-owner/announcements/<id>` | 運営通知を編集 | `super_owner` |
 | `POST` | `/api/super-owner/announcements/<id>/publish` | 運営通知を公開し、必要に応じてメール送信 | `super_owner` |
 | `POST` | `/api/super-owner/announcements/<id>/archive` | 運営通知をアーカイブ | `super_owner` |
+
+`POST /api/users`、Shared userのパスワード／Google登録完了、`PATCH /api/users/<id>` による再有効化は、effective plan の `sharedUsers` 上限をサーバー側で検証します。上限超過時は `403` と `code: "plan_limit_shared_user_count"`、`limit`、`usage` を返します。Shared userと招待は必ずOwnerスコープで絞り込み、他Ownerのユーザーは更新できません。
 
 Owner user は削除できません。
 

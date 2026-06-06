@@ -29,6 +29,7 @@ import {
   retrieveStripeSubscriptionSchedule,
 } from "@/lib/stripe-billing";
 import { sendSecurityNotification } from "@/lib/security-notifications";
+import { reconcileSharedUsersForPlan } from "@/lib/shared-user-plan";
 
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 const SUPPORTED_EVENTS = new Set([
@@ -443,6 +444,10 @@ async function applyPendingIfDue(existing: typeof ownerSubscriptions.$inferSelec
     pendingActiveBoardIds: parsePendingActiveBoardIds(existing.pendingActiveBoardIds),
     targetPlanCode: existing.pendingPlanCode,
   });
+  await reconcileSharedUsersForPlan({
+    ownerUserId: existing.ownerUserId,
+    targetPlanCode: existing.pendingPlanCode,
+  });
   return true;
 }
 
@@ -451,6 +456,10 @@ async function applyFreePlanSelection(existing: typeof ownerSubscriptions.$infer
   await applyPendingPlanBoardSelection({
     ownerUserId: existing.ownerUserId,
     pendingActiveBoardIds: parsePendingActiveBoardIds(existing.pendingActiveBoardIds),
+    targetPlanCode: "free",
+  });
+  await reconcileSharedUsersForPlan({
+    ownerUserId: existing.ownerUserId,
     targetPlanCode: "free",
   });
 }
@@ -716,6 +725,20 @@ async function upsertOwnerSubscription(state: ResolvedSubscriptionState) {
     lastSyncedAt: state.lastSyncedAt,
     updatedAt: now,
   };
+
+  const appliedPlanCode = isSubscriptionUsable(state.status)
+    ? state.planCode
+    : "free";
+  const previouslyAppliedPlanCode =
+    existing && isSubscriptionUsable(subscriptionStatus(existing.status))
+      ? storedPlanCode
+      : "free";
+  if (!shouldApplyPending && previouslyAppliedPlanCode !== appliedPlanCode) {
+    await reconcileSharedUsersForPlan({
+      ownerUserId: state.ownerUserId,
+      targetPlanCode: appliedPlanCode,
+    });
+  }
 
   if (existing) {
     await db

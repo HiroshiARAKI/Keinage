@@ -3,7 +3,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Trash2, UserPlus } from "lucide-react";
+import { AlertTriangle, Trash2, UserCheck, UserPlus, UserX } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 
 interface UserRow {
@@ -29,12 +30,44 @@ interface UserRow {
   email: string;
   attribute: "owner" | "shared";
   role: string;
+  status: "active" | "disabled" | "inactive_due_to_plan";
   createdAt: string;
+}
+
+interface InvitationRow {
+  id: string;
+  userId: string;
+  email: string;
+  role: string;
+  status: "invited" | "inactive_due_to_plan";
+  expiresAt: string;
+  createdAt: string;
+}
+
+interface SharedUserUsage {
+  activeUsers: number;
+  invitedUsers: number;
+  inactiveDueToPlanUsers: number;
+  inactiveDueToPlanInvitations: number;
+  used: number;
+  limit: number | null;
+  nearLimit: boolean;
+  atLimit: boolean;
+  planCode: string;
+  planName: string;
+}
+
+interface UsersResponse {
+  users: UserRow[];
+  invitations: InvitationRow[];
+  usage: SharedUserUsage;
 }
 
 export function UserManagement() {
   const { t } = useLocale();
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [invitations, setInvitations] = useState<InvitationRow[]>([]);
+  const [usage, setUsage] = useState<SharedUserUsage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,8 +85,15 @@ export function UserManagement() {
     setLoading(true);
     try {
       const res = await fetch("/api/users");
-      if (res.ok) setUsers(await res.json());
-      else setError(t("users.fetchError"));
+      if (res.ok) {
+        const data = await res.json() as UsersResponse;
+        setUsers(data.users);
+        setInvitations(data.invitations);
+        setUsage(data.usage);
+        setError(null);
+      } else {
+        setError(t("users.fetchError"));
+      }
     } finally {
       setLoading(false);
     }
@@ -73,6 +113,24 @@ export function UserManagement() {
       return;
     }
     setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role } : u));
+  }
+
+  async function handleStatusChange(
+    id: string,
+    status: "active" | "inactive_due_to_plan",
+  ) {
+    setError(null);
+    const res = await fetch(`/api/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? t("users.statusChangeError"));
+      return;
+    }
+    await fetchUsers();
   }
 
   async function handleDelete(id: string, userId: string) {
@@ -120,12 +178,60 @@ export function UserManagement() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{t("users.list")}</h2>
-        <Button size="sm" onClick={() => { setShowCreate(true); setCreateError(null); setInviteSuccess(null); setInvitePreviewUrl(null); }}>
+        <div>
+          <h2 className="text-lg font-semibold">{t("users.list")}</h2>
+          {usage && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("users.usage", {
+                used: usage.used,
+                limit: usage.limit ?? t("users.unlimited"),
+              })}
+              {usage.invitedUsers > 0 && (
+                <span className="ml-2">
+                  {t("users.invitedCount", { count: usage.invitedUsers })}
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+        <Button
+          size="sm"
+          disabled={usage?.atLimit === true}
+          onClick={() => {
+            setShowCreate(true);
+            setCreateError(null);
+            setInviteSuccess(null);
+            setInvitePreviewUrl(null);
+          }}
+        >
           <UserPlus className="mr-1.5 size-4" />
           {t("users.add")}
         </Button>
       </div>
+
+      {usage?.nearLimit && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+          <AlertTriangle className="size-4 shrink-0" />
+          {t("users.nearLimit")}
+        </div>
+      )}
+
+      {usage?.atLimit && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="size-4 shrink-0" />
+            {t("users.limitReached", { limit: usage.limit ?? 0 })}
+          </div>
+          {usage.planCode !== "unlimited" && usage.planCode !== "self_hosted" && (
+            <Link
+              href="/billing"
+              className={buttonVariants({ size: "sm", variant: "outline" })}
+            >
+              {t("users.reviewPlan")}
+            </Link>
+          )}
+        </div>
+      )}
 
       {error && (
         <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</p>
@@ -142,6 +248,7 @@ export function UserManagement() {
                 <th className="px-4 py-2 text-left">{t("common.email")}</th>
                 <th className="px-4 py-2 text-left">{t("common.attribute")}</th>
                 <th className="px-4 py-2 text-left">{t("common.role")}</th>
+                <th className="px-4 py-2 text-left">{t("users.status")}</th>
                 <th className="px-4 py-2 text-right">{t("common.actions")}</th>
               </tr>
             </thead>
@@ -170,24 +277,92 @@ export function UserManagement() {
                       </SelectContent>
                     </Select>
                   </td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      variant={user.status === "active" ? "outline" : "secondary"}
+                      className={user.status === "active"
+                        ? "border-emerald-300 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+                        : ""}
+                    >
+                      {user.attribute === "owner"
+                        ? t("users.statusActive")
+                        : user.status === "active"
+                          ? t("users.statusActive")
+                          : user.status === "inactive_due_to_plan"
+                            ? t("users.statusInactiveDueToPlan")
+                            : t("users.statusDisabled")}
+                    </Badge>
+                  </td>
                   <td className="px-4 py-3 text-right">
                     {user.attribute === "owner" ? (
                       <span className="text-xs text-muted-foreground">{t("users.undeletable")}</span>
                     ) : (
-                      <button
-                        onClick={() => handleDelete(user.id, user.userId)}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-500 transition-colors hover:bg-red-50 hover:text-red-700"
-                        title={t("common.delete")}
-                      >
-                        <Trash2 className="size-3.5" />
-                        {t("common.delete")}
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        {user.status === "active" ? (
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            onClick={() => handleStatusChange(user.id, "inactive_due_to_plan")}
+                            title={t("users.deactivate")}
+                            aria-label={t("users.deactivate")}
+                          >
+                            <UserX className="size-3.5" />
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            onClick={() => handleStatusChange(user.id, "active")}
+                            title={t("users.activate")}
+                            aria-label={t("users.activate")}
+                          >
+                            <UserCheck className="size-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(user.id, user.userId)}
+                          className="text-red-500 hover:bg-red-50 hover:text-red-700"
+                          title={t("common.delete")}
+                          aria-label={t("common.delete")}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {invitations.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">{t("users.pendingInvitations")}</h3>
+          <div className="divide-y rounded-lg border">
+            {invitations.map((invitation) => (
+              <div
+                key={invitation.id}
+                className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{invitation.userId}</p>
+                  <p className="truncate text-xs text-muted-foreground">{invitation.email}</p>
+                </div>
+                <Badge variant="outline">
+                  {invitation.status === "invited"
+                    ? t("users.statusInvited")
+                    : t("users.statusInactiveDueToPlan")}
+                </Badge>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

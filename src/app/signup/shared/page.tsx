@@ -23,6 +23,7 @@ export default async function SharedSignupPage({
       eq(sharedSignupRequests.token, token),
       isNull(sharedSignupRequests.completedAt),
       gt(sharedSignupRequests.expiresAt, now),
+      eq(sharedSignupRequests.status, "invited"),
     ),
   });
 
