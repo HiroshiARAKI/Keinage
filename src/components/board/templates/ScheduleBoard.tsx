@@ -245,7 +245,7 @@ export default function ScheduleBoard({ board }: BoardTemplateProps) {
 
   return (
     <div
-      className="flex h-screen w-screen flex-col overflow-hidden"
+      className="flex h-full w-full flex-col overflow-hidden"
       style={{
         backgroundColor: config.backgroundColor,
         color: config.cardTextColor,

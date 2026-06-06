@@ -26,7 +26,7 @@ interface WeatherDisplayProps {
   boardId?: string;
   color?: string;
   bgOpacity?: number;
-  /** Base font size in px */
+  /** Base font size in design points (1pt = 1px at the 1080px design height). */
   fontSize?: number;
   /** Custom font family */
   fontFamily?: string;

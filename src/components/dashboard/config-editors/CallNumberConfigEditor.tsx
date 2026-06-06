@@ -143,8 +143,8 @@ export function CallNumberConfigEditor({
               />
             </div>
             <div className="flex w-full max-w-48 justify-between text-xs text-muted-foreground">
-              <span>24px</span>
-              <span>120px</span>
+              <span>24pt</span>
+              <span>120pt</span>
             </div>
           </div>
           <div className="space-y-1.5">

@@ -282,7 +282,7 @@ export default function RetroBoard({
       );
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-[#0a0a0a]" style={{ fontFamily: config.fontFamily || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
+    <div className="flex h-full w-full flex-col bg-[#0a0a0a]" style={{ fontFamily: config.fontFamily || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
       {config.fontFamily && (
         <GoogleFontLoader fonts={[config.fontFamily]} />
       )}

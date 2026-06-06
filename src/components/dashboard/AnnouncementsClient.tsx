@@ -7,11 +7,25 @@ import {
   Archive,
   CheckCircle2,
   Edit3,
+  Info,
   Mail,
   Megaphone,
   Plus,
   Send,
 } from "lucide-react";
+import {
+  AnnouncementRequiredMark,
+  getAnnouncementAppearance,
+  getRequiredAnnouncementLabelKey,
+  type AnnouncementSeverity,
+  type AnnouncementType,
+} from "@/components/dashboard/announcement-presentation";
+import {
+  type Announcement,
+  type AnnouncementStatus,
+  type AnnouncementTargetScope,
+  useAnnouncements,
+} from "@/components/dashboard/AnnouncementProvider";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,35 +47,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-
-type AnnouncementType = "info" | "maintenance" | "incident" | "billing" | "legal" | "termination";
-type AnnouncementSeverity = "low" | "medium" | "high" | "critical";
-type AnnouncementTargetScope = "all" | "free" | "paid" | "lite" | "standard" | "standard_plus";
-type AnnouncementStatus = "draft" | "published" | "archived";
-
-interface Announcement {
-  id: string;
-  title: string;
-  body: string;
-  type: AnnouncementType;
-  severity: AnnouncementSeverity;
-  targetScope: AnnouncementTargetScope;
-  publishStatus: AnnouncementStatus;
-  startsAt: string | null;
-  endsAt: string | null;
-  sendEmail: boolean;
-  emailSentAt: string | null;
-  emailLastError: string | null;
-  requireAcknowledgement: boolean;
-  publishedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  readAt?: string | null;
-  acknowledgedAt?: string | null;
-}
+import { cn } from "@/lib/utils";
 
 const TYPES: AnnouncementType[] = ["info", "maintenance", "incident", "billing", "legal", "termination"];
-const SEVERITIES: AnnouncementSeverity[] = ["low", "medium", "high", "critical"];
+const SEVERITIES: AnnouncementSeverity[] = ["low", "medium", "high"];
 const TARGET_SCOPES: AnnouncementTargetScope[] = ["all", "free", "paid", "lite", "standard", "standard_plus"];
 const STATUSES: AnnouncementStatus[] = ["draft", "published", "archived"];
 
@@ -94,29 +83,23 @@ function fromLocalInputValue(value: string) {
 }
 
 function severityVariant(severity: AnnouncementSeverity) {
-  return severity === "critical" || severity === "high" ? "destructive" : "secondary";
+  return severity === "high" ? "destructive" : "secondary";
 }
 
 export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean }) {
   const { t, formatDateTime } = useLocale();
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const {
+    announcements,
+    loading,
+    markAnnouncement,
+    refreshAnnouncements,
+  } = useAnnouncements();
   const [adminAnnouncements, setAdminAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(isSuperOwner);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
-
-  const fetchAnnouncements = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch("/api/announcements", { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json() as { announcements?: Announcement[] };
-      setAnnouncements(data.announcements ?? []);
-    }
-    setLoading(false);
-  }, []);
 
   const fetchAdminAnnouncements = useCallback(async () => {
     if (!isSuperOwner) return;
@@ -130,29 +113,23 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
   }, [isSuperOwner]);
 
   useEffect(() => {
+    if (!isSuperOwner) {
+      return;
+    }
+
     let cancelled = false;
-    async function loadInitial() {
-      const [userRes, adminRes] = await Promise.all([
-        fetch("/api/announcements", { cache: "no-store" }),
-        isSuperOwner
-          ? fetch("/api/super-owner/announcements", { cache: "no-store" })
-          : Promise.resolve(null),
-      ]);
+    async function loadAdminAnnouncements() {
+      const adminRes = await fetch("/api/super-owner/announcements", { cache: "no-store" });
       if (cancelled) return;
-      if (userRes.ok) {
-        const data = await userRes.json() as { announcements?: Announcement[] };
-        if (!cancelled) setAnnouncements(data.announcements ?? []);
-      }
-      if (adminRes?.ok) {
+      if (adminRes.ok) {
         const data = await adminRes.json() as { announcements?: Announcement[] };
         if (!cancelled) setAdminAnnouncements(data.announcements ?? []);
       }
       if (!cancelled) {
-        setLoading(false);
         setAdminLoading(false);
       }
     }
-    void loadInitial();
+    void loadAdminAnnouncements();
     return () => {
       cancelled = true;
     };
@@ -188,17 +165,7 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
   }
 
   async function mark(id: string, action: "read" | "acknowledge") {
-    const now = new Date().toISOString();
-    setAnnouncements((current) => current.map((announcement) => (
-      announcement.id === id
-        ? {
-            ...announcement,
-            readAt: now,
-            acknowledgedAt: action === "acknowledge" ? now : announcement.acknowledgedAt,
-          }
-        : announcement
-    )));
-    await fetch(`/api/announcements/${id}/${action}`, { method: "POST" });
+    await markAnnouncement(id, action);
   }
 
   async function saveAnnouncement(event: React.FormEvent) {
@@ -233,7 +200,7 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
     }
     setMessage(t("announcements.saved"));
     setForm(EMPTY_FORM);
-    await Promise.all([fetchAdminAnnouncements(), fetchAnnouncements()]);
+    await Promise.all([fetchAdminAnnouncements(), refreshAnnouncements()]);
     setSaving(false);
   }
 
@@ -246,13 +213,14 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
       return;
     }
     setMessage(action === "publish" ? t("announcements.published") : t("announcements.archived"));
-    await Promise.all([fetchAdminAnnouncements(), fetchAnnouncements()]);
+    await Promise.all([fetchAdminAnnouncements(), refreshAnnouncements()]);
   }
 
   return (
     <div className="space-y-6">
       {requiredAnnouncements.length > 0 && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100">
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
+          <Info className="size-4 text-muted-foreground" />
           {t("announcements.requiredNotice", { count: requiredAnnouncements.length })}
         </div>
       )}
@@ -267,38 +235,63 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
             <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
           ) : announcements.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("announcements.empty")}</p>
-          ) : announcements.map((announcement) => (
-            <div key={announcement.id} className="rounded-lg border p-4">
-              <div className="flex flex-wrap items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-semibold">{announcement.title}</h2>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{announcement.body}</p>
+          ) : announcements.map((announcement) => {
+            const requiresAcknowledgement = announcement.requireAcknowledgement && !announcement.acknowledgedAt;
+            const appearance = requiresAcknowledgement ? getAnnouncementAppearance(announcement.type) : null;
+            const requiredLabelKey = requiresAcknowledgement
+              ? getRequiredAnnouncementLabelKey(announcement.severity)
+              : null;
+            const requiredLabel = requiredLabelKey
+              ? t(requiredLabelKey as Parameters<typeof t>[0])
+              : null;
+
+            return (
+              <div
+                key={announcement.id}
+                className={cn("rounded-lg border p-4", requiresAcknowledgement && appearance?.panelClassName)}
+              >
+                <div className="flex flex-wrap items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    {requiresAcknowledgement && appearance ? (
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <AnnouncementRequiredMark type={announcement.type} label={requiredLabel} />
+                      </div>
+                    ) : null}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-base font-semibold">{announcement.title}</h2>
+                      {!requiresAcknowledgement && (
+                        <>
+                          <Badge variant="outline">{label("type", announcement.type)}</Badge>
+                          <Badge variant={severityVariant(announcement.severity)}>
+                            {label("severity", announcement.severity)}
+                          </Badge>
+                        </>
+                      )}
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{announcement.body}</p>
+                  </div>
                 </div>
-                <Badge variant={severityVariant(announcement.severity)}>
-                  {label("severity", announcement.severity)}
-                </Badge>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>{announcement.publishedAt ? formatDateTime(announcement.publishedAt) : "-"}</span>
+                  <span>{announcement.readAt ? t("announcements.read") : t("announcements.unread")}</span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {!announcement.readAt && (
+                    <Button size="sm" variant="outline" onClick={() => mark(announcement.id, "read")}>
+                      <CheckCircle2 className="size-3.5" />
+                      {t("announcements.markRead")}
+                    </Button>
+                  )}
+                  {requiresAcknowledgement && (
+                    <Button size="sm" onClick={() => mark(announcement.id, "acknowledge")}>
+                      <CheckCircle2 className="size-3.5" />
+                      {t("announcements.acknowledge")}
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline">{label("type", announcement.type)}</Badge>
-                <span>{announcement.publishedAt ? formatDateTime(announcement.publishedAt) : "-"}</span>
-                <span>{announcement.readAt ? t("announcements.read") : t("announcements.unread")}</span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {!announcement.readAt && (
-                  <Button size="sm" variant="outline" onClick={() => mark(announcement.id, "read")}>
-                    <CheckCircle2 className="size-3.5" />
-                    {t("announcements.markRead")}
-                  </Button>
-                )}
-                {announcement.requireAcknowledgement && !announcement.acknowledgedAt && (
-                  <Button size="sm" onClick={() => mark(announcement.id, "acknowledge")}>
-                    <CheckCircle2 className="size-3.5" />
-                    {t("announcements.acknowledge")}
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 

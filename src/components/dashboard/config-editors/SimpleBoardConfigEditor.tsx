@@ -320,8 +320,8 @@ export function SimpleBoardConfigEditor({
               />
             </div>
             <div className="flex w-full max-w-48 justify-between text-xs text-muted-foreground">
-              <span>12px</span>
-              <span>64px</span>
+              <span>12pt</span>
+              <span>64pt</span>
             </div>
           </div>
 

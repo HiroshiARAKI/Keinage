@@ -22,7 +22,6 @@ export const ANNOUNCEMENT_SEVERITIES = [
   "low",
   "medium",
   "high",
-  "critical",
 ] as const;
 export type AnnouncementSeverity = (typeof ANNOUNCEMENT_SEVERITIES)[number];
 
@@ -59,6 +58,20 @@ export function isAnnouncementSeverity(
   return ANNOUNCEMENT_SEVERITIES.includes(value as AnnouncementSeverity);
 }
 
+function coerceAnnouncementSeverity(
+  value: string | null | undefined,
+): AnnouncementSeverity | null {
+  if (value === "critical") return "high";
+  return isAnnouncementSeverity(value) ? value : null;
+}
+
+function normalizeAnnouncementRow<T extends AnnouncementRow>(announcement: T) {
+  return {
+    ...announcement,
+    severity: coerceAnnouncementSeverity(announcement.severity) ?? "medium",
+  };
+}
+
 export function isAnnouncementTargetScope(
   value: string | null | undefined,
 ): value is AnnouncementTargetScope {
@@ -78,8 +91,8 @@ export function normalizeAnnouncementInput(body: unknown) {
   const type = typeof raw.type === "string" && isAnnouncementType(raw.type)
     ? raw.type
     : "info";
-  const severity = typeof raw.severity === "string" && isAnnouncementSeverity(raw.severity)
-    ? raw.severity
+  const severity = typeof raw.severity === "string"
+    ? (coerceAnnouncementSeverity(raw.severity) ?? "medium")
     : "medium";
   const targetScope = typeof raw.targetScope === "string" && isAnnouncementTargetScope(raw.targetScope)
     ? raw.targetScope
@@ -195,7 +208,7 @@ export async function listVisibleAnnouncementsForUser(
   return visible.map((announcement) => {
     const read = readMap.get(announcement.id);
     return {
-      ...announcement,
+      ...normalizeAnnouncementRow(announcement),
       readAt: read?.readAt ?? null,
       acknowledgedAt: read?.acknowledgedAt ?? null,
     };
@@ -203,10 +216,12 @@ export async function listVisibleAnnouncementsForUser(
 }
 
 export async function listAllAnnouncementsForSuperOwner() {
-  return db
+  const announcements = await db
     .select()
     .from(adminAnnouncements)
     .orderBy(desc(adminAnnouncements.createdAt));
+
+  return announcements.map((announcement) => normalizeAnnouncementRow(announcement));
 }
 
 export async function markAnnouncementRead(input: {
