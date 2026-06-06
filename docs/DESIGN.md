@@ -382,6 +382,8 @@ flowchart LR
 
 標準テンプレートは `simple`、`photo-clock`、`retro`、`message`、`call-number` の5種類です。拡張テンプレートは `clinic-hours`、`restaurant-menu`、`qr-info` で、`PlanLimits.extendedTemplates` によって Free では作成・変更を制限します。`restaurant-menu` の料理画像は `PlanLimits.menuItemImages` と公開ボード payload の `boardPlan.menuItemImages` で表示可否を制御します。
 
+`LiveBoard` は表示領域の高さを基準高さ 1080px に正規化した仮想キャンバスを作り、実画面高との比率でテンプレート全体を `transform: scale()` します。仮想キャンバスの横幅は実表示領域のアスペクト比から算出します。これにより、各テンプレート内の文字、アイコン、画像枠、余白を同じ比率で拡大縮小しつつ、横長・タブレットなどの画面比率には追従します。テンプレートのルート要素は viewport 単位ではなく親キャンバスに対する `width: 100%` / `height: 100%` を使用します。文字サイズ設定値は基準キャンバス上の design point とし、管理画面では `pt` と表示します。
+
 `simple` / `photo-clock` のスケジュール設定は `boards.config` に保持します。主なキーは `mediaSchedules`、`messageSchedules`、`fallbackMediaId` です。表示判定は `src/lib/scheduling.ts` に集約し、表示端末のブラウザが持つローカルタイムゾーンの `Date` で評価します。
 
 プラン制限は `PlanLimits.scheduling` で表現します。管理 API は保存時に `sanitizeSchedulingConfig` を通し、Free ではスケジュール設定を保存せず、Lite では日付期間を除外します。公開ボード API は `boardPlan.scheduling` を返し、表示コンポーネント側でもプランに応じて判定します。

@@ -99,7 +99,7 @@ export default function CallNumberBoard({
 
   return (
     <div
-      className="flex h-screen w-screen flex-col overflow-hidden"
+      className="flex h-full w-full flex-col overflow-hidden"
       style={{ backgroundColor: config.backgroundColor }}
     >
       <GoogleFontLoader fonts={["Noto Sans JP"]} />

@@ -111,7 +111,7 @@ export default function SimpleBoard({
 
   return (
     <div
-      className="flex h-screen w-screen flex-col"
+      className="flex h-full w-full flex-col"
       style={{ backgroundColor: config.backgroundColor }}
     >
       {config.tickerFontFamily && (

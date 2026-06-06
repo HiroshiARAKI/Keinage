@@ -19,6 +19,12 @@ const CURSOR_HIDE_DELAY = 3000;
 const DEVICE_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 const DEVICE_KEY_STORAGE_KEY = "keinage-display-device-key";
 const DISPLAY_ACCESS_QUERY_PARAM = "displayDeviceKey";
+const BOARD_DESIGN_HEIGHT = 1080;
+
+type BoardViewportSize = {
+  width: number;
+  height: number;
+};
 
 interface LiveBoardProps {
   board: Board;
@@ -101,9 +107,33 @@ export default function LiveBoard({
   const [displayDeviceKey, setDisplayDeviceKey] = useState<string | null>(null);
   const [cursorVisible, setCursorVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [viewportSize, setViewportSize] = useState<BoardViewportSize | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { t } = useLocale();
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateViewport = (width: number, height: number) => {
+      const nextWidth = Math.max(1, Math.round(width));
+      const nextHeight = Math.max(1, Math.round(height));
+      setViewportSize((current) => (
+        current?.width === nextWidth && current.height === nextHeight
+          ? current
+          : { width: nextWidth, height: nextHeight }
+      ));
+    };
+
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      updateViewport(entry.contentRect.width, entry.contentRect.height);
+    });
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, []);
 
   // --- Cursor auto-hide ---
   const startCursorTimer = useCallback(() => {
@@ -222,19 +252,38 @@ export default function LiveBoard({
     };
   }, [initialBoard.id]);
 
+  const boardScale = viewportSize
+    ? viewportSize.height / BOARD_DESIGN_HEIGHT
+    : 1;
+  const boardDesignWidth = viewportSize
+    ? viewportSize.width / boardScale
+    : 1920;
+
   return (
     <div
       ref={containerRef}
-      className="relative h-screen w-screen"
+      className="relative h-dvh w-dvw overflow-hidden bg-black"
       style={{ cursor: cursorVisible ? "auto" : "none" }}
     >
-      <TemplateComponent
-        board={board}
-        mediaItems={displayMediaItems}
-        messages={messages}
-        boardPlan={boardPlan}
-      />
-      {boardPlan.watermark && <WatermarkOverlay />}
+      {viewportSize && (
+        <div
+          className="absolute left-0 top-0 overflow-hidden"
+          style={{
+            width: boardDesignWidth,
+            height: BOARD_DESIGN_HEIGHT,
+            transform: `scale(${boardScale})`,
+            transformOrigin: "top left",
+          }}
+        >
+          <TemplateComponent
+            board={board}
+            mediaItems={displayMediaItems}
+            messages={messages}
+            boardPlan={boardPlan}
+          />
+          {boardPlan.watermark && <WatermarkOverlay />}
+        </div>
+      )}
 
       {/* Expand / Restore button */}
       <button

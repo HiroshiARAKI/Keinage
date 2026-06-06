@@ -122,7 +122,7 @@ export default function ClinicHoursBoard({ board }: BoardTemplateProps) {
 
   return (
     <div
-      className="flex h-screen w-screen flex-col overflow-hidden bg-[#f7fbfb]"
+      className="flex h-full w-full flex-col overflow-hidden bg-[#f7fbfb]"
       style={{
         fontFamily: config.fontFamily || undefined,
         padding: layout.screenPadding,

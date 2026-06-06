@@ -10,9 +10,9 @@ export type ClockLayout = "standard" | "compact" | "large-time" | "date-top";
 interface DateTimeClockProps {
   /** 24-hour format (default: true) */
   is24Hour?: boolean;
-  /** Font size in px for the time display */
+  /** Font size in design points (1pt = 1px at the 1080px design height). */
   timeFontSize?: number;
-  /** Font size in px for the date display. Defaults to a ratio of timeFontSize. */
+  /** Date font size in design points. Defaults to a ratio of timeFontSize. */
   dateFontSize?: number;
   /** Text color */
   color?: string;

@@ -108,7 +108,7 @@ export default function QrInfoBoard({ board }: BoardTemplateProps) {
 
   return (
     <div
-      className="flex h-screen w-screen gap-10 bg-[#f8fafc] p-12"
+      className="flex h-full w-full gap-10 bg-[#f8fafc] p-12"
       style={{ fontFamily: config.fontFamily || undefined }}
     >
       {config.fontFamily && <GoogleFontLoader fonts={[config.fontFamily]} />}

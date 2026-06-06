@@ -198,7 +198,7 @@ export default function FloorGuideBoard({ board, mediaItems }: BoardTemplateProp
 
   return (
     <div
-      className="flex h-screen w-screen flex-col overflow-hidden"
+      className="flex h-full w-full flex-col overflow-hidden"
       style={{
         backgroundColor: theme.backgroundColor,
         color: theme.textColor,

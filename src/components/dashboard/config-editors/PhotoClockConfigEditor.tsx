@@ -199,8 +199,8 @@ export function PhotoClockConfigEditor({
           />
         </div>
         <div className="flex w-full justify-between text-xs text-muted-foreground sm:max-w-64">
-          <span>24px</span>
-          <span>160px</span>
+          <span>24pt</span>
+          <span>160pt</span>
         </div>
       </div>
 
@@ -230,8 +230,8 @@ export function PhotoClockConfigEditor({
           />
         </div>
         <div className="flex w-full justify-between text-xs text-muted-foreground sm:max-w-64">
-          <span>10px</span>
-          <span>80px</span>
+          <span>10pt</span>
+          <span>80pt</span>
         </div>
       </div>
 
@@ -345,8 +345,8 @@ export function PhotoClockConfigEditor({
               />
             </div>
             <div className="flex w-full justify-between text-xs text-muted-foreground sm:max-w-64">
-              <span>12px</span>
-              <span>56px</span>
+              <span>12pt</span>
+              <span>56pt</span>
             </div>
           </div>
         </div>
