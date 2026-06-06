@@ -19,6 +19,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Keinage",
   description: "Customizable digital signage web app",
+  applicationName: "Keinage",
+  appleWebApp: {
+    capable: true,
+    title: "Keinage",
+    statusBarStyle: "default",
+  },
 };
 
 export default async function RootLayout({
