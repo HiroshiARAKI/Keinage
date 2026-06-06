@@ -7,11 +7,19 @@ import {
   Archive,
   CheckCircle2,
   Edit3,
+  Info,
   Mail,
   Megaphone,
   Plus,
   Send,
 } from "lucide-react";
+import {
+  AnnouncementRequiredMark,
+  getAnnouncementAppearance,
+  getRequiredAnnouncementLabelKey,
+  type AnnouncementSeverity,
+  type AnnouncementType,
+} from "@/components/dashboard/announcement-presentation";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,9 +41,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
-type AnnouncementType = "info" | "maintenance" | "incident" | "billing" | "legal" | "termination";
-type AnnouncementSeverity = "low" | "medium" | "high" | "critical";
 type AnnouncementTargetScope = "all" | "free" | "paid" | "lite" | "standard" | "standard_plus";
 type AnnouncementStatus = "draft" | "published" | "archived";
 
@@ -61,7 +68,7 @@ interface Announcement {
 }
 
 const TYPES: AnnouncementType[] = ["info", "maintenance", "incident", "billing", "legal", "termination"];
-const SEVERITIES: AnnouncementSeverity[] = ["low", "medium", "high", "critical"];
+const SEVERITIES: AnnouncementSeverity[] = ["low", "medium", "high"];
 const TARGET_SCOPES: AnnouncementTargetScope[] = ["all", "free", "paid", "lite", "standard", "standard_plus"];
 const STATUSES: AnnouncementStatus[] = ["draft", "published", "archived"];
 
@@ -94,7 +101,7 @@ function fromLocalInputValue(value: string) {
 }
 
 function severityVariant(severity: AnnouncementSeverity) {
-  return severity === "critical" || severity === "high" ? "destructive" : "secondary";
+  return severity === "high" ? "destructive" : "secondary";
 }
 
 export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean }) {
@@ -252,7 +259,8 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
   return (
     <div className="space-y-6">
       {requiredAnnouncements.length > 0 && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100">
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
+          <Info className="size-4 text-muted-foreground" />
           {t("announcements.requiredNotice", { count: requiredAnnouncements.length })}
         </div>
       )}
@@ -267,38 +275,63 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
             <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
           ) : announcements.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("announcements.empty")}</p>
-          ) : announcements.map((announcement) => (
-            <div key={announcement.id} className="rounded-lg border p-4">
-              <div className="flex flex-wrap items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-semibold">{announcement.title}</h2>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{announcement.body}</p>
+          ) : announcements.map((announcement) => {
+            const requiresAcknowledgement = announcement.requireAcknowledgement && !announcement.acknowledgedAt;
+            const appearance = requiresAcknowledgement ? getAnnouncementAppearance(announcement.type) : null;
+            const requiredLabelKey = requiresAcknowledgement
+              ? getRequiredAnnouncementLabelKey(announcement.severity)
+              : null;
+            const requiredLabel = requiredLabelKey
+              ? t(requiredLabelKey as Parameters<typeof t>[0])
+              : null;
+
+            return (
+              <div
+                key={announcement.id}
+                className={cn("rounded-lg border p-4", requiresAcknowledgement && appearance?.panelClassName)}
+              >
+                <div className="flex flex-wrap items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    {requiresAcknowledgement && appearance ? (
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <AnnouncementRequiredMark type={announcement.type} label={requiredLabel} />
+                      </div>
+                    ) : null}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-base font-semibold">{announcement.title}</h2>
+                      {!requiresAcknowledgement && (
+                        <>
+                          <Badge variant="outline">{label("type", announcement.type)}</Badge>
+                          <Badge variant={severityVariant(announcement.severity)}>
+                            {label("severity", announcement.severity)}
+                          </Badge>
+                        </>
+                      )}
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{announcement.body}</p>
+                  </div>
                 </div>
-                <Badge variant={severityVariant(announcement.severity)}>
-                  {label("severity", announcement.severity)}
-                </Badge>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>{announcement.publishedAt ? formatDateTime(announcement.publishedAt) : "-"}</span>
+                  <span>{announcement.readAt ? t("announcements.read") : t("announcements.unread")}</span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {!announcement.readAt && (
+                    <Button size="sm" variant="outline" onClick={() => mark(announcement.id, "read")}>
+                      <CheckCircle2 className="size-3.5" />
+                      {t("announcements.markRead")}
+                    </Button>
+                  )}
+                  {requiresAcknowledgement && (
+                    <Button size="sm" onClick={() => mark(announcement.id, "acknowledge")}>
+                      <CheckCircle2 className="size-3.5" />
+                      {t("announcements.acknowledge")}
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline">{label("type", announcement.type)}</Badge>
-                <span>{announcement.publishedAt ? formatDateTime(announcement.publishedAt) : "-"}</span>
-                <span>{announcement.readAt ? t("announcements.read") : t("announcements.unread")}</span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {!announcement.readAt && (
-                  <Button size="sm" variant="outline" onClick={() => mark(announcement.id, "read")}>
-                    <CheckCircle2 className="size-3.5" />
-                    {t("announcements.markRead")}
-                  </Button>
-                )}
-                {announcement.requireAcknowledgement && !announcement.acknowledgedAt && (
-                  <Button size="sm" onClick={() => mark(announcement.id, "acknowledge")}>
-                    <CheckCircle2 className="size-3.5" />
-                    {t("announcements.acknowledge")}
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
