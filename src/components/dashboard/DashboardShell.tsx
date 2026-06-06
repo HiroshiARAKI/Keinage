@@ -22,6 +22,10 @@ import { Separator } from "@/components/ui/separator";
 import { LogoutButton } from "@/components/dashboard/LogoutButton";
 import { KeinageLogo } from "@/components/KeinageLogo";
 import { AnnouncementBanner } from "@/components/dashboard/AnnouncementBanner";
+import {
+  AnnouncementProvider,
+  useAnnouncements,
+} from "@/components/dashboard/AnnouncementProvider";
 import { OwnerOnboardingDialog } from "@/components/dashboard/OwnerOnboardingDialog";
 
 function getThemeBootstrapScript(initialTheme: "system" | "light" | "dark") {
@@ -41,11 +45,13 @@ function SidebarLink({
   href,
   icon: Icon,
   children,
+  trailing,
   onClick,
 }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;
+  trailing?: React.ReactNode;
   onClick?: () => void;
 }) {
   return (
@@ -54,8 +60,9 @@ function SidebarLink({
       onClick={onClick}
       className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
     >
-      <Icon className="size-4" />
-      {children}
+      <Icon className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {trailing}
     </Link>
   );
 }
@@ -85,7 +92,7 @@ function SidebarExternalLink({
   );
 }
 
-export function DashboardShell({
+function DashboardShellContent({
   userId,
   role,
   organizationName,
@@ -107,6 +114,7 @@ export function DashboardShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const initialResolvedTheme = initialTheme === "system" ? undefined : initialTheme;
   const { t } = useLocale();
+  const { unreadCount } = useAnnouncements();
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
@@ -168,7 +176,19 @@ export function DashboardShell({
         <SidebarLink href="/contact" icon={MessageCircle} onClick={closeSidebar}>
           {t("dashboard.navContact")}
         </SidebarLink>
-        <SidebarLink href="/announcements" icon={Bell} onClick={closeSidebar}>
+        <SidebarLink
+          href="/announcements"
+          icon={Bell}
+          trailing={unreadCount > 0 ? (
+            <span
+              className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground"
+              aria-label={`${t("announcements.unread")}: ${unreadCount}`}
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          ) : null}
+          onClick={closeSidebar}
+        >
           {isSuperOwner ? t("dashboard.navAnnouncementAdmin") : t("dashboard.navAnnouncements")}
         </SidebarLink>
         <SidebarLink href="/settings" icon={Settings} onClick={closeSidebar}>
@@ -242,5 +262,13 @@ export function DashboardShell({
         billingEnabled={billingEnabled}
       />
     </div>
+  );
+}
+
+export function DashboardShell(props: React.ComponentProps<typeof DashboardShellContent>) {
+  return (
+    <AnnouncementProvider>
+      <DashboardShellContent {...props} />
+    </AnnouncementProvider>
   );
 }
