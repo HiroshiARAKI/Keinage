@@ -12,6 +12,7 @@ import { applyMediaPlanRestrictions } from "@/lib/media-plan";
 import { isCloudFrontSignedDeliveryMode } from "@/lib/cloudfront-signed-url";
 import { deliveryUrlForMediaItem } from "@/lib/media-storage";
 import { isInOwnerScope } from "@/lib/ownership";
+import { resolveSplitViewMediaReferences } from "@/lib/split-view";
 import { getTemplate } from "@/lib/templates";
 import { normalizeConfig } from "@/lib/utils";
 import LiveBoard from "@/components/board/LiveBoard";
@@ -56,18 +57,17 @@ export default async function BoardPage({
 
   await recordBoardViewed(board);
 
-  const normalizedBoard = normalizeConfig(board);
-
-  const template = getTemplate(normalizedBoard.templateId);
-  if (!template) {
-    notFound();
-  }
-
   const media = await db
     .select()
     .from(mediaItems)
     .where(eq(mediaItems.boardId, boardId))
     .orderBy(asc(mediaItems.displayOrder));
+  const normalizedBoard = resolveSplitViewMediaReferences(normalizeConfig(board), media);
+
+  const template = getTemplate(normalizedBoard.templateId);
+  if (!template) {
+    notFound();
+  }
 
   const now = new Date().toISOString();
   const activeMessages = await db

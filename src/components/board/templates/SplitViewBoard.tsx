@@ -86,7 +86,9 @@ function findPaneMedia(
 ) {
   if (!pane.mediaPath) return null;
   return mediaItems.find(
-    (item) => item.filePath === pane.mediaPath && item.type === pane.type,
+    (item) =>
+      item.type === pane.type
+      && (item.id === pane.mediaPath || item.filePath === pane.mediaPath),
   ) ?? null;
 }
 

@@ -15,6 +15,7 @@ import {
 import { updateBoardSchema } from "@/lib/validators";
 import { emitSSE } from "@/lib/sse";
 import { findOwnedBoard, resolveOwnerUserId } from "@/lib/ownership";
+import { resolveSplitViewMediaReferences } from "@/lib/split-view";
 import { normalizeConfig } from "@/lib/utils";
 
 export async function GET(
@@ -45,8 +46,10 @@ export async function GET(
     .where(eq(messages.boardId, id));
   const effectivePlan = await getEffectivePlanForOwner(board.ownerUserId);
 
+  const normalizedBoard = resolveSplitViewMediaReferences(normalizeConfig(board), media);
+
   return NextResponse.json({
-    ...normalizeConfig(board),
+    ...normalizedBoard,
     boardPlan: {
       watermark: effectivePlan.plan.limits.watermark,
       scheduling: effectivePlan.plan.limits.scheduling,
