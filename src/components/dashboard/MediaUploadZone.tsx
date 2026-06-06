@@ -35,6 +35,7 @@ interface MediaUploadZoneProps {
   boardId: string;
   mediaItems: MediaItem[];
   onUpdate: () => Promise<void>;
+  showPlaybackControls?: boolean;
   scheduleConfig?: Record<string, unknown>;
   scheduling?: ScheduleCapability;
   onScheduleConfigChange?: (config: Record<string, unknown>) => void;
@@ -206,6 +207,7 @@ export default function MediaUploadZone({
   boardId,
   mediaItems,
   onUpdate,
+  showPlaybackControls = true,
   scheduleConfig,
   scheduling = "none",
   onScheduleConfigChange,
@@ -691,35 +693,37 @@ export default function MediaUploadZone({
               </div>
 
               {/* Duration */}
-              <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-                <Label className="text-xs text-muted-foreground">{t("media.durationSeconds")}</Label>
-                <NumberInput
-                  min={1}
-                  max={MAX_MEDIA_DURATION_SECONDS}
-                  value={item.duration}
-                  onValueChange={(value) => handleDurationChange(item.id, value)}
-                  className="h-7 w-16 text-xs"
-                />
-                {item.type === "video" && (
-                  <Select
-                    value={item.playbackMode ?? "duration"}
-                    onValueChange={(value) =>
-                      handlePlaybackModeChange(item.id, value as MediaPlaybackMode)}
-                  >
-                    <SelectTrigger className="h-7 w-36 text-xs">
-                      <SelectValue>
-                        {(item.playbackMode ?? "duration") === "until-ended"
-                          ? t("configEditor.videoAdvance.untilEnded")
-                          : t("configEditor.videoAdvance.duration")}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="duration">{t("configEditor.videoAdvance.duration")}</SelectItem>
-                      <SelectItem value="until-ended">{t("configEditor.videoAdvance.untilEnded")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
+              {showPlaybackControls && (
+                <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  <Label className="text-xs text-muted-foreground">{t("media.durationSeconds")}</Label>
+                  <NumberInput
+                    min={1}
+                    max={MAX_MEDIA_DURATION_SECONDS}
+                    value={item.duration}
+                    onValueChange={(value) => handleDurationChange(item.id, value)}
+                    className="h-7 w-16 text-xs"
+                  />
+                  {item.type === "video" && (
+                    <Select
+                      value={item.playbackMode ?? "duration"}
+                      onValueChange={(value) =>
+                        handlePlaybackModeChange(item.id, value as MediaPlaybackMode)}
+                    >
+                      <SelectTrigger className="h-7 w-36 text-xs">
+                        <SelectValue>
+                          {(item.playbackMode ?? "duration") === "until-ended"
+                            ? t("configEditor.videoAdvance.untilEnded")
+                            : t("configEditor.videoAdvance.duration")}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="duration">{t("configEditor.videoAdvance.duration")}</SelectItem>
+                        <SelectItem value="until-ended">{t("configEditor.videoAdvance.untilEnded")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
 
               {/* Delete */}
               <Button

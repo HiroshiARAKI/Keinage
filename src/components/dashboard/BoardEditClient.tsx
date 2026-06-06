@@ -614,6 +614,7 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                 boardId={boardId}
                 mediaItems={board.mediaItems}
                 onUpdate={fetchBoard}
+                showPlaybackControls={board.templateId !== "split-view"}
                 scheduleConfig={supportsScheduleTemplate ? config : undefined}
                 scheduling={boardPlan.scheduling}
                 onScheduleConfigChange={supportsScheduleTemplate ? setConfig : undefined}

@@ -153,8 +153,9 @@ export function SplitViewConfigEditor({
       <div className="space-y-4">
         {panes.map((pane, index) => {
           const mediaChoices = pane.type === "video" ? videoMedia : imageMedia;
-          const mediaLabel = pane.mediaPath
-            ? mediaOptionLabel(pane.mediaPath, mediaChoices)
+          const selectedMedia = findMediaByReference(pane.mediaPath, mediaChoices);
+          const mediaLabel = selectedMedia
+            ? mediaOptionLabel(selectedMedia, mediaChoices, t)
             : pane.type === "video"
               ? t("configEditor.split.noneVideo")
               : t("configEditor.itemImageNone");
@@ -236,7 +237,7 @@ export function SplitViewConfigEditor({
                     {pane.type === "video" ? t("common.video") : t("common.image")}
                   </Label>
                   <Select
-                    value={pane.mediaPath || "__none__"}
+                    value={selectedMedia?.id ?? "__none__"}
                     onValueChange={(value) =>
                       updatePane(index, {
                         mediaPath: !value || value === "__none__" ? "" : value,
@@ -251,8 +252,8 @@ export function SplitViewConfigEditor({
                         {pane.type === "video" ? t("configEditor.split.noneVideo") : t("configEditor.itemImageNone")}
                       </SelectItem>
                       {mediaChoices.map((media) => (
-                        <SelectItem key={media.id} value={media.filePath}>
-                          {mediaOptionLabel(media.filePath, mediaChoices)}
+                        <SelectItem key={media.id} value={media.id}>
+                          {mediaOptionLabel(media, mediaChoices, t)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -281,9 +282,23 @@ function paneTypeLabel(
   return t("configEditor.split.typeText");
 }
 
-function mediaOptionLabel(filePath: string, items: MediaItem[]) {
-  const media = items.find((item) => item.filePath === filePath);
-  return media?.filePath.split("/").pop() ?? filePath.split("/").pop() ?? filePath;
+function findMediaByReference(reference: string, items: MediaItem[]) {
+  if (!reference) return null;
+  return items.find((item) =>
+    item.id === reference || item.filePath === reference
+  ) ?? null;
+}
+
+function mediaOptionLabel(
+  media: MediaItem,
+  items: MediaItem[],
+  t: ReturnType<typeof useLocale>["t"],
+) {
+  const number = items.findIndex((item) => item.id === media.id) + 1;
+  return t(
+    media.type === "video" ? "schedule.videoNumber" : "schedule.imageNumber",
+    { number },
+  );
 }
 
 function ColorInput({

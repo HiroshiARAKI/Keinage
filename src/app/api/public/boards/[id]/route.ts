@@ -12,6 +12,7 @@ import { isCloudFrontSignedDeliveryMode } from "@/lib/cloudfront-signed-url";
 import { applyMediaPlanRestrictions } from "@/lib/media-plan";
 import { deliveryUrlForMediaItem } from "@/lib/media-storage";
 import { isInOwnerScope } from "@/lib/ownership";
+import { resolveSplitViewMediaReferences } from "@/lib/split-view";
 import { normalizeConfig } from "@/lib/utils";
 
 export async function GET(
@@ -59,9 +60,10 @@ export async function GET(
           filePath: deliveryUrlForMediaItem(item),
         }))
       : planRestrictedMedia;
+  const normalizedBoard = resolveSplitViewMediaReferences(normalizeConfig(board), media);
 
   return NextResponse.json({
-    ...normalizeConfig(board),
+    ...normalizedBoard,
     boardPlan: {
       watermark: effectivePlan.plan.limits.watermark,
       scheduling: effectivePlan.plan.limits.scheduling,
