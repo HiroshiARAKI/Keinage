@@ -13,7 +13,6 @@ import {
   type AnnouncementType,
 } from "@/components/dashboard/announcement-presentation";
 import { useLocale } from "@/components/i18n/LocaleProvider";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -57,7 +56,7 @@ export function AnnouncementBanner() {
     () => announcements.find((announcement) => (
       !announcement.readAt
       && !dismissedIds.has(announcement.id)
-      && (announcement.severity === "high" || announcement.severity === "critical")
+      && announcement.severity === "high"
     )),
     [announcements, dismissedIds],
   );
@@ -135,9 +134,6 @@ export function AnnouncementBanner() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <AnnouncementRequiredMark type={required.type} label={requiredLabel} />
-              <Badge variant="secondary" className={requiredAppearance?.badgeClassName}>
-                {t(`announcements.type.${required.type}` as Parameters<typeof t>[0])}
-              </Badge>
             </div>
             <div>
               <p className="font-medium">{required.title}</p>

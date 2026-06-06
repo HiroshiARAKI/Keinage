@@ -114,7 +114,6 @@ export const jaJP = {
   "announcements.severity.low": "低",
   "announcements.severity.medium": "中",
   "announcements.severity.high": "高",
-  "announcements.severity.critical": "重大",
   "announcements.requiredLabel.review": "要確認",
   "announcements.requiredLabel.important": "重要",
   "announcements.target.all": "全ユーザー",

@@ -2,7 +2,7 @@ import { AlertTriangle, CreditCard, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type AnnouncementType = "info" | "maintenance" | "incident" | "billing" | "legal" | "termination";
-export type AnnouncementSeverity = "low" | "medium" | "high" | "critical";
+export type AnnouncementSeverity = "low" | "medium" | "high";
 
 type AnnouncementAppearance = {
   panelClassName: string;

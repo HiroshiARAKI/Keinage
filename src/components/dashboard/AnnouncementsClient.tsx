@@ -68,7 +68,7 @@ interface Announcement {
 }
 
 const TYPES: AnnouncementType[] = ["info", "maintenance", "incident", "billing", "legal", "termination"];
-const SEVERITIES: AnnouncementSeverity[] = ["low", "medium", "high", "critical"];
+const SEVERITIES: AnnouncementSeverity[] = ["low", "medium", "high"];
 const TARGET_SCOPES: AnnouncementTargetScope[] = ["all", "free", "paid", "lite", "standard", "standard_plus"];
 const STATUSES: AnnouncementStatus[] = ["draft", "published", "archived"];
 
@@ -101,7 +101,7 @@ function fromLocalInputValue(value: string) {
 }
 
 function severityVariant(severity: AnnouncementSeverity) {
-  return severity === "critical" || severity === "high" ? "destructive" : "secondary";
+  return severity === "high" ? "destructive" : "secondary";
 }
 
 export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean }) {
@@ -295,9 +295,6 @@ export function AnnouncementsClient({ isSuperOwner }: { isSuperOwner: boolean })
                     {requiresAcknowledgement && appearance ? (
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <AnnouncementRequiredMark type={announcement.type} label={requiredLabel} />
-                        <Badge variant="secondary" className={appearance.badgeClassName}>
-                          {label("type", announcement.type)}
-                        </Badge>
                       </div>
                     ) : null}
                     <div className="flex flex-wrap items-center gap-2">
