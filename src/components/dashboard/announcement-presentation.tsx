@@ -1,4 +1,4 @@
-import { AlertTriangle, BadgeInfo, BadgeJapaneseYen } from "lucide-react";
+import { AlertTriangle, CreditCard, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type AnnouncementType = "info" | "maintenance" | "incident" | "billing" | "legal" | "termination";
@@ -10,7 +10,7 @@ type AnnouncementAppearance = {
   iconShellClassName: string;
   iconGlyphClassName: string;
   labelClassName: string;
-  glyph: "info" | "alert" | "yen";
+  glyph: "info" | "alert" | "billing";
 };
 
 const APPEARANCES = {
@@ -42,9 +42,9 @@ const APPEARANCES = {
     panelClassName: "border-amber-400 bg-amber-50/92 shadow-[0_12px_28px_-20px_rgba(180,83,9,0.28)] dark:border-amber-900/70 dark:bg-amber-950/35",
     badgeClassName: "border-transparent bg-amber-700 text-white shadow-sm dark:bg-amber-600 dark:text-white",
     iconShellClassName: "inline-flex size-7 items-center justify-center rounded-xl bg-amber-700 text-white shadow-sm dark:bg-amber-600",
-    iconGlyphClassName: "text-[0.85rem] font-black leading-none text-white",
+    iconGlyphClassName: "size-3.5 text-white",
     labelClassName: "inline-flex items-center rounded-full bg-amber-700 px-2.5 py-0.5 text-[0.68rem] font-semibold text-white shadow-sm dark:bg-amber-600",
-    glyph: "yen",
+    glyph: "billing",
   },
   legal: {
     panelClassName: "border-amber-400 bg-amber-50/92 shadow-[0_12px_28px_-20px_rgba(180,83,9,0.28)] dark:border-amber-900/70 dark:bg-amber-950/35",
@@ -90,8 +90,8 @@ export function AnnouncementRequiredMark(input: {
     <div className={cn("inline-flex items-center gap-2", input.className)}>
       <span className={appearance.iconShellClassName}>
         {appearance.glyph === "alert" ? <AlertTriangle className={appearance.iconGlyphClassName} /> : null}
-        {appearance.glyph === "info" ? <BadgeInfo className={appearance.iconGlyphClassName} /> : null}
-        {appearance.glyph === "yen" ? <BadgeJapaneseYen className={appearance.iconGlyphClassName} /> : null}
+        {appearance.glyph === "info" ? <Info className={appearance.iconGlyphClassName} /> : null}
+        {appearance.glyph === "billing" ? <CreditCard className={appearance.iconGlyphClassName} /> : null}
       </span>
       {input.label ? <span className={appearance.labelClassName}>{input.label}</span> : null}
     </div>
