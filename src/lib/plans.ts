@@ -37,6 +37,7 @@ export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
 export interface PlanLimits {
   boards: number | null;
+  sharedUsers: number | null;
   images: number | null;
   storageBytes: number | null;
   maxResolution: number | null;
@@ -65,6 +66,7 @@ export const PLAN_DEFINITIONS = {
     name: "Self-hosted",
     limits: {
       boards: null,
+      sharedUsers: null,
       images: null,
       storageBytes: null,
       maxResolution: null,
@@ -83,6 +85,7 @@ export const PLAN_DEFINITIONS = {
     name: "Free",
     limits: {
       boards: 1,
+      sharedUsers: 3,
       images: 3,
       storageBytes: 300 * MB,
       maxResolution: 1920,
@@ -101,6 +104,7 @@ export const PLAN_DEFINITIONS = {
     name: "Lite",
     limits: {
       boards: 10,
+      sharedUsers: 10,
       images: null,
       storageBytes: 5 * GB,
       maxResolution: 1920,
@@ -119,6 +123,7 @@ export const PLAN_DEFINITIONS = {
     name: "Standard",
     limits: {
       boards: 100,
+      sharedUsers: 100,
       images: null,
       storageBytes: 20 * GB,
       maxResolution: 3840,
@@ -137,6 +142,7 @@ export const PLAN_DEFINITIONS = {
     name: "Standard+",
     limits: {
       boards: 300,
+      sharedUsers: 300,
       images: null,
       storageBytes: 100 * GB,
       maxResolution: 3840,
@@ -155,6 +161,7 @@ export const PLAN_DEFINITIONS = {
     name: "Unlimited",
     limits: {
       boards: null,
+      sharedUsers: null,
       images: null,
       storageBytes: null,
       maxResolution: null,

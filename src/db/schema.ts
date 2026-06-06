@@ -315,6 +315,7 @@ export const sharedSignupRequests = pgTable("shared_signup_requests", {
   userId: text("user_id").notNull(),
   email: text("email").notNull(),
   role: text("role").notNull().default("general"),
+  status: text("status").notNull().default("invited"),
   token: text("token").notNull().unique(),
   expiresAt: text("expires_at").notNull(),
   completedAt: text("completed_at"),
@@ -369,6 +370,8 @@ export const users = pgTable(
       { onDelete: "set null" },
     ),
     role: text("role").notNull().default("general"),
+    /** Shared user availability: active | disabled | inactive_due_to_plan */
+    status: text("status").notNull().default("active"),
     isSuperOwner: boolean("is_super_owner").notNull().default(false),
     superOwnerGrantedAt: text("super_owner_granted_at"),
     /** Dashboard color theme preference: "system" | "light" | "dark" */

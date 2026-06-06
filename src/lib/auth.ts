@@ -179,6 +179,7 @@ import {
   buildRequestHeaderAppUrl,
   getPublicAppOrigin,
 } from "@/lib/public-origin";
+import { isSharedUserLoginAllowed } from "@/lib/shared-user-plan";
 
 /**
  * Read the current session from the cookie store and return the
@@ -199,6 +200,7 @@ export async function getSessionUser(options?: { allowWebAuthnPending?: boolean 
     with: { user: true },
   });
   if (!session) return null;
+  if (!isSharedUserLoginAllowed(session.user)) return null;
   if (!options?.allowWebAuthnPending && !session.webauthnVerified) {
     return null;
   }

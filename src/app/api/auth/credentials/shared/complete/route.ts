@@ -18,6 +18,12 @@ import {
 import { sendSignupCompletedEmail } from "@/lib/mail";
 import { generateSessionToken } from "@/lib/pin";
 import { buildPublicAppUrl } from "@/lib/public-origin";
+import {
+  assertCanCompleteSharedInvitation,
+  SharedUserLimitError,
+  sharedUserLimitErrorBody,
+  withSharedUserPlanLock,
+} from "@/lib/shared-user-plan";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
 
@@ -50,6 +56,7 @@ export async function POST(request: NextRequest) {
       eq(sharedSignupRequests.token, token),
       isNull(sharedSignupRequests.completedAt),
       gt(sharedSignupRequests.expiresAt, now),
+      eq(sharedSignupRequests.status, "invited"),
     ),
   });
 
@@ -75,30 +82,63 @@ export async function POST(request: NextRequest) {
   }
 
   const passwordHash = await hashPassword(password);
-  const [createdUser] = await db
-    .insert(users)
-    .values({
-      userId: signupRequest.userId,
-      email: signupRequest.email,
-      passwordHash,
-      attribute: "shared",
-      ownerUserId: signupRequest.ownerUserId,
-      role: signupRequest.role,
-      lastFullAuthAt: now,
-    })
-    .returning();
+  let createdUser: typeof users.$inferSelect;
+  try {
+    createdUser = await withSharedUserPlanLock(
+      signupRequest.ownerUserId,
+      async (transaction) => {
+        const currentInvitation = await transaction.query.sharedSignupRequests.findFirst({
+          where: and(
+            eq(sharedSignupRequests.id, signupRequest.id),
+            eq(sharedSignupRequests.status, "invited"),
+            isNull(sharedSignupRequests.completedAt),
+            gt(sharedSignupRequests.expiresAt, now),
+          ),
+        });
+        if (!currentInvitation) {
+          throw new Error("shared_invitation_unavailable");
+        }
+        await assertCanCompleteSharedInvitation(signupRequest.ownerUserId, transaction);
 
-  await db.insert(authAccounts).values({
-    userId: createdUser.id,
-    provider: "credentials",
-    providerAccountId: signupRequest.email,
-    email: signupRequest.email,
-  });
+        const [user] = await transaction
+          .insert(users)
+          .values({
+            userId: signupRequest.userId,
+            email: signupRequest.email,
+            passwordHash,
+            attribute: "shared",
+            ownerUserId: signupRequest.ownerUserId,
+            role: signupRequest.role,
+            status: "active",
+            lastFullAuthAt: now,
+          })
+          .returning();
 
-  await db
-    .update(sharedSignupRequests)
-    .set({ completedAt: now })
-    .where(eq(sharedSignupRequests.id, signupRequest.id));
+        await transaction.insert(authAccounts).values({
+          userId: user.id,
+          provider: "credentials",
+          providerAccountId: signupRequest.email,
+          email: signupRequest.email,
+        });
+        await transaction
+          .update(sharedSignupRequests)
+          .set({ completedAt: now, status: "completed" })
+          .where(eq(sharedSignupRequests.id, signupRequest.id));
+        return user;
+      },
+    );
+  } catch (error) {
+    if (error instanceof SharedUserLimitError) {
+      return NextResponse.json(sharedUserLimitErrorBody(error), { status: 403 });
+    }
+    if (error instanceof Error && error.message === "shared_invitation_unavailable") {
+      return NextResponse.json(
+        { error: "この招待は現在のプランでは利用できません。管理者にお問い合わせください" },
+        { status: 403 },
+      );
+    }
+    throw error;
+  }
 
   await sendSignupCompletedEmail({
     to: createdUser.email,

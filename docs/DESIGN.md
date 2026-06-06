@@ -252,7 +252,7 @@ erDiagram
 
 | テーブル | 役割 |
 | --- | --- |
-| `users` | ログイン主体。Owner / Shared、ロール、Super Owner属性、表示設定、PIN、認証時刻を保持 |
+| `users` | ログイン主体。Owner / Shared、ロール、Shared userのプラン適用状態、Super Owner属性、表示設定、PIN、認証時刻を保持 |
 | `auth_accounts` | 認証方式と外部アカウントの紐付け。`provider + providerAccountId` が一意 |
 | `auth_sessions` | 24 時間のアプリセッション |
 | `device_auth_grants` | 端末単位のフル認証履歴。PIN ログイン対象ユーザーを決める |
@@ -263,7 +263,7 @@ erDiagram
 | `admin_announcements` | Super Ownerが作成する運営通知。種別、重要度、対象プラン、公開期間、メール送信有無を保持 |
 | `announcement_reads` | ユーザーごとの運営通知の既読・確認状態 |
 | `signup_requests` | Owner のメールアドレス + パスワード仮登録 |
-| `shared_signup_requests` | Shared user 招待 |
+| `shared_signup_requests` | Shared user 招待。招待中・プラン上限による停止・完了・取り消しの状態を保持 |
 | `google_oauth_flows` | Google OAuth/OIDC の state、PKCE verifier、nonce、mode、redirectTo |
 | `pin_reset_tokens` | PIN リセット用トークン |
 | `account_deletion_requests` | Owner アカウント削除用トークン |
@@ -393,6 +393,8 @@ flowchart LR
 Stripe のダウングレード予約またはキャンセル予約を検知した場合、Webhook payload だけで確定せず Stripe API から Subscription / Subscription Schedule を再取得します。`owner_subscriptions.current_price_id`、`current_period_end`、`cancel_at`、`stripe_schedule_id`、`pending_plan_code`、`pending_price_id`、`pending_billing_interval`、`pending_plan_effective_at`、`pending_active_board_ids` を保存します。`pending_active_board_ids` は `last_viewed_at`、`updated_at`、`created_at` の降順で、移行先プランの `PlanLimits.boards` 件まで自動生成します。実際の切替時は pending 候補だけを `active` とし、それ以外を `inactive_due_to_plan` にします。pending 候補が空または不正な場合も同じ順序で再選択します。
 
 ダウングレード影響の表示は `src/lib/plan-impact.ts` に集約します。`OwnerUsage` と対象 `PlanDefinition` を比較し、ボード数、画像数、ストレージ、動画可否、動画解像度、1ファイル上限の超過候補を `PlanImpact` として返します。Billing 画面は予約中プランの影響警告、現在プランの over-limit 解消案内、プラン比較カードの事前警告に同じ判定を使います。
+
+Shared user上限は `PlanLimits.sharedUsers` と `src/lib/shared-user-plan.ts` に集約します。有効な Shared user と期限内で `invited` の招待をカウントし、招待作成・招待完了・再有効化時にサーバー側で検証します。Stripe webhookでプラン変更が実適用された時は、既存の有効ユーザーを優先して上限内を `active`、超過分を `inactive_due_to_plan` に変更し、超過ユーザーのセッションを削除します。`PLAN_ENFORCEMENT_MODE=unlimited` では上限は `null` となり、停止済みユーザーと招待を再度有効化します。
 
 ## 8. メディア保存と配信
 
