@@ -89,7 +89,7 @@ export default function RestaurantMenuBoard({ board, boardPlan }: BoardTemplateP
 
   return (
     <div
-      className="flex h-screen w-screen flex-col bg-[#111111] p-10 text-white"
+      className="flex h-full w-full flex-col bg-[#111111] p-10 text-white"
       style={{ fontFamily: config.fontFamily || undefined }}
     >
       {config.fontFamily && <GoogleFontLoader fonts={[config.fontFamily]} />}

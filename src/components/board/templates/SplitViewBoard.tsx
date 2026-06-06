@@ -99,7 +99,7 @@ export default function SplitViewBoard({ board, mediaItems }: BoardTemplateProps
 
   return (
     <div
-      className={`flex h-screen w-screen overflow-hidden ${
+      className={`flex h-full w-full overflow-hidden ${
         isVertical ? "flex-col" : "flex-row"
       }`}
       style={{

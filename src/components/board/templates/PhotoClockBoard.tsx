@@ -51,7 +51,7 @@ type PhotoClockConfig = typeof photoClockDefaultConfig;
 function parseConfig(raw: unknown): PhotoClockConfig {
   const cfg = (raw && typeof raw === "object" ? raw : {}) as Partial<PhotoClockConfig>;
 
-  // Migrate old Tailwind class fontSize to pixel value
+  // Migrate old Tailwind font classes to the equivalent design-point value.
   const merged = { ...photoClockDefaultConfig, ...cfg };
   if (typeof merged.clockFontSize === "string") {
     const sizeMap: Record<string, number> = {
@@ -103,7 +103,7 @@ export default function PhotoClockBoard({
   const fallbackImage = findFallbackImage(sorted, config);
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black">
+    <div className="relative h-full w-full overflow-hidden bg-black">
       {config.fontFamily && (
         <GoogleFontLoader fonts={[config.fontFamily]} />
       )}
