@@ -400,7 +400,7 @@ Shared user上限は `PlanLimits.sharedUsers` と `src/lib/shared-user-plan.ts` 
 
 `src/lib/media-storage.ts` がローカル保存と S3 互換ストレージを抽象化します。
 
-`media_items.file_size_bytes` と `thumbnail_size_bytes` は Owner のストレージ使用量計算に使います。`media_items.width` / `height` はアップロード時に取得した画像・動画寸法で、ダウングレード後の動画再生可否判定に使います。既存メディアは自動削除・自動リサイズせず、現在プランの `storageBytes`、`images`、`videoEnabled`、`maxResolution` を超える場合は、新規アップロードや表示時の動画再生を制限します。
+`media_items.file_size_bytes` と `thumbnail_size_bytes` は Owner のストレージ使用量計算に使います。`media_items.width` / `height` はアップロード時に取得した画像・動画寸法で、`media_items.video_duration_seconds` は動画ファイルの長さを秒単位で保持します。既存メディアは自動削除・自動リサイズせず、現在プランの `storageBytes`、`images`、`videoEnabled`、`maxResolution`、対象テンプレートのボード単位メディア上限を超える場合は、新規アップロード、テンプレート変更、設定保存、表示時の動画再生を制限します。
 
 ```mermaid
 flowchart TB

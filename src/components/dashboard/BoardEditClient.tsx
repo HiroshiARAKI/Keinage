@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/dialog";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { sharePublicBoard as sharePublicBoardLink } from "@/lib/board-share";
+import type { BoardMediaLimitUsage } from "@/lib/board-media-plan";
 import { templates } from "@/lib/templates";
 import { TemplateConfigEditor } from "@/components/dashboard/config-editors";
 import MediaUploadZone from "@/components/dashboard/MediaUploadZone";
@@ -61,6 +62,7 @@ interface BoardDetail extends Board {
   mediaItems: MediaItem[];
   messages: Message[];
   boardPlan?: PublicBoardPlan;
+  mediaUsage?: BoardMediaLimitUsage;
 }
 
 const DEFAULT_BOARD_PLAN: PublicBoardPlan = {
@@ -638,6 +640,7 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                 mediaItems={board.mediaItems}
                 onUpdate={fetchBoard}
                 showPlaybackControls={board.templateId !== "split-view"}
+                mediaUsage={board.mediaUsage}
                 scheduleConfig={supportsScheduleTemplate ? config : undefined}
                 scheduling={boardPlan.scheduling}
                 onScheduleConfigChange={supportsScheduleTemplate ? setConfig : undefined}

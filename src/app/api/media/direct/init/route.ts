@@ -26,6 +26,7 @@ import {
   isPlanLimitError,
   planLimitErrorBody,
 } from "@/lib/plan-enforcement";
+import { assertCanAddBoardMedia } from "@/lib/board-media-plan";
 import {
   buildRateLimitKey,
   consumeRateLimit,
@@ -150,6 +151,13 @@ async function handlePost(request: NextRequest) {
       ownerUserId,
       mediaType,
       fileSize: sizeBytes,
+    });
+    await assertCanAddBoardMedia({
+      ownerUserId,
+      boardId,
+      templateId: board.templateId,
+      mediaType,
+      requireVideoDuration: false,
     });
 
     if (mediaType === "image" && width && height) {

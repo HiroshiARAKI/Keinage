@@ -197,6 +197,13 @@
       "when": 1780747200000,
       "tag": "0027_shared_user_plan_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1780912800000,
+      "tag": "0028_board_media_plan_limits",
+      "breakpoints": true
     }
   ]
 }
