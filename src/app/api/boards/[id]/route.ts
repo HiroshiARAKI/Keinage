@@ -12,9 +12,14 @@ import {
   isPlanLimitError,
   planLimitErrorBody,
 } from "@/lib/plan-enforcement";
+import {
+  assertBoardMediaWithinPlan,
+  getBoardMediaLimitUsage,
+} from "@/lib/board-media-plan";
 import { updateBoardSchema } from "@/lib/validators";
 import { emitSSE } from "@/lib/sse";
 import { findOwnedBoard, resolveOwnerUserId } from "@/lib/ownership";
+import { resolveSplitViewMediaReferences } from "@/lib/split-view";
 import { normalizeConfig } from "@/lib/utils";
 
 export async function GET(
@@ -45,13 +50,21 @@ export async function GET(
     .where(eq(messages.boardId, id));
   const effectivePlan = await getEffectivePlanForOwner(board.ownerUserId);
 
+  const normalizedBoard = resolveSplitViewMediaReferences(normalizeConfig(board), media);
+  const mediaUsage = await getBoardMediaLimitUsage({
+    ownerUserId: board.ownerUserId,
+    boardId: id,
+    templateId: normalizedBoard.templateId,
+  });
+
   return NextResponse.json({
-    ...normalizeConfig(board),
+    ...normalizedBoard,
     boardPlan: {
       watermark: effectivePlan.plan.limits.watermark,
       scheduling: effectivePlan.plan.limits.scheduling,
       menuItemImages: effectivePlan.plan.limits.menuItemImages,
     },
+    mediaUsage,
     mediaItems: media,
     messages: boardMessages,
   });
@@ -91,6 +104,7 @@ export async function PATCH(
   }
 
   const updates: Record<string, unknown> = {};
+  const nextTemplateId = result.data.templateId ?? normalizedExisting.templateId;
   if (result.data.name !== undefined) updates.name = result.data.name;
   if (result.data.templateId !== undefined) {
     try {
@@ -141,6 +155,19 @@ export async function PATCH(
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json(normalizedExisting);
+  }
+
+  try {
+    await assertBoardMediaWithinPlan({
+      ownerUserId: existing.ownerUserId,
+      boardId: id,
+      templateId: nextTemplateId,
+    });
+  } catch (error) {
+    if (isPlanLimitError(error)) {
+      return NextResponse.json(planLimitErrorBody(error), { status: 403 });
+    }
+    throw error;
   }
 
   if (updates.config !== undefined) {

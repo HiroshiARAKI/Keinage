@@ -12,6 +12,7 @@ const execFileAsync = promisify(execFile);
 export interface VideoMetadata {
   width: number;
   height: number;
+  durationSeconds: number;
 }
 
 interface FfprobeStream {
@@ -27,6 +28,9 @@ interface FfprobeStream {
 
 interface FfprobeOutput {
   streams?: FfprobeStream[];
+  format?: {
+    duration?: string;
+  };
 }
 
 function normalizeRotation(value: number): number {
@@ -54,15 +58,20 @@ function parseVideoMetadata(stdout: string): VideoMetadata {
   const stream = parsed.streams?.[0];
   const width = stream?.width;
   const height = stream?.height;
+  const durationSeconds = Math.ceil(Number(parsed.format?.duration));
 
   if (!stream || !width || !height) {
     throw new Error("Video stream metadata was not found");
   }
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new Error("Video duration metadata was not found");
+  }
 
   const rotation = readRotation(stream);
-  return rotation === 90 || rotation === 270
+  const dimensions = rotation === 90 || rotation === 270
     ? { width: height, height: width }
     : { width, height };
+  return { ...dimensions, durationSeconds };
 }
 
 export async function probeVideoMetadataFromBuffer(
@@ -81,7 +90,7 @@ export async function probeVideoMetadataFromBuffer(
       "-select_streams",
       "v:0",
       "-show_entries",
-      "stream=width,height:stream_tags=rotate:side_data=rotation",
+      "stream=width,height:stream_tags=rotate:side_data=rotation:format=duration",
       "-of",
       "json",
       tempPath,

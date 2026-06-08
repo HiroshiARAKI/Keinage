@@ -30,6 +30,7 @@ export default async function LoginPage({
   searchParams: Promise<{
     redirectTo?: string | string[];
     notice?: string | string[];
+    error?: string | string[];
   }>;
 }) {
   console.log("[/pin/login] START");
@@ -38,6 +39,7 @@ export default async function LoginPage({
     typeof params.redirectTo === "string" ? params.redirectTo : null,
   );
   const notice = typeof params.notice === "string" ? params.notice : null;
+  const error = typeof params.error === "string" ? params.error : null;
 
   // If admin user not configured, redirect to setup
   const adminUser = await db.query.users.findFirst();
@@ -53,7 +55,7 @@ export default async function LoginPage({
   const deviceAuthGrant = await getDeviceAuthGrantByToken(deviceToken);
   let showPinLoginLink = false;
 
-  if (deviceAuthGrant?.user.pinHash) {
+  if (deviceAuthGrant?.user.pinHash && deviceAuthGrant.user.status === "active") {
     const expireSetting = await getOwnerSetting(
       resolveOwnerUserId(deviceAuthGrant.user),
       AUTH_EXPIRE_DAYS_KEY,
@@ -82,7 +84,7 @@ export default async function LoginPage({
       ),
       with: { user: true },
     });
-    if (sessionRow) {
+    if (sessionRow?.user.status === "active") {
       const sameUser = deviceAuthGrant?.user.id === sessionRow.user.id;
       const expireSetting = sameUser
         ? await getOwnerSetting(
@@ -138,6 +140,11 @@ export default async function LoginPage({
       }
       showPinLoginLink={showPinLoginLink}
       googleAuthEnabled={isGoogleAuthEnabled()}
+      initialError={
+        error === "shared-user-inactive-due-to-plan"
+          ? "shared-user-inactive-due-to-plan"
+          : null
+      }
     />
   );
 }

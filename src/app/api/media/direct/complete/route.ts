@@ -10,6 +10,7 @@ import { emitSSE } from "@/lib/sse";
 import {
   headStoredObject,
   publicPathForStorageKey,
+  readStoredObject,
   scopedMediaStorageKey,
   thumbnailStorageKeyFromStorageKey,
 } from "@/lib/media-storage";
@@ -31,6 +32,8 @@ import {
   isPlanLimitError,
   planLimitErrorBody,
 } from "@/lib/plan-enforcement";
+import { assertCanAddBoardMedia } from "@/lib/board-media-plan";
+import { probeVideoMetadataFromBuffer } from "@/lib/video-metadata";
 import {
   buildRateLimitKey,
   consumeRateLimit,
@@ -213,6 +216,37 @@ async function handlePost(request: NextRequest) {
     posterSizeBytes = posterObject.contentLength;
   }
 
+  let serverVideoWidth: number | null = null;
+  let serverVideoHeight: number | null = null;
+  let serverVideoDurationSeconds: number | null = null;
+  if (mediaType === "video") {
+    const storedVideo = await readStoredObject(objectKey);
+    if (!storedVideo) {
+      return NextResponse.json({ error: "Uploaded object not found" }, { status: 404 });
+    }
+
+    let metadata;
+    try {
+      metadata = await probeVideoMetadataFromBuffer(
+        storedVideo.body,
+        fileNameValidation.extension,
+      );
+    } catch (error) {
+      console.error("[media/direct/complete] Failed to read video metadata", error);
+      return NextResponse.json(
+        {
+          error: "動画メタデータを取得できませんでした",
+          code: "video_metadata_unavailable",
+        },
+        { status: 400 },
+      );
+    }
+
+    serverVideoWidth = metadata.width;
+    serverVideoHeight = metadata.height;
+    serverVideoDurationSeconds = metadata.durationSeconds;
+  }
+
   try {
     await assertCanUploadMedia({
       ownerUserId,
@@ -229,7 +263,7 @@ async function handlePost(request: NextRequest) {
     }
 
     if (mediaType === "video") {
-      if (!width || !height) {
+      if (!serverVideoWidth || !serverVideoHeight) {
         return NextResponse.json(
           {
             error: "動画メタデータを取得できませんでした",
@@ -241,10 +275,17 @@ async function handlePost(request: NextRequest) {
 
       await assertVideoResolutionAllowed({
         ownerUserId,
-        width,
-        height,
+        width: serverVideoWidth,
+        height: serverVideoHeight,
       });
     }
+    await assertCanAddBoardMedia({
+      ownerUserId,
+      boardId,
+      templateId: board.templateId,
+      mediaType,
+      videoDurationSeconds: serverVideoDurationSeconds,
+    });
   } catch (error) {
     const response = planLimitResponse(error);
     if (response) return response;
@@ -268,8 +309,9 @@ async function handlePost(request: NextRequest) {
       filePath: publicPathForStorageKey(objectKey),
       fileSizeBytes: object.contentLength,
       thumbnailSizeBytes: posterSizeBytes,
-      width: width ?? null,
-      height: height ?? null,
+      width: mediaType === "video" ? serverVideoWidth : width ?? null,
+      height: mediaType === "video" ? serverVideoHeight : height ?? null,
+      videoDurationSeconds: mediaType === "video" ? serverVideoDurationSeconds : null,
       displayOrder: maxOrder + 1,
       duration: duration ? clampMediaDuration(duration) : DEFAULT_MEDIA_DURATION_SECONDS,
       playbackMode: "duration",

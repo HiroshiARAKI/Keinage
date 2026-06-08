@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,6 +16,7 @@ import {
   X,
   Lock,
   Globe,
+  Share2,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -48,6 +49,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useLocale } from "@/components/i18n/LocaleProvider";
+import { sharePublicBoard as sharePublicBoardLink } from "@/lib/board-share";
+import type { BoardMediaLimitUsage } from "@/lib/board-media-plan";
 import { templates } from "@/lib/templates";
 import { TemplateConfigEditor } from "@/components/dashboard/config-editors";
 import MediaUploadZone from "@/components/dashboard/MediaUploadZone";
@@ -59,6 +62,7 @@ interface BoardDetail extends Board {
   mediaItems: MediaItem[];
   messages: Message[];
   boardPlan?: PublicBoardPlan;
+  mediaUsage?: BoardMediaLimitUsage;
 }
 
 const DEFAULT_BOARD_PLAN: PublicBoardPlan = {
@@ -69,6 +73,7 @@ const DEFAULT_BOARD_PLAN: PublicBoardPlan = {
 
 const MESSAGE_KINDS = ["info", "notice", "alert"] as const;
 type MessageKind = (typeof MESSAGE_KINDS)[number];
+type ShareStatus = "idle" | "copied" | "failed";
 
 function isMessageKind(value: unknown): value is MessageKind {
   return typeof value === "string" && MESSAGE_KINDS.includes(value as MessageKind);
@@ -103,6 +108,8 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shareStatus, setShareStatus] = useState<ShareStatus>("idle");
+  const shareStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Edit state
   const [name, setName] = useState("");
@@ -149,6 +156,18 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
     return () => clearTimeout(timer);
   }, [fetchBoard]);
 
+  const showShareStatus = useCallback((status: Exclude<ShareStatus, "idle">) => {
+    setShareStatus(status);
+    if (shareStatusTimerRef.current) clearTimeout(shareStatusTimerRef.current);
+    shareStatusTimerRef.current = setTimeout(() => setShareStatus("idle"), 3000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (shareStatusTimerRef.current) clearTimeout(shareStatusTimerRef.current);
+    };
+  }, []);
+
   async function handleSave() {
     setSaving(true);
     setError(null);
@@ -173,6 +192,12 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
     if (res.ok) {
       router.push("/boards");
     }
+  }
+
+  async function handleShareDisplayUrl() {
+    const result = await sharePublicBoardLink({ boardId, title: board?.name ?? name });
+    if (result === "copied") showShareStatus("copied");
+    if (result === "failed") showShareStatus("failed");
   }
 
   async function handleAddMessage() {
@@ -614,6 +639,8 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                 boardId={boardId}
                 mediaItems={board.mediaItems}
                 onUpdate={fetchBoard}
+                showPlaybackControls={board.templateId !== "split-view"}
+                mediaUsage={board.mediaUsage}
                 scheduleConfig={supportsScheduleTemplate ? config : undefined}
                 scheduling={boardPlan.scheduling}
                 onScheduleConfigChange={supportsScheduleTemplate ? setConfig : undefined}
@@ -657,6 +684,27 @@ export default function BoardEditClient({ boardId }: { boardId: string }) {
                 <ExternalLink data-icon="inline-start" />
                 {t("boardEdit.openDisplayUrl")}
               </a>
+
+              {board.visibility === "public" && board.isActive && (
+                <Button variant="outline" className="w-full" onClick={handleShareDisplayUrl}>
+                  <Share2 data-icon="inline-start" />
+                  {t("board.share")}
+                </Button>
+              )}
+
+              {shareStatus !== "idle" && (
+                <p
+                  role="status"
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                >
+                  {shareStatus === "copied" ? (
+                    <Check className="size-3.5 text-emerald-600" />
+                  ) : (
+                    <X className="size-3.5 text-destructive" />
+                  )}
+                  {shareStatus === "copied" ? t("board.shareCopied") : t("board.shareFailed")}
+                </p>
+              )}
 
               <Separator />
 

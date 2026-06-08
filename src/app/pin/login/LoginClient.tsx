@@ -15,16 +15,20 @@ export default function LoginClient({
   notice,
   showPinLoginLink,
   googleAuthEnabled,
+  initialError,
 }: {
   redirectTo?: string | null;
   notice?: "password-reset" | "signup-existing" | null;
   showPinLoginLink: boolean;
   googleAuthEnabled: boolean;
+  initialError?: "shared-user-inactive-due-to-plan" | null;
 }) {
   const { t, setLocale } = useLocale();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    initialError ? t("auth.login.inactiveDueToPlan") : "",
+  );
   const [submitting, setSubmitting] = useState(false);
   const [blocked, setBlocked] = useState(false);
 

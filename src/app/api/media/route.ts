@@ -40,6 +40,7 @@ import {
   isPlanLimitError,
   planLimitErrorBody,
 } from "@/lib/plan-enforcement";
+import { assertCanAddBoardMedia } from "@/lib/board-media-plan";
 import { probeVideoMetadataFromBuffer } from "@/lib/video-metadata";
 import {
   buildRateLimitKey,
@@ -87,6 +88,7 @@ export async function GET() {
       displayOrder: mediaItems.displayOrder,
       duration: mediaItems.duration,
       playbackMode: mediaItems.playbackMode,
+      videoDurationSeconds: mediaItems.videoDurationSeconds,
       createdAt: mediaItems.createdAt,
       updatedAt: mediaItems.updatedAt,
       boardName: boards.name,
@@ -191,6 +193,14 @@ export async function POST(request: NextRequest) {
       mediaType,
       fileSize: file.size,
     });
+    if (mediaType === "image") {
+      await assertCanAddBoardMedia({
+        ownerUserId,
+        boardId,
+        templateId: board.templateId,
+        mediaType,
+      });
+    }
   } catch (error) {
     const response = planLimitResponse(error);
     if (response) return response;
@@ -210,6 +220,7 @@ export async function POST(request: NextRequest) {
   let buffer: Buffer = Buffer.from(await file.arrayBuffer());
   let mediaWidth: number | null = null;
   let mediaHeight: number | null = null;
+  let videoDurationSeconds: number | null = null;
 
   if (mediaType === "image") {
     // Read the max long edge setting
@@ -261,6 +272,7 @@ export async function POST(request: NextRequest) {
     }
     mediaWidth = metadata.width;
     mediaHeight = metadata.height;
+    videoDurationSeconds = metadata.durationSeconds;
   }
 
   let thumbnail =
@@ -295,6 +307,15 @@ export async function POST(request: NextRequest) {
       fileSize: file.size,
       additionalStorageBytes: buffer.length + (thumbnail?.buffer.length ?? 0),
     });
+    if (mediaType === "video") {
+      await assertCanAddBoardMedia({
+        ownerUserId,
+        boardId,
+        templateId: board.templateId,
+        mediaType,
+        videoDurationSeconds,
+      });
+    }
   } catch (error) {
     const response = planLimitResponse(error);
     if (response) return response;
@@ -335,6 +356,7 @@ export async function POST(request: NextRequest) {
       thumbnailSizeBytes: thumbnail?.buffer.length ?? 0,
       width: mediaWidth,
       height: mediaHeight,
+      videoDurationSeconds,
       displayOrder: maxOrder + 1,
       duration: durationValue,
       playbackMode: "duration",
