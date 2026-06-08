@@ -3,9 +3,11 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { Check, Maximize2, Minimize2, Share2 } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { WatermarkOverlay } from "@/components/board/WatermarkOverlay";
 import { useSSE } from "@/hooks/useSSE";
+import { sharePublicBoard as sharePublicBoardLink } from "@/lib/board-share";
 import { parseJsonObject } from "@/lib/utils";
 import type {
   Board,
@@ -25,6 +27,8 @@ type BoardViewportSize = {
   width: number;
   height: number;
 };
+
+type ShareStatus = "idle" | "copied" | "failed";
 
 interface LiveBoardProps {
   board: Board;
@@ -107,8 +111,10 @@ export default function LiveBoard({
   const [displayDeviceKey, setDisplayDeviceKey] = useState<string | null>(null);
   const [cursorVisible, setCursorVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [shareStatus, setShareStatus] = useState<ShareStatus>("idle");
   const [viewportSize, setViewportSize] = useState<BoardViewportSize | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shareStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { t } = useLocale();
 
@@ -170,6 +176,24 @@ export default function LiveBoard({
   const exitFullscreen = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen?.();
   }, []);
+
+  const showShareStatus = useCallback((status: Exclude<ShareStatus, "idle">) => {
+    setShareStatus(status);
+    if (shareStatusTimerRef.current) clearTimeout(shareStatusTimerRef.current);
+    shareStatusTimerRef.current = setTimeout(() => setShareStatus("idle"), 3000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (shareStatusTimerRef.current) clearTimeout(shareStatusTimerRef.current);
+    };
+  }, []);
+
+  const handleSharePublicBoard = useCallback(async () => {
+    const result = await sharePublicBoardLink({ boardId: board.id, title: board.name });
+    if (result === "copied") showShareStatus("copied");
+    if (result === "failed") showShareStatus("failed");
+  }, [board.id, board.name, showShareStatus]);
 
   const displayMediaItems = useMemo(() => {
     if (board.visibility !== "private" || !displayDeviceKey) {
@@ -285,20 +309,49 @@ export default function LiveBoard({
         </div>
       )}
 
-      {/* Expand / Restore button */}
-      <button
-        type="button"
-        onClick={isFullscreen ? exitFullscreen : enterFullscreen}
-        className="fixed bottom-4 left-4 z-50 rounded-md bg-black/50 px-3 py-1.5 text-xs text-white backdrop-blur transition-opacity hover:bg-black/70"
+      <div
+        className="fixed bottom-4 left-4 z-50 flex items-center gap-2 transition-opacity"
         style={{
           opacity: cursorVisible ? 1 : 0,
           pointerEvents: cursorVisible ? "auto" : "none",
           transition: "opacity 0.3s ease",
         }}
-        title={isFullscreen ? t("board.fullscreenExit") : t("board.fullscreenEnter")}
       >
-        {isFullscreen ? `⤓ ${t("board.restore")}` : `⤢ ${t("board.fullscreenEnter")}`}
-      </button>
+        {board.visibility === "public" && (
+          <button
+            type="button"
+            onClick={handleSharePublicBoard}
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-black/50 px-3 text-xs text-white backdrop-blur transition-colors hover:bg-black/70"
+            title={t("board.share")}
+          >
+            <Share2 className="size-4" />
+            {t("board.share")}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={isFullscreen ? exitFullscreen : enterFullscreen}
+          className="inline-flex h-9 items-center gap-2 rounded-md bg-black/50 px-3 text-xs text-white backdrop-blur transition-colors hover:bg-black/70"
+          title={isFullscreen ? t("board.fullscreenExit") : t("board.fullscreenEnter")}
+        >
+          {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+          {isFullscreen ? t("board.restore") : t("board.fullscreenEnter")}
+        </button>
+      </div>
+
+      {shareStatus !== "idle" && (
+        <div
+          role="status"
+          className="fixed bottom-16 left-4 z-50 inline-flex items-center gap-2 rounded-md bg-black/75 px-3 py-2 text-xs text-white shadow-lg backdrop-blur"
+        >
+          {shareStatus === "copied" ? (
+            <Check className="size-4 text-emerald-300" />
+          ) : (
+            <Share2 className="size-4" />
+          )}
+          {shareStatus === "copied" ? t("board.shareCopied") : t("board.shareFailed")}
+        </div>
+      )}
     </div>
   );
 }
