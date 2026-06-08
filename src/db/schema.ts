@@ -87,6 +87,7 @@ export const mediaItems = pgTable("media_items", {
   thumbnailSizeBytes: bigint("thumbnail_size_bytes", { mode: "number" }).notNull().default(0),
   width: integer("width"),
   height: integer("height"),
+  videoDurationSeconds: integer("video_duration_seconds"),
   displayOrder: integer("display_order").notNull().default(0),
   duration: integer("duration").notNull().default(10), // seconds
   playbackMode: text("playback_mode").notNull().default("duration"), // "duration" | "until-ended"

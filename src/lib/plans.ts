@@ -38,6 +38,9 @@ export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export interface PlanLimits {
   boards: number | null;
   sharedUsers: number | null;
+  boardMediaItems: number | null;
+  boardVideos: number | null;
+  boardVideoDurationSeconds: number | null;
   images: number | null;
   storageBytes: number | null;
   maxResolution: number | null;
@@ -67,6 +70,9 @@ export const PLAN_DEFINITIONS = {
     limits: {
       boards: null,
       sharedUsers: null,
+      boardMediaItems: null,
+      boardVideos: null,
+      boardVideoDurationSeconds: null,
       images: null,
       storageBytes: null,
       maxResolution: null,
@@ -86,6 +92,9 @@ export const PLAN_DEFINITIONS = {
     limits: {
       boards: 1,
       sharedUsers: 3,
+      boardMediaItems: 3,
+      boardVideos: 0,
+      boardVideoDurationSeconds: 0,
       images: 3,
       storageBytes: 300 * MB,
       maxResolution: 1920,
@@ -105,6 +114,9 @@ export const PLAN_DEFINITIONS = {
     limits: {
       boards: 10,
       sharedUsers: 10,
+      boardMediaItems: 10,
+      boardVideos: 1,
+      boardVideoDurationSeconds: 30,
       images: null,
       storageBytes: 5 * GB,
       maxResolution: 1920,
@@ -124,6 +136,9 @@ export const PLAN_DEFINITIONS = {
     limits: {
       boards: 100,
       sharedUsers: 100,
+      boardMediaItems: 20,
+      boardVideos: 1,
+      boardVideoDurationSeconds: 3 * 60,
       images: null,
       storageBytes: 20 * GB,
       maxResolution: 3840,
@@ -143,6 +158,9 @@ export const PLAN_DEFINITIONS = {
     limits: {
       boards: 300,
       sharedUsers: 300,
+      boardMediaItems: 30,
+      boardVideos: 2,
+      boardVideoDurationSeconds: 5 * 60,
       images: null,
       storageBytes: 100 * GB,
       maxResolution: 3840,
@@ -162,6 +180,9 @@ export const PLAN_DEFINITIONS = {
     limits: {
       boards: null,
       sharedUsers: null,
+      boardMediaItems: null,
+      boardVideos: null,
+      boardVideoDurationSeconds: null,
       images: null,
       storageBytes: null,
       maxResolution: null,

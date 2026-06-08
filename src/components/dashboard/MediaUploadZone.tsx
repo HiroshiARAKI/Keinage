@@ -22,6 +22,7 @@ import {
 } from "@/components/dashboard/BoardSchedulePanel";
 import { planLimitMessageKey } from "@/lib/plan-limit";
 import { MAX_MEDIA_DURATION_SECONDS, type MediaPlaybackMode } from "@/lib/media-duration";
+import type { BoardMediaLimitUsage } from "@/lib/board-media-plan";
 import {
   getScheduleMap,
   normalizeDisplaySchedule,
@@ -36,6 +37,7 @@ interface MediaUploadZoneProps {
   mediaItems: MediaItem[];
   onUpdate: () => Promise<void>;
   showPlaybackControls?: boolean;
+  mediaUsage?: BoardMediaLimitUsage;
   scheduleConfig?: Record<string, unknown>;
   scheduling?: ScheduleCapability;
   onScheduleConfigChange?: (config: Record<string, unknown>) => void;
@@ -208,6 +210,7 @@ export default function MediaUploadZone({
   mediaItems,
   onUpdate,
   showPlaybackControls = true,
+  mediaUsage,
   scheduleConfig,
   scheduling = "none",
   onScheduleConfigChange,
@@ -220,8 +223,17 @@ export default function MediaUploadZone({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const ACCEPTED_TYPES =
-    "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm";
+  const canAddMedia =
+    !mediaUsage?.applies
+    || mediaUsage.media.limit === null
+    || mediaUsage.media.used < mediaUsage.media.limit;
+  const canAddVideo =
+    !mediaUsage?.applies
+    || mediaUsage.videos.limit === null
+    || mediaUsage.videos.used < mediaUsage.videos.limit;
+  const ACCEPTED_TYPES = canAddVideo
+    ? "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
+    : "image/jpeg,image/png,image/webp,image/gif";
 
   useEffect(() => {
     if (!uploadNotice) return;
@@ -379,6 +391,11 @@ export default function MediaUploadZone({
 
   const handleFiles = useCallback(
     async (files: FileList | File[]) => {
+      if (!canAddMedia) {
+        setUploadNotice(t("planLimit.boardMediaCount"));
+        return;
+      }
+
       const fileArray = Array.from(files);
       if (fileArray.length === 0) return;
 
@@ -402,7 +419,7 @@ export default function MediaUploadZone({
       await onUpdate();
       setUploading([]);
     },
-    [completeDirectUpload, completeServerUpload, onUpdate, t],
+    [canAddMedia, completeDirectUpload, completeServerUpload, onUpdate, t],
   );
 
   const handleDrop = useCallback(
@@ -580,14 +597,20 @@ export default function MediaUploadZone({
 
       {/* Drop zone */}
       <div
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onClick={() => fileInputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
-          isDragOver
+        onDrop={canAddMedia ? handleDrop : undefined}
+        onDragOver={canAddMedia ? handleDragOver : undefined}
+        onDragLeave={canAddMedia ? handleDragLeave : undefined}
+        onClick={() => {
+          if (canAddMedia) fileInputRef.current?.click();
+        }}
+        className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
+          canAddMedia ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+        } ${
+          canAddMedia && isDragOver
             ? "border-primary bg-primary/5"
-            : "border-muted-foreground/25 hover:border-primary/50"
+            : canAddMedia
+              ? "border-muted-foreground/25 hover:border-primary/50"
+              : "border-muted-foreground/20"
         }`}
       >
         <Upload className="mb-2 size-8 text-muted-foreground" />
@@ -604,8 +627,36 @@ export default function MediaUploadZone({
           multiple
           className="hidden"
           onChange={handleFileSelect}
+          disabled={!canAddMedia}
         />
       </div>
+
+      {mediaUsage?.applies && (
+        <div className="grid gap-2 rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground sm:grid-cols-3">
+          <MediaUsageLine
+            label={t("media.boardMediaUsage")}
+            used={mediaUsage.media.used}
+            limit={mediaUsage.media.limit}
+            unlimitedLabel={t("media.unlimited")}
+            overLimit={mediaUsage.media.overLimit || mediaUsage.media.atLimit}
+          />
+          <MediaUsageLine
+            label={t("media.boardVideoUsage")}
+            used={mediaUsage.videos.used}
+            limit={mediaUsage.videos.limit}
+            unlimitedLabel={t("media.unlimited")}
+            overLimit={mediaUsage.videos.overLimit || mediaUsage.videos.atLimit}
+          />
+          <div className={mediaUsage.videoDuration.overLimit ? "text-destructive" : ""}>
+            <span className="font-medium text-foreground">{t("media.boardVideoDurationLimit")}</span>
+            <span className="ml-1">
+              {mediaUsage.videoDuration.limitSeconds === null
+                ? t("media.unlimited")
+                : formatMediaDuration(mediaUsage.videoDuration.limitSeconds)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Upload progress */}
       {uploading.length > 0 && (
@@ -759,4 +810,36 @@ export default function MediaUploadZone({
       )}
     </div>
   );
+}
+
+function MediaUsageLine({
+  label,
+  used,
+  limit,
+  unlimitedLabel,
+  overLimit,
+}: {
+  label: string;
+  used: number;
+  limit: number | null;
+  unlimitedLabel: string;
+  overLimit: boolean;
+}) {
+  return (
+    <div className={overLimit ? "text-destructive" : ""}>
+      <span className="font-medium text-foreground">{label}</span>
+      <span className="ml-1">
+        {used} / {limit === null ? unlimitedLabel : limit}
+      </span>
+    </div>
+  );
+}
+
+function formatMediaDuration(seconds: number) {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds === 0
+    ? `${minutes}m`
+    : `${minutes}m ${remainingSeconds}s`;
 }
