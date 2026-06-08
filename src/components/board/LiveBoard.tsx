@@ -3,10 +3,11 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { Check, Copy, Maximize2, Minimize2, Share2 } from "lucide-react";
+import { Check, Maximize2, Minimize2, Share2 } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { WatermarkOverlay } from "@/components/board/WatermarkOverlay";
 import { useSSE } from "@/hooks/useSSE";
+import { sharePublicBoard as sharePublicBoardLink } from "@/lib/board-share";
 import { parseJsonObject } from "@/lib/utils";
 import type {
   Board,
@@ -188,55 +189,11 @@ export default function LiveBoard({
     };
   }, []);
 
-  const writeToClipboard = useCallback(async (text: string) => {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return;
-    }
-
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.setAttribute("readonly", "");
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
-    textarea.select();
-    const copied = document.execCommand("copy");
-    textarea.remove();
-    if (!copied) throw new Error("clipboard_copy_failed");
-  }, []);
-
-  const copyPublicBoardUrl = useCallback(async (url: string) => {
-    try {
-      await writeToClipboard(url);
-      showShareStatus("copied");
-    } catch {
-      showShareStatus("failed");
-    }
-  }, [showShareStatus, writeToClipboard]);
-
-  const sharePublicBoard = useCallback(async () => {
-    const publicBoardUrl = new URL(
-      `/${encodeURIComponent(board.id)}`,
-      window.location.origin,
-    ).toString();
-
-    if (typeof navigator.share !== "function") {
-      await copyPublicBoardUrl(publicBoardUrl);
-      return;
-    }
-
-    try {
-      await navigator.share({
-        title: board.name,
-        text: "Keinage board",
-        url: publicBoardUrl,
-      });
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      await copyPublicBoardUrl(publicBoardUrl);
-    }
-  }, [board.id, board.name, copyPublicBoardUrl]);
+  const handleSharePublicBoard = useCallback(async () => {
+    const result = await sharePublicBoardLink({ boardId: board.id, title: board.name });
+    if (result === "copied") showShareStatus("copied");
+    if (result === "failed") showShareStatus("failed");
+  }, [board.id, board.name, showShareStatus]);
 
   const displayMediaItems = useMemo(() => {
     if (board.visibility !== "private" || !displayDeviceKey) {
@@ -363,7 +320,7 @@ export default function LiveBoard({
         {board.visibility === "public" && (
           <button
             type="button"
-            onClick={sharePublicBoard}
+            onClick={handleSharePublicBoard}
             className="inline-flex h-9 items-center gap-2 rounded-md bg-black/50 px-3 text-xs text-white backdrop-blur transition-colors hover:bg-black/70"
             title={t("board.share")}
           >
@@ -390,7 +347,7 @@ export default function LiveBoard({
           {shareStatus === "copied" ? (
             <Check className="size-4 text-emerald-300" />
           ) : (
-            <Copy className="size-4" />
+            <Share2 className="size-4" />
           )}
           {shareStatus === "copied" ? t("board.shareCopied") : t("board.shareFailed")}
         </div>
