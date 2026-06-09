@@ -323,6 +323,7 @@ export const es419 = {
   "board.shareFailed": "No se pudo copiar la URL del tablero.",
   "configEditor.mediaTransition": "Efecto de transición",
   "configEditor.mediaTransition.fadeBlack": "Fundido pasando por negro",
+  "configEditor.mediaTransition.fadeWhite": "Fundido pasando por blanco",
   "configEditor.mediaTransition.crossfade": "Fundido cruzado",
   "configEditor.mediaTransition.instant": "Cambio inmediato",
   "board.noMedia": "No hay medios cargados.",

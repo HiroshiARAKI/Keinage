@@ -444,6 +444,7 @@ export const zhCN = {
   "configEditor.objectFitCover": "铺满显示（可能裁切）",
   "configEditor.mediaTransition": "切换效果",
   "configEditor.mediaTransition.fadeBlack": "淡出至黑再淡入",
+  "configEditor.mediaTransition.fadeWhite": "淡出至白再淡入",
   "configEditor.mediaTransition.crossfade": "交叉淡化",
   "configEditor.mediaTransition.instant": "立即切换",
   "configEditor.randomPlayback": "随机播放",

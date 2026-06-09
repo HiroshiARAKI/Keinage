@@ -323,6 +323,7 @@ export const de = {
   "board.shareFailed": "Board-URL konnte nicht kopiert werden.",
   "configEditor.mediaTransition": "Übergangseffekt",
   "configEditor.mediaTransition.fadeBlack": "Über Schwarz aus- und einblenden",
+  "configEditor.mediaTransition.fadeWhite": "Über Weiß aus- und einblenden",
   "configEditor.mediaTransition.crossfade": "Überblenden",
   "configEditor.mediaTransition.instant": "Sofort wechseln",
   "board.noMedia": "Es wurden keine Medien hochgeladen.",

@@ -88,12 +88,12 @@ export function SimpleBoardConfigEditor({
   });
   const objectFit = (config.objectFit as string) ?? "contain";
   const mediaTransition = normalizeSlideshowTransition(config.mediaTransition);
-  const mediaTransitionLabel =
-    mediaTransition === "crossfade"
-      ? t("configEditor.mediaTransition.crossfade")
-      : mediaTransition === "instant"
-        ? t("configEditor.mediaTransition.instant")
-        : t("configEditor.mediaTransition.fadeBlack");
+  const mediaTransitionLabel = {
+    "fade-black": t("configEditor.mediaTransition.fadeBlack"),
+    "fade-white": t("configEditor.mediaTransition.fadeWhite"),
+    crossfade: t("configEditor.mediaTransition.crossfade"),
+    instant: t("configEditor.mediaTransition.instant"),
+  }[mediaTransition];
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
@@ -282,6 +282,9 @@ export function SimpleBoardConfigEditor({
               <SelectContent>
                 <SelectItem value="fade-black">
                   {t("configEditor.mediaTransition.fadeBlack")}
+                </SelectItem>
+                <SelectItem value="fade-white">
+                  {t("configEditor.mediaTransition.fadeWhite")}
                 </SelectItem>
                 <SelectItem value="crossfade">
                   {t("configEditor.mediaTransition.crossfade")}

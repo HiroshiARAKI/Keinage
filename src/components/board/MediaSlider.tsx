@@ -444,6 +444,8 @@ export function MediaSlider({
   }
 
   const normalizedTransition = normalizeSlideshowTransition(transition);
+  const fadesThroughColor =
+    normalizedTransition === "fade-black" || normalizedTransition === "fade-white";
   const slide = current.type === "video" ? (
     current.playbackStatus && current.playbackStatus !== "available" ? (
       <DisabledVideoSlide item={current} />
@@ -464,13 +466,17 @@ export function MediaSlider({
   );
 
   return (
-    <div className="relative isolate h-full w-full overflow-hidden bg-black">
+    <div
+      className={`relative isolate h-full w-full overflow-hidden ${
+        normalizedTransition === "fade-white" ? "bg-white" : "bg-black"
+      }`}
+    >
       {normalizedTransition === "instant" ? (
         <div key={currentKey} className="absolute inset-0">
           {slide}
         </div>
       ) : (
-        <AnimatePresence mode={normalizedTransition === "fade-black" ? "wait" : "sync"}>
+        <AnimatePresence mode={fadesThroughColor ? "wait" : "sync"}>
           <motion.div
             key={currentKey}
             initial={{ opacity: 0 }}

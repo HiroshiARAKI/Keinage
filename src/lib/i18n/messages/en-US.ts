@@ -442,6 +442,7 @@ export const enUS = {
   "configEditor.objectFitCover": "Fill screen (may crop)",
   "configEditor.mediaTransition": "Transition effect",
   "configEditor.mediaTransition.fadeBlack": "Fade through black",
+  "configEditor.mediaTransition.fadeWhite": "Fade through white",
   "configEditor.mediaTransition.crossfade": "Crossfade",
   "configEditor.mediaTransition.instant": "Instant",
   "configEditor.randomPlayback": "Random playback",

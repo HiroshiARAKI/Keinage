@@ -301,6 +301,7 @@ export const zhTW = {
   "board.shareFailed": "無法複製看板連結。",
   "configEditor.mediaTransition": "切換效果",
   "configEditor.mediaTransition.fadeBlack": "淡出至黑再淡入",
+  "configEditor.mediaTransition.fadeWhite": "淡出至白再淡入",
   "configEditor.mediaTransition.crossfade": "交叉淡化",
   "configEditor.mediaTransition.instant": "立即切換",
   "board.message.none": "沒有訊息。",

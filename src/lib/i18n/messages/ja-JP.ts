@@ -444,6 +444,7 @@ export const jaJP = {
   "configEditor.objectFitCover": "全面表示（トリミングされる場合あり）",
   "configEditor.mediaTransition": "切り替えエフェクト",
   "configEditor.mediaTransition.fadeBlack": "黒を挟むフェード",
+  "configEditor.mediaTransition.fadeWhite": "白を挟むフェード",
   "configEditor.mediaTransition.crossfade": "クロスフェード",
   "configEditor.mediaTransition.instant": "即時切り替え",
   "configEditor.randomPlayback": "ランダム再生",

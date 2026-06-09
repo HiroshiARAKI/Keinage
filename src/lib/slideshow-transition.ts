@@ -3,6 +3,7 @@
 
 export const SLIDESHOW_TRANSITIONS = [
   "fade-black",
+  "fade-white",
   "crossfade",
   "instant",
 ] as const;

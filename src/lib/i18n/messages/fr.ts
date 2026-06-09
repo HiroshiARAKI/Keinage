@@ -323,6 +323,7 @@ export const fr = {
   "board.shareFailed": "Impossible de copier l'URL du tableau.",
   "configEditor.mediaTransition": "Effet de transition",
   "configEditor.mediaTransition.fadeBlack": "Fondu via un écran noir",
+  "configEditor.mediaTransition.fadeWhite": "Fondu via un écran blanc",
   "configEditor.mediaTransition.crossfade": "Fondu enchaîné",
   "configEditor.mediaTransition.instant": "Changement immédiat",
   "board.noMedia": "Aucun média n'a été téléversé.",
