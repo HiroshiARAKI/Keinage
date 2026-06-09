@@ -365,6 +365,10 @@ IPアドレスは生値を保存せず、`AUDIT_LOG_IP_HASH_SECRET` が設定さ
 
 `docker/cleanup-audit-logs.cjs` は `AUDIT_LOG_RETENTION_DAYS` が正の整数の場合に、指定日数より古い `audit_logs.created_at` を削除します。未設定または `0` では cleanup を無効化します。処理はコンテナ起動時に migration 後へ実行するほか、`pnpm audit:cleanup` を cron / scheduled task から呼び出せます。PostgreSQL advisory lock により同時実行を避け、削除件数と失敗だけをターミナルへ出力します。`AUDIT_LOG_ENABLED=false` でも既存ログの cleanup は継続します。
 
+`docker/maintenance-cleanup.cjs` は長期運用向けの任意実行jobです。既定はdry-runで、`--execute` 指定時だけ期限切れsession/OAuth flow/signup request、保持期間を過ぎた処理済みStripe event、期限切れdirect upload sessionを削除します。direct upload init時に `direct_upload_sessions` へobject keyとcomplete猶予期限を記録し、complete成功時にsessionを消費します。cleanupはDB登録済みmediaのobjectを削除せず、未完了sessionとして追跡されたS3 objectだけを削除します。
+
+orphan mediaは `media_items.file_path` とstorage object一覧を突き合わせますが、初期実装では件数と容量のdry-run報告だけを行います。local uploadsを含め自動削除は行いません。job全体はPostgreSQL advisory lockで多重実行を避けます。
+
 ## 7. ボードとテンプレート設計
 
 テンプレートは registry 方式です。`boards.templateId` と `boards.config` で表示を決め、DB schema を増やさずにテンプレート固有設定を JSON として保持します。

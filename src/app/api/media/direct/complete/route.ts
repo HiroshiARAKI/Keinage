@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { boards, mediaItems } from "@/db/schema";
+import { boards, directUploadSessions, mediaItems } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { emitSSE } from "@/lib/sse";
 import {
@@ -178,6 +178,41 @@ async function handlePost(request: NextRequest) {
     }
   }
 
+  const uploadSession = await db.query.directUploadSessions.findFirst({
+    where: and(
+      eq(directUploadSessions.mediaId, mediaId),
+      eq(directUploadSessions.ownerUserId, ownerUserId),
+      eq(directUploadSessions.boardId, boardId),
+    ),
+  });
+  if (!uploadSession) {
+    return NextResponse.json(
+      {
+        error: "Direct upload session not found",
+        code: "direct_upload_session_not_found",
+      },
+      { status: 404 },
+    );
+  }
+  if (uploadSession.expiresAt <= new Date().toISOString()) {
+    return NextResponse.json(
+      {
+        error: "Direct upload session expired",
+        code: "direct_upload_session_expired",
+      },
+      { status: 410 },
+    );
+  }
+  if (
+    uploadSession.objectKey !== objectKey
+    || uploadSession.posterObjectKey !== (poster?.objectKey ?? null)
+  ) {
+    return NextResponse.json(
+      { error: "Invalid direct upload session" },
+      { status: 400 },
+    );
+  }
+
   const object = await headStoredObject(objectKey);
   if (!object) {
     return NextResponse.json({ error: "Uploaded object not found" }, { status: 404 });
@@ -317,6 +352,17 @@ async function handlePost(request: NextRequest) {
       playbackMode: "duration",
     })
     .returning();
+
+  try {
+    await db
+      .delete(directUploadSessions)
+      .where(eq(directUploadSessions.mediaId, mediaId));
+  } catch (error) {
+    console.error(
+      "[media/direct/complete] Failed to consume direct upload session",
+      error,
+    );
+  }
 
   emitSSE(boardId, "media-updated");
 

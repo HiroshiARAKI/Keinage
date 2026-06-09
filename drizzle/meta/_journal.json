@@ -204,6 +204,13 @@
       "when": 1780912800000,
       "tag": "0028_board_media_plan_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1781002800000,
+      "tag": "0029_maintenance_cleanup",
+      "breakpoints": true
     }
   ]
 }

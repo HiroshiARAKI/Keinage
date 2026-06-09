@@ -174,6 +174,8 @@ Owner退会時、`BILLING_MODE=stripe` かつキャンセル可能な Stripe sub
 
 S3 storage 利用時の動画アップロードは、ブラウザが `/api/media/direct/init` で Presigned PUT URL を取得し、S3 へ直接 PUT した後に `/api/media/direct/complete` で DB 登録します。Keinage API は署名発行前と完了登録前に Owner / board / plan / 容量 / 動画解像度を確認し、完了時は `HeadObject` で実体サイズと Content-Type を検証します。動画の長さは complete 時にサーバー側で保存済みオブジェクトを読み出して `ffprobe` で取得し、クライアント申告値は信用しません。complete されないオブジェクトはDB参照がないため配信対象になりません。S3 未設定時は既存の `/api/media` にフォールバックします。Multipart Upload と未完了 multipart cleanup は大容量アップロード最適化の後続課題です。
 
+`/api/media/direct/init` は `direct_upload_sessions` にmedia ID、Owner/board scope、object key、期限を保存します。署名URL期限後もcomplete処理のため1時間の猶予を設けます。`/api/media/direct/complete` はこのsessionとobject keyを検証し、DB登録成功後にsessionを削除します。期限切れの未完了sessionと未登録objectは定期保守cleanupの対象になります。現時点ではMultipart Upload自体を実装していないため、abort対象はS3 direct PUTの未完了sessionです。
+
 サーバー経由アップロードでは、動画は正式保存前に一時ファイルへ書き出し、`ffprobe` で width / height / rotation / duration を取得して plan の解像度制限とボード単位の動画時間制限を判定します。一時ファイルは判定後に削除され、制限超過時は正式保存されません。Lite は FHD 以下、Standard / Standard+ は 4K 以下を許可します。
 
 アップロード時に画像・動画の `width` / `height` を、動画では `videoDurationSeconds` も `media_items` に保存します。既存メディアはダウングレード時に削除・変換しませんが、現在プランで動画が許可されない場合や保存済み寸法が解像度上限を超える場合、公開ボード API は対象メディアに `playbackStatus` を付与し、表示側は動画再生の代わりに案内 UI を表示します。ストレージ使用量、画像数、対象テンプレートのボード単位メディア数・動画本数・動画時間が現在プランの上限を超えている場合、新規アップロード、テンプレート変更、設定保存は Plan limit error として拒否されます。
