@@ -98,7 +98,8 @@ UPLOAD_MAX_BYTES=0
 - S3 / CloudFront: `S3_*` と `STORAGE_*` を設定します。
 - Stripe Billing: `BILLING_MODE=stripe`、`PLAN_ENFORCEMENT_MODE=billing`、`STRIPE_*` を設定します。
 - Super Owner: `SUPER_OWNER_*` を設定します。
-- 監査ログ: `AUDIT_LOG_*` を設定します。
+- 監査ログ: `AUDIT_LOG_*` を設定します。`AUDIT_LOG_RETENTION_DAYS` が正の整数の場合、コンテナ起動時に指定日数より古いログを削除します。手動・定期実行では `pnpm audit:cleanup` を使用できます。
+- 定期保守: `pnpm maintenance:cleanup` で dry-run、`pnpm maintenance:cleanup -- --execute` で期限切れセッション、OAuth/signup flow、Stripe event、未完了direct uploadを削除します。`--orphan-media` は未参照メディア候補を削除せず集計します。
 
 詳細な設定例と注意点は [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) を参照してください。
 

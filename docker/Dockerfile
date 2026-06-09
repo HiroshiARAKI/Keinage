@@ -49,6 +49,8 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 # Copy drizzle migrations + migration runner
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/docker/migrate.cjs ./migrate.cjs
+COPY --from=builder /app/docker/cleanup-audit-logs.cjs ./cleanup-audit-logs.cjs
+COPY --from=builder /app/docker/maintenance-cleanup.cjs ./maintenance-cleanup.cjs
 COPY --from=builder /app/docker/entrypoint.sh ./entrypoint.sh
 
 # Create writable directory for runtime uploads

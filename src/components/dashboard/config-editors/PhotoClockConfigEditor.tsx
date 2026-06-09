@@ -23,6 +23,7 @@ import {
   type ClockWeatherState,
 } from "@/components/board/ClockWeatherGroup";
 import { GOOGLE_FONTS, buildGoogleFontsUrl } from "@/lib/fonts";
+import { normalizeSlideshowTransition } from "@/lib/slideshow-transition";
 import { useEffect } from "react";
 
 /** Load ALL Google Fonts so the dropdown and preview can display them */
@@ -90,6 +91,13 @@ export function PhotoClockConfigEditor({
   const showWeather = (config.showWeather as boolean) ?? false;
   const weatherFontSize = (config.weatherFontSize as number) ?? 18;
   const objectFit = (config.objectFit as string) ?? "contain";
+  const mediaTransition = normalizeSlideshowTransition(config.mediaTransition);
+  const mediaTransitionLabel = {
+    "fade-black": t("configEditor.mediaTransition.fadeBlack"),
+    "fade-white": t("configEditor.mediaTransition.fadeWhite"),
+    crossfade: t("configEditor.mediaTransition.crossfade"),
+    instant: t("configEditor.mediaTransition.instant"),
+  }[mediaTransition];
   const randomPlayback = (config.randomPlayback as boolean) ?? false;
   const fontFamily = (config.fontFamily as string) ?? "";
   const clockOnlyState = clockOnlyStateFromPosition(clockPosition);
@@ -148,6 +156,34 @@ export function PhotoClockConfigEditor({
         <Label htmlFor="cfg-randomPlayback" className="min-w-0 flex-1 leading-snug">
           {t("configEditor.randomPlayback")}
         </Label>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="cfg-mediaTransition">
+          {t("configEditor.mediaTransition")}
+        </Label>
+        <Select
+          value={mediaTransition}
+          onValueChange={(v) => update("mediaTransition", v)}
+        >
+          <SelectTrigger id="cfg-mediaTransition" className="w-full sm:max-w-72">
+            <SelectValue>{mediaTransitionLabel}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fade-black">
+              {t("configEditor.mediaTransition.fadeBlack")}
+            </SelectItem>
+            <SelectItem value="fade-white">
+              {t("configEditor.mediaTransition.fadeWhite")}
+            </SelectItem>
+            <SelectItem value="crossfade">
+              {t("configEditor.mediaTransition.crossfade")}
+            </SelectItem>
+            <SelectItem value="instant">
+              {t("configEditor.mediaTransition.instant")}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {!showWeather && (

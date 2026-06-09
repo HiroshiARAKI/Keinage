@@ -6,6 +6,10 @@ import { startTransition, useState, useEffect, useCallback, useMemo, useRef } fr
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { clampMediaDuration, DEFAULT_MEDIA_DURATION_SECONDS } from "@/lib/media-duration";
+import {
+  normalizeSlideshowTransition,
+  type SlideshowTransition,
+} from "@/lib/slideshow-transition";
 import { thumbUrl } from "@/lib/utils";
 import type { MediaItem } from "@/types";
 
@@ -86,6 +90,7 @@ interface MediaSliderProps {
   /** How media fits the container: "contain" (show all) or "cover" (fill, may crop) */
   objectFit?: "contain" | "cover";
   playbackOrder?: "sequential" | "random";
+  transition?: SlideshowTransition;
 }
 
 interface DeferredVideoSlideProps {
@@ -236,6 +241,7 @@ export function MediaSlider({
   mediaItems,
   objectFit = "contain",
   playbackOrder = "sequential",
+  transition = "fade-black",
 }: MediaSliderProps) {
   const { t } = useLocale();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -437,37 +443,52 @@ export function MediaSlider({
     return null;
   }
 
+  const normalizedTransition = normalizeSlideshowTransition(transition);
+  const fadesThroughColor =
+    normalizedTransition === "fade-black" || normalizedTransition === "fade-white";
+  const slide = current.type === "video" ? (
+    current.playbackStatus && current.playbackStatus !== "available" ? (
+      <DisabledVideoSlide item={current} />
+    ) : (
+      <DeferredVideoSlide
+        item={current}
+        fitClass={fitClass}
+        loop={mediaItems.length <= 1 || current.playbackMode !== "until-ended"}
+        onEnded={advance}
+      />
+    )
+  ) : (
+    <DecodedImageSlide
+      item={current}
+      fitClass={fitClass}
+      onReady={markCurrentImageReady}
+    />
+  );
+
   return (
-    <div className="relative isolate h-full w-full overflow-hidden bg-black">
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`${current.id}:${current.filePath}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.8 }}
-          className="absolute inset-0"
-        >
-          {current.type === "video" ? (
-            current.playbackStatus && current.playbackStatus !== "available" ? (
-              <DisabledVideoSlide item={current} />
-            ) : (
-              <DeferredVideoSlide
-                item={current}
-                fitClass={fitClass}
-                loop={mediaItems.length <= 1 || current.playbackMode !== "until-ended"}
-                onEnded={advance}
-              />
-            )
-          ) : (
-            <DecodedImageSlide
-              item={current}
-              fitClass={fitClass}
-              onReady={markCurrentImageReady}
-            />
-          )}
-        </motion.div>
-      </AnimatePresence>
+    <div
+      className={`relative isolate h-full w-full overflow-hidden ${
+        normalizedTransition === "fade-white" ? "bg-white" : "bg-black"
+      }`}
+    >
+      {normalizedTransition === "instant" ? (
+        <div key={currentKey} className="absolute inset-0">
+          {slide}
+        </div>
+      ) : (
+        <AnimatePresence mode={fadesThroughColor ? "wait" : "sync"}>
+          <motion.div
+            key={currentKey}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8, ease: "easeInOut" }}
+            className="absolute inset-0"
+          >
+            {slide}
+          </motion.div>
+        </AnimatePresence>
+      )}
     </div>
   );
 }

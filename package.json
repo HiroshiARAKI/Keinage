@@ -1,6 +1,6 @@
 {
   "name": "keinage",
-  "version": "1.5.10",
+  "version": "1.5.11",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
@@ -11,7 +11,11 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node docker/migrate.cjs",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "audit:cleanup": "node docker/cleanup-audit-logs.cjs",
+    "test:audit-cleanup": "node --test docker/cleanup-audit-logs.test.cjs",
+    "maintenance:cleanup": "node docker/maintenance-cleanup.cjs",
+    "test:maintenance-cleanup": "node --test docker/maintenance-cleanup.test.cjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1036.0",
