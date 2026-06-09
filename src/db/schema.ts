@@ -100,6 +100,33 @@ export const mediaItems = pgTable("media_items", {
     .$onUpdate(() => new Date().toISOString()),
 });
 
+export const directUploadSessions = pgTable(
+  "direct_upload_sessions",
+  {
+    mediaId: text("media_id").primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    boardId: text("board_id")
+      .notNull()
+      .references(() => boards.id, { onDelete: "cascade" }),
+    objectKey: text("object_key").notNull(),
+    posterObjectKey: text("poster_object_key"),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+  },
+  (table) => ({
+    ownerIdx: index("direct_upload_sessions_owner_user_id_idx")
+      .on(table.ownerUserId),
+    boardIdx: index("direct_upload_sessions_board_id_idx")
+      .on(table.boardId),
+    expiresAtIdx: index("direct_upload_sessions_expires_at_idx")
+      .on(table.expiresAt),
+  }),
+);
+
 export const messages = pgTable("messages", {
   id: text("id")
     .primaryKey()
@@ -238,6 +265,7 @@ export const stripeEvents = pgTable("stripe_events", {
 }, (table) => ({
   statusIdx: index("stripe_events_status_idx").on(table.status),
   eventTypeIdx: index("stripe_events_event_type_idx").on(table.eventType),
+  createdAtIdx: index("stripe_events_created_at_idx").on(table.createdAt),
 }));
 
 export const pinResetTokens = pgTable("pin_reset_tokens", {
@@ -286,48 +314,64 @@ export const pinAttempts = pgTable("pin_attempts", {
     .default(isoNow),
 });
 
-export const signupRequests = pgTable("signup_requests", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => randomUUID()),
-  userId: text("user_id").notNull(),
-  email: text("email").notNull(),
-  phoneNumber: text("phone_number").notNull(),
-  organizationName: text("organization_name"),
-  token: text("token").notNull().unique(),
-  expiresAt: text("expires_at").notNull(),
-  completedAt: text("completed_at"),
-  createdAt: text("created_at")
-    .notNull()
-    .default(isoNow),
-  updatedAt: text("updated_at")
-    .notNull()
-    .default(isoNow)
-    .$onUpdate(() => new Date().toISOString()),
-});
+export const signupRequests = pgTable(
+  "signup_requests",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    userId: text("user_id").notNull(),
+    email: text("email").notNull(),
+    phoneNumber: text("phone_number").notNull(),
+    organizationName: text("organization_name"),
+    token: text("token").notNull().unique(),
+    expiresAt: text("expires_at").notNull(),
+    completedAt: text("completed_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(isoNow)
+      .$onUpdate(() => new Date().toISOString()),
+  },
+  (table) => ({
+    expiresAtIdx: index("signup_requests_expires_at_idx").on(table.expiresAt),
+    completedAtIdx: index("signup_requests_completed_at_idx").on(table.completedAt),
+  }),
+);
 
-export const sharedSignupRequests = pgTable("shared_signup_requests", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => randomUUID()),
-  ownerUserId: text("owner_user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  userId: text("user_id").notNull(),
-  email: text("email").notNull(),
-  role: text("role").notNull().default("general"),
-  status: text("status").notNull().default("invited"),
-  token: text("token").notNull().unique(),
-  expiresAt: text("expires_at").notNull(),
-  completedAt: text("completed_at"),
-  createdAt: text("created_at")
-    .notNull()
-    .default(isoNow),
-  updatedAt: text("updated_at")
-    .notNull()
-    .default(isoNow)
-    .$onUpdate(() => new Date().toISOString()),
-});
+export const sharedSignupRequests = pgTable(
+  "shared_signup_requests",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    email: text("email").notNull(),
+    role: text("role").notNull().default("general"),
+    status: text("status").notNull().default("invited"),
+    token: text("token").notNull().unique(),
+    expiresAt: text("expires_at").notNull(),
+    completedAt: text("completed_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(isoNow)
+      .$onUpdate(() => new Date().toISOString()),
+  },
+  (table) => ({
+    expiresAtIdx: index("shared_signup_requests_expires_at_idx")
+      .on(table.expiresAt),
+    completedAtIdx: index("shared_signup_requests_completed_at_idx")
+      .on(table.completedAt),
+  }),
+);
 
 export const accountDeletionRequests = pgTable("account_deletion_requests", {
   id: text("id")
@@ -547,35 +591,48 @@ export const authAccounts = pgTable(
   }),
 );
 
-export const googleOAuthFlows = pgTable("google_oauth_flows", {
-  state: text("state").primaryKey(),
-  mode: text("mode").notNull(),
-  redirectTo: text("redirect_to"),
-  sharedSignupToken: text("shared_signup_token"),
-  organizationName: text("organization_name"),
-  codeVerifier: text("code_verifier").notNull(),
-  nonce: text("nonce").notNull(),
-  expiresAt: text("expires_at").notNull(),
-  consumedAt: text("consumed_at"),
-  createdAt: text("created_at")
-    .notNull()
-    .default(isoNow),
-});
+export const googleOAuthFlows = pgTable(
+  "google_oauth_flows",
+  {
+    state: text("state").primaryKey(),
+    mode: text("mode").notNull(),
+    redirectTo: text("redirect_to"),
+    sharedSignupToken: text("shared_signup_token"),
+    organizationName: text("organization_name"),
+    codeVerifier: text("code_verifier").notNull(),
+    nonce: text("nonce").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    consumedAt: text("consumed_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+  },
+  (table) => ({
+    expiresAtIdx: index("google_oauth_flows_expires_at_idx").on(table.expiresAt),
+    consumedAtIdx: index("google_oauth_flows_consumed_at_idx").on(table.consumedAt),
+  }),
+);
 
-export const authSessions = pgTable("auth_sessions", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => randomUUID()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  sessionToken: text("session_token").notNull().unique(),
-  webauthnVerified: boolean("webauthn_verified").notNull().default(true),
-  expiresAt: text("expires_at").notNull(),
-  createdAt: text("created_at")
-    .notNull()
-    .default(isoNow),
-});
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sessionToken: text("session_token").notNull().unique(),
+    webauthnVerified: boolean("webauthn_verified").notNull().default(true),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(isoNow),
+  },
+  (table) => ({
+    expiresAtIdx: index("auth_sessions_expires_at_idx").on(table.expiresAt),
+  }),
+);
 
 export const webauthnCredentials = pgTable(
   "webauthn_credentials",

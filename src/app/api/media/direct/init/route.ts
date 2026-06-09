@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { boards } from "@/db/schema";
+import { boards, directUploadSessions } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import {
   createPresignedPutObjectUrl,
@@ -35,6 +35,7 @@ import {
 
 const DIRECT_UPLOAD_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const DIRECT_UPLOAD_RATE_LIMIT_MAX = 120;
+const DIRECT_UPLOAD_COMPLETION_GRACE_MS = 60 * 60 * 1000;
 
 const directUploadInitSchema = z.object({
   boardId: z.string().min(1),
@@ -221,6 +222,21 @@ async function handlePost(request: NextRequest) {
         poster.contentType,
       )
     : null;
+  const sessionExpiresAt = new Date(
+    Math.max(
+      Date.parse(upload.expiresAt),
+      posterUpload ? Date.parse(posterUpload.expiresAt) : 0,
+    ) + DIRECT_UPLOAD_COMPLETION_GRACE_MS,
+  ).toISOString();
+
+  await db.insert(directUploadSessions).values({
+    mediaId,
+    ownerUserId: board.ownerUserId,
+    boardId,
+    objectKey: storageKey,
+    posterObjectKey: posterKey,
+    expiresAt: sessionExpiresAt,
+  });
 
   return NextResponse.json({
     mediaId,
