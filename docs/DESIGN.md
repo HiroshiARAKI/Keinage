@@ -363,6 +363,8 @@ IPアドレスは生値を保存せず、`AUDIT_LOG_IP_HASH_SECRET` が設定さ
 
 `AUDIT_LOG_ENABLED=false` の場合、DB保存は無効化されますが、重要イベントのターミナルログは維持されます。Super Owner は `/api/super-owner/audit-logs` で直近ログを確認できます。
 
+`docker/cleanup-audit-logs.cjs` は `AUDIT_LOG_RETENTION_DAYS` が正の整数の場合に、指定日数より古い `audit_logs.created_at` を削除します。未設定または `0` では cleanup を無効化します。処理はコンテナ起動時に migration 後へ実行するほか、`pnpm audit:cleanup` を cron / scheduled task から呼び出せます。PostgreSQL advisory lock により同時実行を避け、削除件数と失敗だけをターミナルへ出力します。`AUDIT_LOG_ENABLED=false` でも既存ログの cleanup は継続します。
+
 ## 7. ボードとテンプレート設計
 
 テンプレートは registry 方式です。`boards.templateId` と `boards.config` で表示を決め、DB schema を増やさずにテンプレート固有設定を JSON として保持します。

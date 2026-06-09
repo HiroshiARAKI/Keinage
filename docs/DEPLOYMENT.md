@@ -43,7 +43,7 @@ Self-hosted では、次の設定だけで基本運用を開始できます。
 | `GOOGLE_OAUTH_*` | 任意 | Google アカウント登録・ログインを使う場合に設定。 |
 | `WEBAUTHN_*` | 任意 | Owner に Passkey 二要素認証を要求する場合に設定。 |
 | `S3_*` / `STORAGE_*` | 任意 | ローカル `uploads/` ではなく S3互換ストレージを使う場合に設定。 |
-| `AUDIT_LOG_*` | 任意 | 認証、課金、退会、Super Owner などの監査ログ設定。 |
+| `AUDIT_LOG_*` | 任意 | 認証、課金、退会、Super Owner などの監査ログ設定と保持期間。 |
 
 ## 4. 公式SaaS mode
 
@@ -89,9 +89,11 @@ PLAN_ENFORCEMENT_MODE=billing
 | Mail | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | 登録、リセット、重要通知メール。 |
 | Contact | `CONTACT_SMTP_*` / `CONTACT_TO_EMAIL` | 問い合わせフォーム用SMTP。未設定時は問い合わせフォームを無効化。 |
 | Super Owner | `SUPER_OWNER_EMAIL` / `SUPER_OWNER_BOOTSTRAP_ENABLED` / `SUPER_OWNER_REQUIRE_GOOGLE` | 運営者用高権限ユーザーの初回bootstrap。 |
-| Audit | `AUDIT_LOG_ENABLED` / `AUDIT_LOG_IP_HASH_SECRET` / `AUDIT_LOG_RETENTION_DAYS` | 監査ログ、IP hash secret、保持期間。 |
+| Audit | `AUDIT_LOG_ENABLED` / `AUDIT_LOG_IP_HASH_SECRET` / `AUDIT_LOG_RETENTION_DAYS` | 監査ログ、IP hash secret、保持期間。保持日数が正の整数の場合、コンテナ起動時に期限切れログを削除します。未設定または `0` は削除無効です。 |
 
 Stripe price ID は必ず env で管理し、コードや公開ドキュメントに実値を書かないでください。price ID の対応は `src/lib/plans.ts` の `getBillingConfig()` で env から読み取ります。
+
+監査ログ cleanup は `pnpm audit:cleanup` でも実行できます。同じスクリプトを cron や scheduled task から定期実行でき、複数プロセスから同時に呼ばれた場合は PostgreSQL advisory lock により1プロセスだけが削除を実行します。`AUDIT_LOG_ENABLED=false` は新規監査ログのDB保存だけを無効化し、既存ログの保持期間 cleanup は無効化しません。cleanup に失敗した場合は削除対象の内容を出さず、失敗をターミナルへ記録します。コンテナ起動時の cleanup 失敗はサーバー起動を妨げません。
 
 ## 5. 課金単位とOwner scope
 
