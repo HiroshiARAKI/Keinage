@@ -92,6 +92,12 @@ export function PhotoClockConfigEditor({
   const weatherFontSize = (config.weatherFontSize as number) ?? 18;
   const objectFit = (config.objectFit as string) ?? "contain";
   const mediaTransition = normalizeSlideshowTransition(config.mediaTransition);
+  const mediaTransitionLabel =
+    mediaTransition === "crossfade"
+      ? t("configEditor.mediaTransition.crossfade")
+      : mediaTransition === "instant"
+        ? t("configEditor.mediaTransition.instant")
+        : t("configEditor.mediaTransition.fadeBlack");
   const randomPlayback = (config.randomPlayback as boolean) ?? false;
   const fontFamily = (config.fontFamily as string) ?? "";
   const clockOnlyState = clockOnlyStateFromPosition(clockPosition);
@@ -161,7 +167,7 @@ export function PhotoClockConfigEditor({
           onValueChange={(v) => update("mediaTransition", v)}
         >
           <SelectTrigger id="cfg-mediaTransition" className="w-full sm:max-w-72">
-            <SelectValue />
+            <SelectValue>{mediaTransitionLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="fade-black">

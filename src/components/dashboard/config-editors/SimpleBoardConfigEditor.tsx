@@ -88,6 +88,12 @@ export function SimpleBoardConfigEditor({
   });
   const objectFit = (config.objectFit as string) ?? "contain";
   const mediaTransition = normalizeSlideshowTransition(config.mediaTransition);
+  const mediaTransitionLabel =
+    mediaTransition === "crossfade"
+      ? t("configEditor.mediaTransition.crossfade")
+      : mediaTransition === "instant"
+        ? t("configEditor.mediaTransition.instant")
+        : t("configEditor.mediaTransition.fadeBlack");
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
@@ -271,7 +277,7 @@ export function SimpleBoardConfigEditor({
               onValueChange={(v) => update("mediaTransition", v)}
             >
               <SelectTrigger id="cfg-mediaTransition" className="w-full max-w-72">
-                <SelectValue />
+                <SelectValue>{mediaTransitionLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="fade-black">
