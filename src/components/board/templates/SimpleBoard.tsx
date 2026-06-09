@@ -18,6 +18,10 @@ import {
   filterActiveMessages,
   findFallbackImage,
 } from "@/lib/scheduling";
+import {
+  normalizeSlideshowTransition,
+  type SlideshowTransition,
+} from "@/lib/slideshow-transition";
 import type { BoardTemplateProps } from "@/types";
 
 /** Default config for the Simple Board template */
@@ -37,6 +41,7 @@ export const simpleBoardDefaultConfig = {
   clockWeatherAnchor: "right-split" as ClockWeatherAnchor,
   clockWeatherArrangement: "vertical-clock-top" as ClockWeatherArrangement,
   objectFit: "contain" as "contain" | "cover",
+  mediaTransition: "fade-black" as SlideshowTransition,
   fallbackMediaId: "",
   mediaSchedules: {},
   messageSchedules: {},
@@ -55,6 +60,7 @@ function parseConfig(raw: unknown): SimpleBoardConfig {
   });
   merged.clockWeatherAnchor = clockWeatherState.anchor;
   merged.clockWeatherArrangement = clockWeatherState.arrangement;
+  merged.mediaTransition = normalizeSlideshowTransition(cfg.mediaTransition);
   return merged;
 }
 
@@ -127,6 +133,7 @@ export default function SimpleBoard({
           <MediaSlider
             mediaItems={activeMedia}
             objectFit={config.objectFit}
+            transition={config.mediaTransition}
           />
         ) : (
           <ScheduledMediaFallback
