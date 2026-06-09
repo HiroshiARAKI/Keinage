@@ -23,6 +23,7 @@ import {
   type ClockWeatherState,
 } from "@/components/board/ClockWeatherGroup";
 import { GOOGLE_FONTS, buildGoogleFontsUrl } from "@/lib/fonts";
+import { normalizeSlideshowTransition } from "@/lib/slideshow-transition";
 import { useEffect } from "react";
 
 /** Load ALL Google Fonts so the dropdown and preview can display them */
@@ -86,6 +87,13 @@ export function SimpleBoardConfigEditor({
     layout: config.clockWeatherLayout,
   });
   const objectFit = (config.objectFit as string) ?? "contain";
+  const mediaTransition = normalizeSlideshowTransition(config.mediaTransition);
+  const mediaTransitionLabel = {
+    "fade-black": t("configEditor.mediaTransition.fadeBlack"),
+    "fade-white": t("configEditor.mediaTransition.fadeWhite"),
+    crossfade: t("configEditor.mediaTransition.crossfade"),
+    instant: t("configEditor.mediaTransition.instant"),
+  }[mediaTransition];
 
   function update(key: string, value: unknown) {
     onChange({ ...config, [key]: value });
@@ -257,6 +265,33 @@ export function SimpleBoardConfigEditor({
               <SelectContent>
                 <SelectItem value="contain">{t("configEditor.objectFitContain")}</SelectItem>
                 <SelectItem value="cover">{t("configEditor.objectFitCover")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cfg-mediaTransition">
+              {t("configEditor.mediaTransition")}
+            </Label>
+            <Select
+              value={mediaTransition}
+              onValueChange={(v) => update("mediaTransition", v)}
+            >
+              <SelectTrigger id="cfg-mediaTransition" className="w-full max-w-72">
+                <SelectValue>{mediaTransitionLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fade-black">
+                  {t("configEditor.mediaTransition.fadeBlack")}
+                </SelectItem>
+                <SelectItem value="fade-white">
+                  {t("configEditor.mediaTransition.fadeWhite")}
+                </SelectItem>
+                <SelectItem value="crossfade">
+                  {t("configEditor.mediaTransition.crossfade")}
+                </SelectItem>
+                <SelectItem value="instant">
+                  {t("configEditor.mediaTransition.instant")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

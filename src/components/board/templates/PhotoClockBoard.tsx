@@ -17,6 +17,10 @@ import {
   filterActiveMediaItems,
   findFallbackImage,
 } from "@/lib/scheduling";
+import {
+  normalizeSlideshowTransition,
+  type SlideshowTransition,
+} from "@/lib/slideshow-transition";
 import type { BoardTemplateProps } from "@/types";
 
 type ClockPosition =
@@ -40,6 +44,7 @@ export const photoClockDefaultConfig = {
   showWeather: false,
   weatherFontSize: 18,
   objectFit: "contain" as "contain" | "cover",
+  mediaTransition: "fade-black" as SlideshowTransition,
   randomPlayback: false,
   fontFamily: "",
   fallbackMediaId: "",
@@ -71,6 +76,7 @@ function parseConfig(raw: unknown): PhotoClockConfig {
   });
   merged.clockWeatherAnchor = clockWeatherState.anchor;
   merged.clockWeatherArrangement = clockWeatherState.arrangement;
+  merged.mediaTransition = normalizeSlideshowTransition(cfg.mediaTransition);
   return merged;
 }
 
@@ -113,6 +119,7 @@ export default function PhotoClockBoard({
           mediaItems={activeMedia}
           objectFit={config.objectFit}
           playbackOrder={config.randomPlayback ? "random" : "sequential"}
+          transition={config.mediaTransition}
         />
       ) : (
         <ScheduledMediaFallback
