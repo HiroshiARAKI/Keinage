@@ -202,6 +202,7 @@ S3 storage 利用時の動画アップロードは、ブラウザが `/api/media
 | `PATCH` | `/api/users/<id>` | Shared user のロール、プラン適用状態を更新 | `admin` |
 | `DELETE` | `/api/users/<id>` | Shared user 削除 | `admin` |
 | `GET` | `/api/super-owner/status` | Super Owner認証状態を確認 | `super_owner` |
+| `GET` | `/api/super-owner/users` | 全ユーザーの限定情報一覧をページ単位で取得 | `super_owner` |
 | `GET` | `/api/super-owner/audit-logs` | 監査ログ一覧を取得。`action`、`result`、`actor_user_id`、`target_type`、`created_from`、`created_to`、`limit` で絞り込み | `super_owner` |
 | `GET` | `/api/announcements` | 現在ユーザーに公開中の運営通知一覧 | 必要 |
 | `POST` | `/api/announcements/<id>/read` | 運営通知を既読にする | 必要 |
@@ -217,6 +218,8 @@ S3 storage 利用時の動画アップロードは、ブラウザが `/api/media
 Owner user は削除できません。
 
 Super Ownerは通常のOwner登録・ログイン経路で認証し、`SUPER_OWNER_*` 環境変数に一致する初回Ownerのみbootstrapされます。Super Owner専用APIは `requireSuperOwner()` によるサーバー側判定を必須とし、アクセスは監査ログに記録されます。
+
+`/api/super-owner/users` が返すユーザー情報は `userId`、`email`、`role`、`attribute`、`organizationName`、`plan`、`status`、`createdAt` のみに限定します。`status` はアカウントロック中のみ `locked` を返し、内部UUID、ロック期限、認証情報は返しません。`page` と `limit`（最大100）でページングできます。
 
 横断的な監査ログは `audit_logs` に保存されます。認証、Passkey、課金、Stripe webhook、退会、Super Owner 操作の主要イベントを記録し、IPアドレスはハッシュ化して保存します。パスワード、token、secret、Stripe署名、WebAuthn challenge は保存しません。
 
