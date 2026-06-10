@@ -1,3 +1,7 @@
+<p align="center">
+  English | <a href="./TRADEMARK.ja.md">日本語</a>
+</p>
+
 # Keinage Trademark Policy
 
 The Keinage name, logo, and official branding are trademarks or brand assets
