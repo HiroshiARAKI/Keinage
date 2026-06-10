@@ -1,320 +1,318 @@
+<p align="center">
+  English | <a href="./SPEC.ja.md">日本語</a>
+</p>
+
 # Keinage Specification
 
-最終更新: 2026-06-08
+Last updated: June 8, 2026
 
-## 1. このドキュメントの目的
+## 1. Purpose
 
-このドキュメントは、Keinage を利用する人の視点で主要機能とふるまいをまとめます。内部設計は [DESIGN.md](./DESIGN.md)、画面/API ルーティングは [API.md](./API.md) を参照してください。
+This document describes Keinage's primary features and behavior from a user's perspective. See [DESIGN.md](./DESIGN.md) for internal design and [API.md](./API.md) for page and API routes.
 
-Keinage は、管理画面で作成したボードを表示端末へリアルタイム反映するデジタルサイネージ Web アプリです。画像・動画・メッセージ・時計・天気・呼び出し番号などを、テンプレートごとに編集できます。
+Keinage is a digital signage web application that reflects dashboard changes on display devices in real time. Images, videos, messages, clocks, weather, call numbers, and other content are edited through purpose-specific templates.
 
-## 2. ユーザーと権限
+## 2. Users and Permissions
 
-### 2.1 ユーザー種別
+### 2.1 User Types
 
-| 種別 | 説明 |
+| Type | Description |
 | --- | --- |
-| Owner user | ワークスペースの所有者。ボード、メディア、設定、Shared user を所有します。 |
-| Shared user | Owner に招待される共同編集ユーザー。Owner のボードを編集できます。 |
+| Owner user | Owns a workspace, including its boards, media, settings, and Shared users. |
+| Shared user | A collaborator invited by an Owner who can edit the Owner's boards. |
 
-1 つのボードは 1 人の Owner に属します。複数の Owner 間で同じボードを共有することはできません。Owner は削除または一般権限へ降格できません。
+Each board belongs to exactly one Owner and cannot be shared across multiple Owners. An Owner cannot be deleted or demoted to the general role.
 
-### 2.2 ロール
+### 2.2 Roles
 
-| ロール | 主な用途 | できること |
+| Role | Primary use | Capabilities |
 | --- | --- | --- |
-| `admin` | Owner / 管理者 | ボード編集、メディア管理、ユーザー管理、運用設定変更 |
-| `general` | 一般運用者 | ボード編集、自分のアカウント設定変更 |
+| `admin` | Owner / administrator | Board editing, media management, user management, and operational settings |
+| `general` | General operator | Board editing and personal account settings |
 
-`admin` のみが使える代表的な機能は、Shared user 招待、ユーザー編集、天気地域、画像リサイズ上限、アップロード済みメディアの一括管理です。
+Typical admin-only features include Shared user invitations, user editing, weather-region settings, image-resize limits, and bulk management of uploaded media.
 
-Owner user の `admin` だけが使える操作は、支払い方法・契約変更・解約につながる課金操作、Owner アカウント削除、組織名変更、フル認証期限などのOwnerスコープ全体に影響するセキュリティ設定です。Shared user の `admin` はボード・メディア・ユーザー管理と運用設定を扱えますが、Owner本人専用操作は実行できません。
+Only an Owner `admin` may perform actions that affect billing, payment methods, subscription changes, cancellation, Owner account deletion, organization name, or Owner-scope security settings such as full-authentication lifetime. A Shared user with `admin` may manage boards, media, users, and operational settings, but cannot perform Owner-only actions.
 
-## 3. 認証とサインアップ
+## 3. Authentication and Signup
 
-### 3.1 認証方式
+### 3.1 Authentication Methods
 
-ユーザー作成時に、次のどちらかの認証方式を選びます。
+Choose one authentication method when creating a user:
 
-| 方式 | 説明 |
+| Method | Description |
 | --- | --- |
-| メールアドレス + パスワード | アプリ内にパスワードハッシュを保存します。 |
-| Google アカウント | Google OAuth/OIDC で認証します。パスワードは保存しません。 |
+| Email + password | Stores a password hash in the application. |
+| Google account | Authenticates through Google OAuth/OIDC and stores no password. |
 
-作成後に認証方式を変更する機能は**現在はありません**。Google ユーザーは `/pin/login` の Google ボタンから認証します。
+Authentication methods **cannot currently be changed** after account creation. Google users authenticate with the Google button on `/pin/login`.
 
-### 3.2 Owner サインアップ
+### 3.2 Owner Signup
 
-Owner 登録は `/signup` から開始します。
+Owner registration starts at `/signup`.
 
-メールアドレス + パスワードの場合:
+Email + password:
 
-1. ユーザーID、メールアドレス、電話番号を入力します。
-2. 登録用 URL がメール送信されます。
-3. 登録用 URL でパスワードを設定します。
-4. 登録完了メールが送信されます。
-5. 6 桁 PIN を設定してダッシュボードへ入ります。
+1. Enter a user ID, email address, and phone number.
+2. Keinage sends a registration URL.
+3. Set a password at that URL.
+4. Keinage sends a registration-completion email.
+5. Set a six-digit PIN and enter the dashboard.
 
-Google アカウントの場合:
+Google account:
 
-1. `/signup` の Google ボタンで Google 認証を開始します。
-2. 検証済みメールアドレスを取得します。
-3. 既存ユーザーと重複しなければ Owner を作成します。
-4. Google メールアドレスのローカルパートをもとにアプリ内ユーザーIDを自動生成します。
-5. 登録完了メールが送信されます。
-6. 6 桁 PIN を設定してダッシュボードへ入ります。
+1. Start Google authentication from `/signup`.
+2. Keinage obtains a verified email address.
+3. If no existing user conflicts, Keinage creates the Owner.
+4. An application user ID is generated from the local part of the Google email address.
+5. Keinage sends a registration-completion email.
+6. Set a six-digit PIN and enter the dashboard.
 
-### 3.3 Shared user サインアップ
+### 3.3 Shared User Signup
 
-Shared user は `admin` が `/users` から招待します。
+An `admin` invites Shared users from `/users`.
 
-1. admin がユーザーID、メールアドレス、ロールを指定して招待します。
-2. 招待先に登録 URL が送信されます。
-3. 招待されたユーザーは、メールアドレス + パスワードまたは Google アカウントで登録します。
-4. 登録完了メールが送信されます。
-5. 6 桁 PIN を設定してダッシュボードへ入ります。
+1. The admin specifies a user ID, email address, and role.
+2. Keinage sends a registration URL to the invitee.
+3. The invitee registers with email + password or a Google account.
+4. Keinage sends a registration-completion email.
+5. The user sets a six-digit PIN and enters the dashboard.
 
-Google アカウントで Shared 登録する場合、Google から取得したメールアドレスは招待先メールアドレスと一致している必要があります。
+For Google registration, the Google email must match the invited email address.
 
-Shared user は有効ユーザーと期限内の招待を合わせてプラン上限へカウントします。上限は Free 3人、Lite 10人、Standard 100人、Standard+ 300人です。Self-hosted / Unlimited では制限しません。上限到達時は新しい招待を作成できません。
+Active Shared users and unexpired invitations count toward the plan limit: Free 3, Lite 10, Standard 100, and Standard+ 300. Self-hosted / Unlimited has no limit. New invitations cannot be created at the limit.
 
-ダウングレードで上限を超えた場合、Shared user は削除せず、上限を超えたユーザーを `inactive_due_to_plan` としてログイン不可にします。`admin` は `/users` で利用数と上限を確認し、有効にする Shared user を入れ替えられます。招待中ユーザーも上限へ含み、超過した招待は登録完了できません。
+After a downgrade, users are not deleted. Users beyond the new limit become `inactive_due_to_plan` and cannot log in. An `admin` can review usage and exchange which Shared users remain active on `/users`. Pending invitations also count, and invitations beyond the limit cannot complete.
 
-登録完了メールは `Accept-Language` に従って件名と本文を切り替え、謝辞とログイン URL を含めます。SMTP 未設定または送信失敗時も、登録完了処理自体は取り消されません。
+Registration-completion email follows `Accept-Language`, includes an acknowledgement and login URL, and does not roll back registration if SMTP is unavailable or delivery fails.
 
-Owner が登録後に初めて管理画面へアクセスした場合、Keinage の基本的な使い方を案内するオンボーディングダイアログが表示されます。ダイアログには謝辞、最初のボード作成導線、プラン確認導線が含まれます。確認後は `owner_onboarding_acknowledged_at` に日時を保存し、同じ Owner には再表示しません。Shared user には表示しません。
+The first dashboard visit after Owner registration shows an onboarding dialog with an acknowledgement, a create-board action, and a plan-review action. Acknowledgement is stored in `owner_onboarding_acknowledged_at`; the dialog is not shown again for that Owner and is never shown to Shared users.
 
 ### 3.4 Super Owner
 
-Super Owner は運営通知やメンテナンス通知など、公式SaaS運営者向け機能のための高権限ユーザーです。通常のOwner登録・ログイン経路を使い、`.env` の `SUPER_OWNER_EMAIL` と一致する検証済みメールアドレスのOwnerだけが初回bootstrap対象になります。
+Super Owner is a privileged operator role for official SaaS announcements and maintenance operations. It uses the normal Owner registration and login flow. Only an Owner with a verified email matching `SUPER_OWNER_EMAIL` is eligible for initial bootstrap.
 
-Super Ownerは1人のみです。デフォルト管理者アカウント、初期パスワード、隠しURL、UI/APIから任意ユーザーを昇格する機能はありません。`SUPER_OWNER_REQUIRE_GOOGLE=true` の場合、Google OIDCで認証したOwnerのみSuper Owner化されます。
+There can be only one Super Owner. Keinage has no default administrator, initial password, hidden URL, or UI/API for promoting arbitrary users. With `SUPER_OWNER_REQUIRE_GOOGLE=true`, only an Owner authenticated through Google OIDC can become Super Owner.
 
-Super Ownerは `/announcements` で運営通知を作成できます。通知には種別、重要度、対象プラン、公開期間、確認必須、メール送信有無を設定できます。通常ユーザーには公開中かつ公開期間内で、現在のプランに一致する通知だけが表示されます。
+Super Owner can create operator announcements on `/announcements`, including type, severity, target plan, publication window, acknowledgement requirement, and email delivery. Regular users see only currently published announcements that match their effective plan.
 
-Super Ownerは `/super-owner/users` で登録ユーザーの一覧を確認できます。表示項目はユーザーID、メールアドレス、ロール、属性、組織名、プラン、状態、作成日時に限定し、パスワード・PINハッシュ、電話番号、認証履歴、ロック期限などは表示しません。Shared userの組織名とプランは所属Ownerの情報を表示します。
+Super Owner can view registered users at `/super-owner/users`. The directory is limited to user ID, email, role, attribute, organization name, plan, status, and creation time. It does not expose passwords, PIN hashes, phone numbers, authentication history, lock expiration, or similar private data. Shared users display their Owner's organization and plan.
 
-未読の重要通知は管理画面上部にバナー表示されます。確認必須通知は、確認ボタンを押すまで管理画面右下にも表示され、確認後はユーザーごとに `acknowledged_at` が保存されます。`send_email=true` の通知は公開時に既存SMTP設定で対象ユーザーへメール送信を試行します。
+Unread important announcements appear in the dashboard header. Required announcements also remain fixed in the lower-right corner until acknowledged. `acknowledged_at` is stored per user. Publishing with `send_email=true` attempts delivery through the existing SMTP configuration.
 
-Super Owner は監査ログ確認APIから、認証、課金、Stripe webhook、退会、Passkey、運営通知などの重要イベントを確認できます。監査ログにはパスワード、token、secret、カード情報、WebAuthn challenge は保存しません。IPアドレスはハッシュ化して保存します。
+The audit-log API exposes important authentication, billing, Stripe webhook, account deletion, Passkey, and announcement events. Audit logs never contain passwords, tokens, secrets, card data, or WebAuthn challenges. IP addresses are hashed.
 
-### 3.5 ログイン
+### 3.5 Login
 
-| 画面 | 方法 | 用途 |
+| Page | Method | Purpose |
 | --- | --- | --- |
-| `/pin/login` | メールアドレスまたはユーザーID + パスワード | フル認証 |
-| `/pin/login` | Google アカウント | フル認証 |
-| `/pin` | 6 桁 PIN | 同じ端末でのクイック再認証 |
+| `/pin/login` | Email or user ID + password | Full authentication |
+| `/pin/login` | Google account | Full authentication |
+| `/pin` | Six-digit PIN | Quick reauthentication on the same device |
 
-フル認証に成功すると、通常セッションと端末単位の認証情報が発行されます。PIN ログインは、その端末で最後にフル認証したユーザーを対象にします。
+Successful full authentication issues a normal session and device-specific authentication state. PIN login targets the last user who fully authenticated on that device.
 
-### 3.6 Passkey 二要素認証
+### 3.6 Passkey Two-factor Authentication
 
-`WEBAUTHN_ENABLED=true` かつ `WEBAUTHN_OWNER_REQUIRED=true` の環境では、Owner アカウントに WebAuthn / Passkey による追加認証を要求できます。
+When `WEBAUTHN_ENABLED=true` and `WEBAUTHN_OWNER_REQUIRED=true`, Owner accounts require an additional WebAuthn / Passkey step.
 
-- 対象は Owner アカウントのみです。Shared user には要求しません。
-- メールアドレス + パスワード、Google、または PIN の認証に成功したあと、Passkey が未登録なら `/passkey/setup`、登録済みなら `/passkey/verify` に遷移します。
-- Passkey 認証が完了するまで、管理画面や認証必須 API は利用できません。
-- 管理画面の設定から Owner の Passkey を追加・削除できます。必須設定中は最後の1件は削除できません。
-- Passkey の失敗回数は同一 bucket で 24 時間以内 5 回までに制限します。
-- 本番環境では HTTPS が必要です。ローカル開発では `http://localhost:3000` を利用できます。
+- Only Owner accounts are affected.
+- After password, Google, or PIN authentication, users without a Passkey go to `/passkey/setup`; users with one go to `/passkey/verify`.
+- The dashboard and authenticated APIs remain unavailable until verification completes.
+- Owners can add and remove Passkeys in Settings. The final credential cannot be removed while Passkeys are required.
+- Passkey failures are limited to five attempts per bucket within 24 hours.
+- Production requires HTTPS. Local development may use `http://localhost:3000`.
 
-### 3.7 PIN と認証期限
+### 3.7 PIN and Authentication Lifetime
 
-- PIN はユーザーごとに設定する 6 桁の数字です。
-- PIN 未設定ユーザーは PIN ログインできません。
-- フル認証期限の既定値は 30 日、上限は 365 日です。
-- フル認証期限はOwner user の `admin` だけが変更できます。
-- 通常セッション Cookie の有効期限は 24 時間です。
-- フル認証期限が切れると、PIN が正しくても再度 `/pin/login` でフル認証が必要です。
-- パスワード認証と PIN 認証は失敗回数を制限します。同一 bucket で 24 時間以内に 5 回失敗すると一時ブロックされます。
+- A PIN is a user-specific six-digit number.
+- Users without a PIN cannot use PIN login.
+- Full authentication lasts 30 days by default and at most 365 days.
+- Only an Owner `admin` can change this lifetime.
+- Normal session cookies last 24 hours.
+- After full authentication expires, even a correct PIN requires another login through `/pin/login`.
+- Password and PIN authentication are attempt limited. Five failures in one bucket within 24 hours cause a temporary block.
 
-### 3.8 PIN リセットとアカウント削除
+### 3.8 PIN Reset and Account Deletion
 
-`/pin/forgot` から PIN リセットを開始できます。リセット URL はメールで送信され、トークンの有効期限は 30 分です。
+Start a PIN reset at `/pin/forgot`. The emailed reset URL expires after 30 minutes.
 
-`/delete-account` から Owner アカウントの削除リクエストを開始できます。削除 URL で確定すると、Owner 配下のボード、メディア、Shared user、設定も削除対象になります。公式SaaSで有料プランを契約中の場合、退会時にStripeサブスクリプションは即時キャンセルされ、残り契約期間があっても退会後はKeinageを利用できません。日割り返金は原則行いません。
+Start Owner deletion at `/delete-account`. Confirmation deletes the Owner's boards, media, Shared users, and settings. In official SaaS mode, an active Stripe subscription is cancelled immediately, and Keinage becomes unavailable even if paid time remains. Prorated refunds are generally not provided.
 
-## 4. ボード編集
+## 4. Board Editing
 
-### 4.1 ボード
+### 4.1 Boards
 
-ボードは表示端末に出す 1 つの画面構成です。管理画面では次を操作できます。
+A board is one screen layout shown on a display device. The dashboard supports:
 
-- ボード作成、編集、削除
-- テンプレート選択
-- ボード名変更
-- 公開/非公開切り替え
-- テーマ色、フォント、スライド間隔などの設定
-- 画像、動画、メッセージの管理
+- Creating, editing, and deleting boards
+- Selecting a template
+- Renaming a board
+- Switching public/private visibility
+- Configuring theme colors, fonts, slide intervals, and other settings
+- Managing images, videos, and messages
 
-公開用の表示画面は `/<boardId>` です。非アクティブなボードは公開対象になりません。
+The display URL is `/<boardId>`. Inactive boards are not publicly displayable.
 
-公開ボードの表示画面とボード設定画面には共有ボタンが表示されます。対応端末ではWeb Share APIによる標準の共有画面を開き、非対応環境では公開ボードURLをクリップボードへコピーします。非公開ボードには共有ボタンを表示しません。
+Public board displays and board settings include a share button. Supported devices open the Web Share API; other environments copy the public board URL to the clipboard. Private boards do not show the button.
 
-表示画面は約5分間隔で heartbeat を送信します。管理者は `/status` で、表示端末と表示中ボードの組み合わせごとの最終アクセス日時、User-Agent、5分以内アクセスをもとにした Online 表示を確認できます。同じ端末で複数ボードを表示している場合も、それぞれの表示状態を確認できます。この端末状態表示は Self-hosted / Unlimited、および Lite 以上のプランで利用できます。端末名の手動設定、IPアドレス保存、長期表示履歴、Proof of Play は対象外です。
+Display screens send a heartbeat about every five minutes. On `/status`, administrators can see the last access time, User-Agent, and an Online indicator based on activity within five minutes for each device and board pair. Multiple boards on one device are tracked separately. Device status is available for Self-hosted / Unlimited and Lite or higher plans. Manual device names, IP storage, long-term display history, and Proof of Play are out of scope.
 
-### 4.2 テンプレート
+### 4.2 Templates
 
-| ID | 表示名 | 主な用途 |
+| ID | Display name | Primary use |
 | --- | --- | --- |
-| `simple` | シンプル掲示板 | 画像/動画スライドショーとテキストティッカー |
-| `photo-clock` | フォトクロック | 写真スライドショーと日時表示 |
-| `retro` | レトロ掲示板 | 駅案内板風のドットマトリクス表示 |
-| `message` | メッセージ掲示板 | 外部連携や管理画面で追加したメッセージ表示 |
-| `call-number` | 呼び出し番号 | 番号呼び出し、窓口、飲食店向け表示 |
-| `clinic-hours` | 診療時間案内 | 1週間から1か月の診療時間、休診日、曜日別表示 |
-| `restaurant-menu` | 飲食店メニュー | 最大3列、各列最大5件の商品名・価格・料理画像 |
-| `qr-info` | QRコード付き案内 | 最大2件のQRコードと説明文を大きく表示 |
+| `simple` | Simple Board | Image/video slideshow and text ticker |
+| `photo-clock` | Photo Clock | Photo slideshow with date and time |
+| `retro` | Retro Board | Dot-matrix station-board style display |
+| `message` | Message Board | Messages added from the dashboard or external integrations |
+| `call-number` | Call Number | Queue numbers for counters and restaurants |
+| `clinic-hours` | Clinic Hours | Weekly/monthly hours, closed days, and weekday schedules |
+| `restaurant-menu` | Restaurant Menu | Up to three columns and five items per column, with prices and food images |
+| `qr-info` | QR Information | Up to two large QR codes with descriptions |
 
-`retro` はテンプレート設定の行数と列レイアウトに応じて、各行・各列に表示する文言を直接設定できます。文字サイズと左右列幅もテンプレート設定で変更できます。
+The Retro template lets editors set text per row and column and adjust font size and column width. Clinic Hours supports weekday hours plus date-specific closures or special hours and can show current time and weather.
 
-`clinic-hours` は曜日ごとの診療時間に加え、日付を指定した臨時休診・特別診療日の上書きを設定できます。右上には現在時刻と天気を表示できます。
+Every template uses a 1080 px-high reference canvas and scales the entire board to the display height. Font-size settings are design-point `pt` values where 1 pt appears approximately as 1 px at 1080 px. Text, icons, QR codes, and spacing retain their proportions across tablets, Full HD, and 4K displays, while width follows the display aspect ratio.
 
-すべてのテンプレートは高さ 1080px の基準キャンバス上でレイアウトし、表示端末の画面高に合わせてボード全体を拡大縮小します。管理画面で指定する文字サイズは基準キャンバス上の `pt` 値として扱い、1080px 高では 1pt を 1px 相当で表示します。タブレット、Full HD、4Kなど画面サイズが異なる端末でも、文字、天気アイコン、QRコード、余白などの見た目の比率を維持します。横幅は表示端末のアスペクト比に追従します。
+### 4.3 Media
 
-### 4.3 メディア
+- Images: JPEG, PNG, WebP, GIF
+- Videos: MP4, WebM
+- Maximum file size and total storage depend on the plan.
+- Storage: local `uploads/` or S3-compatible storage.
+- Public media may use CDN URLs; private media uses the authorized `/uploads/` route.
+- Images can be resized to a configured longest edge.
+- Thumbnails are generated with a 600 px longest edge.
+- GIF originals remain animated and unresized; thumbnails are static JPEGs.
+- Image/video dimensions are recorded and checked against video and resolution limits.
+- `simple` and `photo-clock` also enforce per-board media count, video count, and video-duration limits.
+- Downgrades never automatically delete or resize existing media. New uploads are blocked while current usage exceeds the active plan.
+- Unavailable or over-resolution video is replaced by guidance on the board and becomes usable again after upgrading.
+- Video slides can advance after a configured duration or wait for the video to end.
 
-- 対応画像: JPEG, PNG, WebP, GIF
-- 対応動画: MP4, WebM
-- 最大ファイルサイズと総ストレージはプランごとに異なります。
-- 保存先: ローカル `uploads/` または S3 互換ストレージ
-- 公式SaaSなどで CDN が設定されている場合、公開ボードのメディアは CDN URL で配信されます。非公開ボードのメディアは認可付きの `/uploads/` route で配信されます。
-- 画像はアップロード時に長辺上限に合わせてリサイズできます。
-- サムネイルは長辺 600px で自動生成されます。
-- GIF はアニメーションを保持するため元画像をリサイズせず、サムネイルのみ静止画 JPEG として生成します。
-- アップロード時に画像・動画の寸法を記録し、現在プランの動画可否・解像度上限に応じて表示可否を判定します。
-- `simple` と `photo-clock` では、ボードごとのメディア数、動画本数、動画ファイルの長さもプラン上限に応じて制限します。
-- ダウングレード後も既存メディアは自動削除・自動リサイズされません。容量や画像数が現在プランの上限を超えている間は、新規アップロードが制限されます。
-- 現在のプランで動画が許可されない場合、または記録済み寸法が解像度上限を超える場合、ボード上では動画を再生せず案内表示に切り替えます。上位プランへ戻すと再利用できます。
-- `simple` と `photo-clock` では、動画のスライド切り替えを通常の表示秒数で進めるか、動画の終端まで待って次のメディアへ進めるかを選べます。
-
-| プラン | 総ストレージ | 1ファイル上限 |
+| Plan | Total storage | Per-file limit |
 | --- | --- | --- |
-| Free | 300MB | 5MB |
-| Lite | 5GB | 100MB |
-| Standard | 20GB | 500MB |
-| Standard+ | 100GB | 2GB |
-| Self-hosted / Unlimited | 無制限 | 無制限 |
+| Free | 300 MB | 5 MB |
+| Lite | 5 GB | 100 MB |
+| Standard | 20 GB | 500 MB |
+| Standard+ | 100 GB | 2 GB |
+| Self-hosted / Unlimited | Unlimited | Unlimited |
 
-`simple` と `photo-clock` のボード単位上限は次の通りです。Self-hosted / Unlimited、および `PLAN_ENFORCEMENT_MODE=unlimited` では制限しません。
+Per-board limits for `simple` and `photo-clock`:
 
-| プラン | 1ボードのメディア数 | 1ボードの動画本数 | 動画1本の長さ |
+| Plan | Media per board | Videos per board | Duration per video |
 | --- | --- | --- | --- |
-| Free | 3件 | 0本 | 利用不可 |
-| Lite | 10件 | 1本 | 30秒 |
-| Standard | 20件 | 1本 | 3分 |
-| Standard+ | 30件 | 2本 | 5分 |
-| Self-hosted / Unlimited | 無制限 | 無制限 | 無制限 |
+| Free | 3 | 0 | Unavailable |
+| Lite | 10 | 1 | 30 seconds |
+| Standard | 20 | 1 | 3 minutes |
+| Standard+ | 30 | 2 | 5 minutes |
+| Self-hosted / Unlimited | Unlimited | Unlimited | Unlimited |
 
-### 4.4 メッセージ
+### 4.4 Messages
 
-メッセージはボード単位で管理します。優先度、種別（通常、注意、緊急）、削除予定日時を設定できます。削除予定日時を過ぎたメッセージは表示対象から外れます。メッセージ掲示板では投稿日時も表示します。
+Messages belong to a board and may specify priority, type (`info`, `notice`, or `alert`), and expiration. Expired messages are hidden. Message Board also shows posting time. Messages are the primary content in Message Board and Call Number templates.
 
-`message` テンプレートや `call-number` テンプレートでは、メッセージが主要コンテンツになります。
+### 4.5 Call Screen
 
-### 4.5 呼び出し画面
+The Call Number template supports `/call/<boardId>`.
 
-`call-number` テンプレートでは `/call/<boardId>` を利用できます。
+- Enter with the board's six-digit call passcode.
+- The dashboard displays the call URL and QR code.
+- Active messages on the board act as the call-number queue.
 
-- ボード設定の 6 桁パスコードで入室します。
-- 管理画面で呼び出し URL と QR コードを確認できます。
-- ボードに紐づくアクティブなメッセージを呼び出し番号キューとして扱います。
+### 4.6 Scheduled Display
 
-### 4.6 スケジュール表示
+Simple Board and Photo Clock can filter media using the display browser's local time. Simple Board can apply the same conditions to messages.
 
-`simple` と `photo-clock` テンプレートでは、メディアの表示対象をブラウザのローカル時刻にもとづいて切り替えられます。`simple` テンプレートではメッセージも同じ条件で切り替えられます。
-
-| 対象 | 指定できる条件 |
+| Target | Conditions |
 | --- | --- |
-| 画像/動画 | 常に表示、時刻範囲、曜日、日付期間 |
-| メッセージ | 常に表示、時刻範囲、曜日、日付期間 |
-| フォールバック画像 | 表示対象が 0 件になった時の画像。未指定時は黒画に Keinage ロゴ |
+| Image/video | Always, time range, weekday, date range |
+| Message | Always, time range, weekday, date range |
+| Fallback image | Used when no content matches; defaults to a black screen with the Keinage logo |
 
-プランごとの利用範囲は次の通りです。
-
-| プラン | スケジュール |
+| Plan | Scheduling |
 | --- | --- |
-| Free | 利用不可 |
-| Lite | 時刻範囲、曜日 |
-| Standard | 時刻範囲、曜日、日付期間 |
-| Standard+ | 時刻範囲、曜日、日付期間 |
-| Self-hosted / Unlimited | 時刻範囲、曜日、日付期間 |
+| Free | Unavailable |
+| Lite | Time range and weekday |
+| Standard | Time range, weekday, and date range |
+| Standard+ | Time range, weekday, and date range |
+| Self-hosted / Unlimited | Time range, weekday, and date range |
 
-### 4.7 プラン別テンプレート
+### 4.7 Templates by Plan
 
-| プラン | 利用できるテンプレート | 飲食店メニュー画像 |
+| Plan | Available templates | Restaurant menu images |
 | --- | --- | --- |
-| Free | 既存5テンプレートのみ | 利用不可 |
-| Lite | 全テンプレート | 利用不可 |
-| Standard | 全テンプレート | 利用可能 |
-| Standard+ | 全テンプレート | 利用可能 |
-| Self-hosted / Unlimited | 全テンプレート | 利用可能 |
+| Free | Five standard templates only | Unavailable |
+| Lite | All templates | Unavailable |
+| Standard | All templates | Available |
+| Standard+ | All templates | Available |
+| Self-hosted / Unlimited | All templates | Available |
 
-### 4.8 ダウングレード予約時の有効ボード
+### 4.8 Active Boards During a Scheduled Downgrade
 
-有料プランを下位プランへ変更予約、またはサブスクリプションを期間末キャンセル予約した場合、現在の契約期間中は現行プランのボード上限が維持されます。
+During a scheduled downgrade or end-of-period cancellation, current board limits remain active until the end of the billing period.
 
-Keinage は予約を検知した時点で、移行先プランの上限に収まる有効ボード候補を自動選択します。優先順位は「直近で表示されたボード」「最近更新されたボード」「最近作成されたボード」です。`admin` は実際の切替日までは Billing 画面から候補を変更できます。支払い方法・契約変更・解約につながる操作は Owner user の `admin` だけが実行できます。
+Keinage automatically selects boards that fit the future plan, prioritizing most recently displayed, updated, then created. An `admin` can change candidates on the Billing page before transition. Only an Owner `admin` may perform payment, subscription, or cancellation actions.
 
-実際に下位プランへ切り替わると、候補に含まれるボードだけが有効状態で残り、それ以外はプラン都合の無効状態になります。候補が未設定または不正な場合でも、同じ優先順位で再選択してから適用します。
+At transition, selected boards remain active and the rest become inactive due to plan limits. Missing or invalid candidates are regenerated with the same ordering.
 
-Billing 画面では、現在プランをいつまで利用できるか、いつ移行先プランまたは Free プランの制限が適用されるかを表示します。予約中の移行先プランに対して現在の使用量が超過する項目も表示します。対象はボード数、画像数、ストレージ、動画利用可否、動画解像度、1ファイル上限です。ダウングレード後に現在プランの上限を超えた状態になった場合も、管理画面で整理方法と上位プランへ戻す導線を表示します。
+The Billing page shows when the current plan ends, when future limits apply, and which current resources exceed those limits: boards, images, storage, video availability, video resolution, and per-file size. It also provides cleanup guidance and upgrade paths when the current account is over limit.
 
-### 4.9 Shared user 上限
+### 4.9 Shared User Limits
 
-| プラン | Shared user上限 |
+| Plan | Shared user limit |
 | --- | ---: |
-| Free | 3人 |
-| Lite | 10人 |
-| Standard | 100人 |
-| Standard+ | 300人 |
-| Self-hosted / Unlimited | 無制限 |
+| Free | 3 |
+| Lite | 10 |
+| Standard | 100 |
+| Standard+ | 300 |
+| Self-hosted / Unlimited | Unlimited |
 
-有効な Shared user と期限内の招待をカウントします。`disabled`、`inactive_due_to_plan`、期限切れ・完了済み・取り消し済みの招待はカウントしません。上限の80%に達すると `/users` に注意を表示し、上限到達時は招待ボタンを無効化します。
+Active Shared users and unexpired invitations count. Disabled or `inactive_due_to_plan` users and expired, completed, or cancelled invitations do not. `/users` warns at 80% usage and disables invitations at the limit.
 
-## 5. 表示とリアルタイム更新
+## 5. Display and Real-time Updates
 
-表示画面は Server-Sent Events を購読し、管理画面や API からの変更を自動反映します。
+Display screens subscribe to Server-Sent Events and automatically reflect dashboard and API changes.
 
-| 変更 | 表示側の動き |
+| Change | Display behavior |
 | --- | --- |
-| ボード設定変更 | ボード情報を再取得します。 |
-| メディア追加・並び替え・削除 | メディア一覧を再取得します。 |
-| メッセージ追加・更新・削除 | メッセージ一覧を再取得します。 |
+| Board settings | Refetch board data |
+| Media creation, reorder, or deletion | Refetch media |
+| Message creation, update, or deletion | Refetch messages |
 
-天気表示は外部天気 API を利用し、結果を一定時間キャッシュします。対象地域は admin が設定できます。
+Weather uses an external API with caching. An admin selects the region.
 
-## 6. 設定機能
+## 6. Settings
 
-### 6.1 ユーザー設定
+### 6.1 User Settings
 
-各ユーザーは次を変更できます。
+Each user can change:
 
-- 表示テーマ: `system` / `light` / `dark`
-- 表示言語
-- ユーザーID
-- メールアドレス
-- パスワード
+- Theme: `system`, `light`, or `dark`
+- Display language
+- User ID
+- Email address
+- Password
 - PIN
 
-Google 認証ユーザーはパスワード変更を利用できません。
+Google-authenticated users cannot change a password.
 
-### 6.2 管理設定
+### 6.2 Administrative Settings
 
-`admin` は次を変更できます。
+An `admin` can change:
 
-- 天気地域
-- 画像リサイズ上限
-- アップロード済みメディアの一覧確認と削除
-- アプリバージョン確認
-- ダッシュボード URL / 呼び出し画面 URL の QR コード確認
+- Weather region
+- Image-resize limit
+- Uploaded-file inspection and deletion
+- Application version display
+- QR codes for dashboard and call-screen URLs
 
-Owner user の `admin` は、上記に加えてフル認証期限、組織名、Ownerアカウント削除、支払い方法・契約変更・解約につながる課金操作を利用できます。
+An Owner `admin` can additionally change full-authentication lifetime and organization name, delete the Owner account, and perform billing, payment-method, subscription-change, and cancellation operations.
 
-## 7. 運用上の前提
+## 7. Operational Assumptions
 
-- メール送信を使う機能には SMTP 設定が必要です。
-- 登録 URL やリセット URL は `APP_PUBLIC_ORIGIN` を基準に生成します。
-- ローカル開発では `APP_PUBLIC_ORIGIN=http://localhost:3000` を使います。`0.0.0.0` のような bind address は OAuth state Cookie の不一致につながるため使用しません。
-- Google OAuth/OIDC を使う場合は Google Cloud Console に `${APP_PUBLIC_ORIGIN}/api/auth/google/callback` を Redirect URI として登録します。
+- Features that send email require SMTP configuration.
+- Registration and reset URLs use `APP_PUBLIC_ORIGIN`.
+- Local development should use `APP_PUBLIC_ORIGIN=http://localhost:3000`. Do not use a bind address such as `0.0.0.0`, which can cause OAuth state-cookie mismatches.
+- Google OAuth/OIDC requires `${APP_PUBLIC_ORIGIN}/api/auth/google/callback` as a redirect URI in Google Cloud Console.
