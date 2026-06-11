@@ -134,6 +134,7 @@ export default function SimpleBoard({
             mediaItems={activeMedia}
             objectFit={config.objectFit}
             transition={config.mediaTransition}
+            synchronizationKey={board.id}
           />
         ) : (
           <ScheduledMediaFallback

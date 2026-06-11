@@ -394,6 +394,8 @@ The five standard templates are `simple`, `photo-clock`, `retro`, `message`, and
 
 Simple Board and Photo Clock scheduling lives in `boards.config`, primarily under `mediaSchedules`, `messageSchedules`, and `fallbackMediaId`. `src/lib/scheduling.ts` evaluates schedules using the display browser's local `Date`.
 
+Simple Board and Photo Clock slideshows use `/api/time` to estimate the offset between the display clock and server time. `src/lib/slideshow-sync.ts` maps corrected absolute time onto the media-duration timeline, so displays opened at different times select the same slide. The offset is refreshed every five minutes. Random playback uses a deterministic order seeded by board ID and cycle number. Video playback position itself is not synchronized.
+
 `PlanLimits.scheduling` defines allowed scheduling. `sanitizeSchedulingConfig` removes all scheduling for Free and date ranges for Lite. Public board responses include `boardPlan.scheduling`, and display components also enforce the plan.
 
 Plan activation uses `boards.status`: `active` means available under the plan; `inactive_due_to_plan` means disabled by a downgrade. Existing `is_active` remains the user's display on/off switch. Successful display requests periodically update `last_viewed_at` for downgrade candidate selection.

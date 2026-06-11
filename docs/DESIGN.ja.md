@@ -400,6 +400,8 @@ flowchart LR
 
 `simple` / `photo-clock` のスケジュール設定は `boards.config` に保持します。主なキーは `mediaSchedules`、`messageSchedules`、`fallbackMediaId` です。表示判定は `src/lib/scheduling.ts` に集約し、表示端末のブラウザが持つローカルタイムゾーンの `Date` で評価します。
 
+`simple` / `photo-clock` のスライドショーは `/api/time` から表示端末とサーバーの時刻差分を推定します。`src/lib/slideshow-sync.ts` が補正済み絶対時刻をメディアの表示秒数タイムラインへ割り当てるため、異なる時刻に開いた端末も同じスライドを選択します。時刻差分は5分ごとに補正します。ランダム再生はボードIDと周回番号から決定的な順序を生成します。動画の再生位置自体は同期しません。
+
 プラン制限は `PlanLimits.scheduling` で表現します。管理 API は保存時に `sanitizeSchedulingConfig` を通し、Free ではスケジュール設定を保存せず、Lite では日付期間を除外します。公開ボード API は `boardPlan.scheduling` を返し、表示コンポーネント側でもプランに応じて判定します。
 
 ボードのプラン適用状態は `boards.status` で管理します。`active` はプラン上有効、`inactive_due_to_plan` はダウングレード適用により表示対象外になった状態です。従来の `is_active` はユーザー操作による表示オン/オフとして残します。表示ページと公開ボード API は、表示成功時に `boards.last_viewed_at` を一定間隔で更新し、ダウングレード予約時の自動候補選択に使います。

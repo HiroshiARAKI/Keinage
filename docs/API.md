@@ -256,6 +256,7 @@ The Billing page combines plan, usage, and board-activation state to show curren
 | `GET` | `/api/settings` | Get Owner settings | `admin` |
 | `PATCH` | `/api/settings` | Update Owner settings | `admin`; some values require Owner `admin` |
 | `GET` | `/api/board-devices` | Get display-device last-access state | `admin` |
+| `GET` | `/api/time` | Get current server time for display synchronization | None |
 | `GET` | `/api/weather` | Get normalized weather data for the current Owner or board | None / private-board display permission |
 | `GET` | `/api/version` | Get current and latest release information | None |
 | `GET` | `/api/network` | Get network information | None |
