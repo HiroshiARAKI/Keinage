@@ -175,6 +175,8 @@ The Retro template lets editors set text per row and column and adjust font size
 
 Every template uses a 1080 px-high reference canvas and scales the entire board to the display height. Font-size settings are design-point `pt` values where 1 pt appears approximately as 1 px at 1080 px. Text, icons, QR codes, and spacing retain their proportions across tablets, Full HD, and 4K displays, while width follows the display aspect ratio.
 
+Simple Board and Photo Clock determine the current slide from server-based time. Multiple devices showing the same board therefore display the same slide, including devices opened later. Small timing differences from network latency and video playback position are not guaranteed to be synchronized.
+
 ### 4.3 Media
 
 - Images: JPEG, PNG, WebP, GIF

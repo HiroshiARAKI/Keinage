@@ -259,6 +259,7 @@ Plan 制限に到達した場合、ボード作成・更新やメディア追加
 | `GET` | `/api/settings` | Owner 設定取得 | `admin` |
 | `PATCH` | `/api/settings` | Owner 設定更新 | `admin` / 一部 Owner `admin` |
 | `GET` | `/api/board-devices` | 表示端末の最終アクセス状態を取得 | `admin` |
+| `GET` | `/api/time` | 表示同期用の現在サーバー時刻を取得 | 不要 |
 | `GET` | `/api/weather` | 現在のOwnerまたはボード向けに正規化した天気情報を取得 | 不要 / 非公開ボードの表示権限 |
 | `GET` | `/api/version` | 現在バージョンと最新リリース情報 | 不要 |
 | `GET` | `/api/network` | ネットワーク情報取得 | 不要 |
