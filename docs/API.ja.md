@@ -259,11 +259,11 @@ Plan 制限に到達した場合、ボード作成・更新やメディア追加
 | `GET` | `/api/settings` | Owner 設定取得 | `admin` |
 | `PATCH` | `/api/settings` | Owner 設定更新 | `admin` / 一部 Owner `admin` |
 | `GET` | `/api/board-devices` | 表示端末の最終アクセス状態を取得 | `admin` |
-| `GET` | `/api/weather` | 天気情報取得 | 不要 |
+| `GET` | `/api/weather` | 現在のOwnerまたはボード向けに正規化した天気情報を取得 | 不要 / 非公開ボードの表示権限 |
 | `GET` | `/api/version` | 現在バージョンと最新リリース情報 | 不要 |
 | `GET` | `/api/network` | ネットワーク情報取得 | 不要 |
 
-`/api/settings` の `authExpireDays` はOwnerスコープ全体のセキュリティ設定のため Owner user の `admin` だけが更新できます。`/api/weather` は外部天気 API の結果を一定時間キャッシュします。`/api/version` は GitHub Releases API を参照します。
+`/api/settings` の `authExpireDays` はOwnerスコープ全体のセキュリティ設定のため Owner user の `admin` だけが更新できます。`/api/weather` はOwner設定の観測地を解決し、内部の天気プロバイダサービスから、プロバイダ非依存の天気状態、気温、4区分の降水確率を返します。予報はプロバイダ・観測地単位で30分キャッシュし、同時更新は1回の外部リクエストへ集約します。一度取得済みの場合は更新失敗時にstaleデータを返します。`/api/version` は GitHub Releases API を参照します。
 
 ## 12. SSE API
 
@@ -279,6 +279,7 @@ Plan 制限に到達した場合、ボード作成・更新やメディア追加
 | `board-updated` | ボード更新・削除 |
 | `media-updated` | メディア追加・並び替え・削除 |
 | `message-updated` | メッセージ追加・更新・削除 |
+| `weather-updated` | 天気の観測地設定変更 |
 
 ## 13. 代表的なフロー
 

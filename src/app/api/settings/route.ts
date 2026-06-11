@@ -1,6 +1,9 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
 import { NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { boards } from "@/db/schema";
 import { getAdminSessionUser } from "@/lib/auth";
 import { listOwnerSettings, upsertOwnerSettings } from "@/lib/owner-settings";
 import { isOwnerUser, resolveOwnerUserId } from "@/lib/ownership";
@@ -9,6 +12,9 @@ import {
   isPlanLimitError,
   planLimitErrorBody,
 } from "@/lib/plan-enforcement";
+import { emitSSE } from "@/lib/sse";
+import { WEATHER_UPDATED_EVENT } from "@/lib/weather/events";
+import { getWeatherProvider } from "@/lib/weather/provider";
 
 const OWNER_ONLY_SETTING_KEYS = new Set(["authExpireDays"]);
 
@@ -55,6 +61,13 @@ export async function PATCH(request: Request) {
   }
 
   const ownerUserId = resolveOwnerUserId(session.user);
+  if (
+    typeof updates.weatherCityId === "string" &&
+    !getWeatherProvider().isLocationId(updates.weatherCityId)
+  ) {
+    return NextResponse.json({ error: "Invalid weatherCityId" }, { status: 400 });
+  }
+
   if (typeof updates.imageMaxLongEdge === "string") {
     const maxLongEdge = Number(updates.imageMaxLongEdge);
     if (!Number.isFinite(maxLongEdge) || maxLongEdge < 0) {
@@ -75,6 +88,17 @@ export async function PATCH(request: Request) {
   }
 
   await upsertOwnerSettings(ownerUserId, updates);
+
+  if (typeof updates.weatherCityId === "string") {
+    const ownerBoards = await db
+      .select({ id: boards.id })
+      .from(boards)
+      .where(eq(boards.ownerUserId, ownerUserId));
+
+    for (const board of ownerBoards) {
+      emitSSE(board.id, WEATHER_UPDATED_EVENT);
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }

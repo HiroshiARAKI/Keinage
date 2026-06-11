@@ -48,7 +48,7 @@ Every route returns:
 - `Cross-Origin-Opener-Policy: same-origin`
 - `Strict-Transport-Security` in production only
 
-A fixed CSP is not currently applied because S3 presigned uploads, CloudFront, Google Fonts, weather images, and other deployment-specific resources require different allowlists. In official SaaS deployments, configure CSP at the CDN / WAF layer and include S3, CloudFront, and the application origin in `connect-src`.
+A fixed CSP is not currently applied because S3 presigned uploads, CloudFront, Google Fonts, and other deployment-specific resources require different allowlists. Weather icons are application-owned inline SVGs and do not require an external image origin. In official SaaS deployments, configure CSP at the CDN / WAF layer and include S3, CloudFront, and the application origin in `connect-src`.
 
 ## Upload Validation
 

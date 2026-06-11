@@ -1108,6 +1108,20 @@ export const enUS = {
   "weather.slot06_12": "6am-12pm {value}",
   "weather.slot12_18": "12pm-6pm {value}",
   "weather.slot18_24": "6pm-12am {value}",
+  "weather.cardLabel": "Today's weather forecast",
+  "weather.today": "Today's weather",
+  "weather.highLabel": "High",
+  "weather.lowLabel": "Low",
+  "weather.period": "{start}-{end}",
+  "weather.timelineHour": "{hour}:00",
+  "weather.condition.clear": "Clear",
+  "weather.condition.partlyCloudy": "Partly cloudy",
+  "weather.condition.cloudy": "Cloudy",
+  "weather.condition.rain": "Rain",
+  "weather.condition.snow": "Snow",
+  "weather.condition.thunder": "Thunderstorms",
+  "weather.condition.fog": "Fog",
+  "weather.condition.unknown": "Forecast unavailable",
 } as const;
 
 export type MessageKey = keyof typeof enUS;

@@ -3,6 +3,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
+import { WEATHER_UPDATED_EVENT } from "@/lib/weather/events";
 
 interface UseSSEOptions {
   boardId: string;
@@ -25,11 +26,12 @@ export function useSSE({ boardId, onEvent }: UseSSEOptions) {
     const es = new EventSource(`/api/sse/${boardId}`);
 
     // Listen for all named events via the generic message handler
-    // Named events (board-updated, media-updated, message-updated)
+    // Named events emitted by board and owner-setting mutations.
     const eventTypes = [
       "board-updated",
       "media-updated",
       "message-updated",
+      WEATHER_UPDATED_EVENT,
     ];
 
     for (const type of eventTypes) {

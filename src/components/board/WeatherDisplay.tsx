@@ -2,25 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Image from "next/image";
+import { useCallback, useEffect, useState } from "react";
+import {
+  UmbrellaIcon,
+  WeatherConditionIcon,
+} from "@/components/board/WeatherIcons";
 import { useLocale } from "@/components/i18n/LocaleProvider";
-
-interface WeatherData {
-  location: { city: string; prefecture: string };
-  telop: string;
-  image: { url: string; title: string; width: number; height: number };
-  chanceOfRain: {
-    T00_06: string;
-    T06_12: string;
-    T12_18: string;
-    T18_24: string;
-  };
-  temperature: {
-    min: { celsius: string | null };
-    max: { celsius: string | null };
-  };
-}
+import { WEATHER_REFRESH_BROWSER_EVENT } from "@/lib/weather/events";
+import type { WeatherCondition, WeatherForecast } from "@/lib/weather/types";
 
 interface WeatherDisplayProps {
   boardId?: string;
@@ -33,115 +22,170 @@ interface WeatherDisplayProps {
   className?: string;
 }
 
+function temperatureValue(value: number | null) {
+  return value === null ? "--" : `${Math.round(value)}°C`;
+}
+
+function probabilityValue(value: number | null) {
+  return value === null ? "--" : `${value}%`;
+}
+
+const CONDITION_LABEL_KEYS: Record<
+  WeatherCondition,
+  | "weather.condition.clear"
+  | "weather.condition.partlyCloudy"
+  | "weather.condition.cloudy"
+  | "weather.condition.rain"
+  | "weather.condition.snow"
+  | "weather.condition.thunder"
+  | "weather.condition.fog"
+  | "weather.condition.unknown"
+> = {
+  clear: "weather.condition.clear",
+  "partly-cloudy": "weather.condition.partlyCloudy",
+  cloudy: "weather.condition.cloudy",
+  rain: "weather.condition.rain",
+  snow: "weather.condition.snow",
+  thunder: "weather.condition.thunder",
+  fog: "weather.condition.fog",
+  unknown: "weather.condition.unknown",
+};
+
 export function WeatherDisplay({
   boardId,
   color = "#ffffff",
-  bgOpacity = 0.5,
+  bgOpacity = 0.56,
   fontSize = 18,
   fontFamily,
   className,
 }: WeatherDisplayProps) {
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const { t, translateWeatherTelop } = useLocale();
+  const [weather, setWeather] = useState<WeatherForecast | null>(null);
+  const { t } = useLocale();
 
   const fetchWeather = useCallback(async () => {
     try {
-      const search = boardId
-        ? `?boardId=${encodeURIComponent(boardId)}`
-        : "";
-      const res = await fetch(`/api/weather${search}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setWeather(data);
+      const search = boardId ? `?boardId=${encodeURIComponent(boardId)}` : "";
+      const response = await fetch(`/api/weather${search}`);
+      if (!response.ok) return;
+      setWeather(await response.json() as WeatherForecast);
     } catch {
-      // silently ignore
+      // Keep the previous forecast when a refresh fails.
     }
   }, [boardId]);
 
   useEffect(() => {
-    const initialTimer = setTimeout(() => {
+    const initialTimer = window.setTimeout(() => {
       void fetchWeather();
     }, 0);
-    // Refresh every 30 minutes
-    const interval = setInterval(fetchWeather, 30 * 60 * 1000);
+    const interval = window.setInterval(() => {
+      void fetchWeather();
+    }, 30 * 60 * 1000);
+    const refreshWeather = () => {
+      void fetchWeather();
+    };
+    window.addEventListener(WEATHER_REFRESH_BROWSER_EVENT, refreshWeather);
+
     return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
+      window.clearTimeout(initialTimer);
+      window.clearInterval(interval);
+      window.removeEventListener(WEATHER_REFRESH_BROWSER_EVENT, refreshWeather);
     };
   }, [fetchWeather]);
 
   if (!weather) return null;
 
-  const rain = weather.chanceOfRain;
-  /** "--%" → "0%" */
-  const r = (v: string) => (v === "--%" ? "0%" : v);
-  const iconWidth = Math.max(48, Math.round(fontSize * 5));
-  const iconHeight = Math.max(38, Math.round(fontSize * 4));
-  const headingFontSize = Math.round(fontSize * 1.1);
-  const detailFontSize = Math.max(12, Math.round(fontSize * 0.9));
+  const cardWidth = Math.max(660, Math.round(fontSize * 40));
+  const titleSize = Math.max(13, Math.round(fontSize * 0.78));
+  const labelSize = Math.max(12, Math.round(fontSize * 0.72));
+  const highSize = Math.max(32, Math.round(fontSize * 2.35));
+  const lowSize = Math.max(25, Math.round(fontSize * 1.75));
+  const iconSize = Math.max(72, Math.round(fontSize * 5.2));
 
   return (
-    <div
-      className={`flex items-center gap-4 rounded-xl px-5 py-3 ${className ?? ""}`}
+    <section
+      className={`min-w-0 overflow-hidden rounded-2xl border border-white/15 shadow-lg backdrop-blur-sm ${className ?? ""}`}
       style={{
+        width: cardWidth,
+        maxWidth: "100%",
         backgroundColor: `rgba(0,0,0,${bgOpacity})`,
         color,
         fontFamily: fontFamily || undefined,
       }}
+      aria-label={t("weather.cardLabel")}
     >
-      {/* Weather icon */}
-      {weather.image?.url && (
-        <Image
-          src={weather.image.url}
-          alt={weather.image.title || weather.telop}
-          width={iconWidth}
-          height={iconHeight}
-          className="shrink-0"
-          unoptimized
-        />
-      )}
-
-      <div
-        className="flex flex-col gap-1 leading-snug"
-        style={{ fontSize }}
+      <header
+        className="border-b border-white/20 px-6 py-3 font-semibold tracking-wide"
+        style={{ fontSize: Math.max(15, Math.round(fontSize * 0.95)) }}
       >
-        {/* Location header */}
-        <span className="font-bold" style={{ fontSize: headingFontSize }}>
-          {t("weather.current", {
-            city: weather.location?.city ?? "",
-            telop: translateWeatherTelop(weather.telop),
-          })}
-        </span>
+        {weather.location.name}
+      </header>
 
-        {/* Temperature */}
-        {(weather.temperature.max.celsius ||
-          weather.temperature.min.celsius) && (
-          <span className="opacity-80">
-            {weather.temperature.max.celsius &&
-              t("weather.high", { value: weather.temperature.max.celsius })}
-            {weather.temperature.max.celsius &&
-              weather.temperature.min.celsius &&
-              " / "}
-            {weather.temperature.min.celsius &&
-              t("weather.low", { value: weather.temperature.min.celsius })}
+      <div className="grid grid-cols-[1.05fr_.82fr_1.8fr] divide-x divide-white/15">
+        <div className="flex min-w-0 flex-col items-center justify-center px-5 py-4 text-center">
+          <span className="font-medium uppercase tracking-[0.16em] opacity-65" style={{ fontSize: titleSize }}>
+            {t("weather.today")}
           </span>
-        )}
+          <WeatherConditionIcon
+            condition={weather.condition.code}
+            className="my-1 shrink-0"
+            style={{ width: iconSize, height: iconSize }}
+          />
+          <span className="-mt-[1px] font-semibold leading-tight" style={{ fontSize }}>
+            {t(CONDITION_LABEL_KEYS[weather.condition.code])}
+          </span>
+        </div>
 
-        {/* Chance of rain — all time slots */}
-        <div
-          className="flex items-center gap-1 opacity-80"
-          style={{ fontSize: detailFontSize }}
-        >
-          <span>{t("weather.rainChance")}:</span>
-          <span>{t("weather.slot00_06", { value: r(rain.T00_06) })}</span>
-          <span className="opacity-40">|</span>
-          <span>{t("weather.slot06_12", { value: r(rain.T06_12) })}</span>
-          <span className="opacity-40">|</span>
-          <span>{t("weather.slot12_18", { value: r(rain.T12_18) })}</span>
-          <span className="opacity-40">|</span>
-          <span>{t("weather.slot18_24", { value: r(rain.T18_24) })}</span>
+        <div className="flex min-w-0 flex-col justify-center px-5 py-4 text-center">
+          <div className="pb-3">
+            <div className="font-medium uppercase tracking-[0.12em] opacity-60" style={{ fontSize: labelSize }}>
+              {t("weather.highLabel")}
+            </div>
+            <div className="font-semibold leading-none" style={{ fontSize: highSize }}>
+              {temperatureValue(weather.temperature.maxCelsius)}
+            </div>
+          </div>
+          <div className="border-t border-white/20 pt-3">
+            <div className="font-medium uppercase tracking-[0.12em] opacity-60" style={{ fontSize: labelSize }}>
+              {t("weather.lowLabel")}
+            </div>
+            <div className="font-medium leading-none" style={{ fontSize: lowSize }}>
+              {temperatureValue(weather.temperature.minCelsius)}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex min-w-0 flex-col justify-center px-5 py-4">
+          <div className="mb-3 flex items-center justify-center gap-2 font-medium uppercase tracking-[0.12em] opacity-75" style={{ fontSize: titleSize }}>
+            <span>{t("weather.rainChance")}</span>
+            <UmbrellaIcon className="size-[1.35em]" />
+          </div>
+          <div className="grid grid-cols-4 overflow-hidden rounded-lg border border-white/20">
+            {weather.precipitation.map((period) => (
+              <div
+                key={`${period.startHour}-${period.endHour}`}
+                className="border-r border-white/15 px-1 py-2 text-center last:border-r-0"
+              >
+                <div className="whitespace-nowrap opacity-55" style={{ fontSize: labelSize }}>
+                  {t("weather.period", {
+                    start: period.startHour,
+                    end: period.endHour,
+                  })}
+                </div>
+                <div className="mt-1 font-semibold" style={{ fontSize: Math.max(17, Math.round(fontSize * 1.08)) }}>
+                  {probabilityValue(period.probability)}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 grid grid-cols-5 text-center opacity-45" style={{ fontSize: labelSize }}>
+            {[0, 6, 12, 18, 24].map((hour) => (
+              <span key={hour}>
+                {t("weather.timelineHour", { hour })}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

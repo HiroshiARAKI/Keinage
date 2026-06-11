@@ -32,6 +32,7 @@ flowchart TB
     oidc[OIDC Provider Foundation]
     media[Media Processing]
     storage[Media Storage Adapter]
+    weatherProvider[Weather Provider and Cache]
     templates[Board Template Registry]
     i18n[i18n]
   end
@@ -52,6 +53,7 @@ flowchart TB
   routes --> auth
   routes --> oidc
   routes --> media
+  routes --> weatherProvider
   routes --> templates
   routes --> i18n
   auth --> db
@@ -62,7 +64,7 @@ flowchart TB
   uploadRoute --> storage
   oidc --> google
   routes --> smtp
-  routes --> weather
+  weatherProvider --> weather
   routes --> github
   routes --> db
   sse --> browser
@@ -437,12 +439,20 @@ flowchart LR
   mutation["API mutation"] --> emit["emitSSE(boardId, event)"]
   emit --> hub["src/lib/sse.ts in-memory clients"]
   hub --> display["Board display"]
-  display --> refetch["Refetch board/media/messages"]
+  display --> refetch["Refetch board/media/messages or weather"]
 ```
 
 Subscribers are held in process memory. Cross-instance event distribution is not currently supported.
 
-## 10. Internationalization
+## 10. Weather Provider
+
+`src/lib/weather/types.ts` defines the provider-independent forecast model and provider interface. Provider-specific response parsing is isolated under `src/lib/weather/providers/`; the current `tsukumijima` adapter converts Japanese forecast data into normalized condition codes, Celsius temperatures, and four precipitation periods.
+
+`src/lib/weather/service.ts` caches forecasts for 30 minutes per provider and location. Requests for the same uncached location share one in-flight external request. If a refresh fails after data has previously been fetched, the service returns stale data instead of removing weather from active signage. `/api/weather` handles board authorization and Owner-location resolution, then delegates all external access to this service.
+
+The dashboard never renders provider-owned weather images. `WeatherDisplay` maps normalized condition codes to Keinage-owned monochrome SVG components, keeping the visual language consistent when providers are added or replaced. Select the adapter with `WEATHER_PROVIDER`; unsupported values fail explicitly.
+
+## 11. Internationalization
 
 | File | Responsibility |
 | --- | --- |
@@ -455,7 +465,7 @@ Subscribers are held in process memory. Cross-instance event distribution is not
 
 Locale resolution order is user setting, cookie, then `Accept-Language`. New UI strings are added first to `en-US.ts` and then to every locale with the same key. `satisfies Record<MessageKey, string>` catches missing translations at type-check time.
 
-## 11. Settings
+## 12. Settings
 
 | Type | Storage | Examples |
 | --- | --- | --- |
@@ -464,17 +474,17 @@ Locale resolution order is user setting, cookie, then `Accept-Language`. New UI 
 
 Owner settings use a key/value model so new settings can be introduced without database migrations. Type conversion and defaults live in `src/lib/owner-settings.ts`, Route Handlers, and UI code.
 
-## 12. External Integrations
+## 13. External Integrations
 
 | Service | Purpose |
 | --- | --- |
 | Google OIDC | Google account registration and login |
 | SMTP | Registration, invitations, PIN reset, and account-deletion URLs |
-| weather.tsukumijima.net | Weather display |
+| Weather provider (`tsukumijima` by default) | Normalized forecast data |
 | GitHub Releases API | Latest-version checks |
 | S3-compatible storage | Media storage |
 
-## 13. Docker and Deployment
+## 14. Docker and Deployment
 
 Docker uses a multi-stage build:
 
@@ -484,7 +494,7 @@ Docker uses a multi-stage build:
 
 `docker/entrypoint.sh` runs migrations before `node server.js`. In Docker Compose, the application starts after the PostgreSQL health check passes.
 
-## 14. Development Notes
+## 15. Development Notes
 
 - Review authorization boundaries for every Route Handler.
 - Add all new UI strings to the i18n catalogs.
