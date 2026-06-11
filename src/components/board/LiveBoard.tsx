@@ -9,6 +9,10 @@ import { WatermarkOverlay } from "@/components/board/WatermarkOverlay";
 import { useSSE } from "@/hooks/useSSE";
 import { sharePublicBoard as sharePublicBoardLink } from "@/lib/board-share";
 import { parseJsonObject } from "@/lib/utils";
+import {
+  WEATHER_REFRESH_BROWSER_EVENT,
+  WEATHER_UPDATED_EVENT,
+} from "@/lib/weather/events";
 import type {
   Board,
   MediaItem,
@@ -235,9 +239,14 @@ export default function LiveBoard({
   }, [initialBoard.id]);
 
   const handleSSEEvent = useCallback(
-    () => {
-      // On any event, refetch the full board data
-      refetchData();
+    (event: string) => {
+      if (event === WEATHER_UPDATED_EVENT) {
+        window.dispatchEvent(new Event(WEATHER_REFRESH_BROWSER_EVENT));
+        return;
+      }
+
+      // Board-scoped mutations update the full template data.
+      void refetchData();
     },
     [refetchData],
   );

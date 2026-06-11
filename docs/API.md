@@ -256,11 +256,11 @@ The Billing page combines plan, usage, and board-activation state to show curren
 | `GET` | `/api/settings` | Get Owner settings | `admin` |
 | `PATCH` | `/api/settings` | Update Owner settings | `admin`; some values require Owner `admin` |
 | `GET` | `/api/board-devices` | Get display-device last-access state | `admin` |
-| `GET` | `/api/weather` | Get weather data | None |
+| `GET` | `/api/weather` | Get normalized weather data for the current Owner or board | None / private-board display permission |
 | `GET` | `/api/version` | Get current and latest release information | None |
 | `GET` | `/api/network` | Get network information | None |
 
-Because `authExpireDays` applies to the entire Owner scope, only an Owner `admin` may update it. Weather responses are cached. Version information uses the GitHub Releases API.
+Because `authExpireDays` applies to the entire Owner scope, only an Owner `admin` may update it. `/api/weather` resolves the Owner's configured location, queries the internal weather-provider service, and returns provider-independent condition, temperature, and four-period precipitation data. Forecasts are refreshed per provider and location every 30 minutes. Values already obtained for the same forecast date are retained when a later provider response omits them. Concurrent refreshes share one external request, and stale data is returned when a refresh fails after a successful fetch. Version information uses the GitHub Releases API.
 
 ## 12. SSE APIs
 
@@ -274,6 +274,7 @@ Because `authExpireDays` applies to the entire Owner scope, only an Owner `admin
 | `board-updated` | Board update or deletion |
 | `media-updated` | Media creation, reorder, or deletion |
 | `message-updated` | Message creation, update, or deletion |
+| `weather-updated` | Weather location setting update |
 
 ## 13. Representative Flows
 
