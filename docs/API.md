@@ -260,7 +260,7 @@ The Billing page combines plan, usage, and board-activation state to show curren
 | `GET` | `/api/version` | Get current and latest release information | None |
 | `GET` | `/api/network` | Get network information | None |
 
-Because `authExpireDays` applies to the entire Owner scope, only an Owner `admin` may update it. `/api/weather` resolves the Owner's configured location, queries the internal weather-provider service, and returns provider-independent condition, temperature, and four-period precipitation data. Forecasts are cached per provider and location for 30 minutes; concurrent refreshes share one external request, and stale data is returned when a refresh fails after a successful fetch. Version information uses the GitHub Releases API.
+Because `authExpireDays` applies to the entire Owner scope, only an Owner `admin` may update it. `/api/weather` resolves the Owner's configured location, queries the internal weather-provider service, and returns provider-independent condition, temperature, and four-period precipitation data. Forecasts are refreshed per provider and location every 30 minutes. Values already obtained for the same forecast date are retained when a later provider response omits them. Concurrent refreshes share one external request, and stale data is returned when a refresh fails after a successful fetch. Version information uses the GitHub Releases API.
 
 ## 12. SSE APIs
 

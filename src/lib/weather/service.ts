@@ -15,6 +15,77 @@ export interface WeatherResult {
   cacheStatus: "hit" | "miss" | "stale";
 }
 
+function hasText(value: string): boolean {
+  return value.trim().length > 0;
+}
+
+export function mergeSameDayForecast(
+  cached: WeatherForecast,
+  incoming: WeatherForecast,
+): WeatherForecast {
+  if (
+    !hasText(cached.forecastDate) ||
+    !hasText(incoming.forecastDate) ||
+    cached.forecastDate !== incoming.forecastDate
+  ) {
+    return incoming;
+  }
+
+  const incomingPrecipitation = new Map(
+    incoming.precipitation.map((period) => [
+      `${period.startHour}-${period.endHour}`,
+      period,
+    ]),
+  );
+  const cachedPeriodKeys = new Set(
+    cached.precipitation.map(
+      (period) => `${period.startHour}-${period.endHour}`,
+    ),
+  );
+
+  return {
+    ...incoming,
+    location: {
+      name: hasText(incoming.location.name)
+        ? incoming.location.name
+        : cached.location.name,
+      prefecture: incoming.location.prefecture ?? cached.location.prefecture,
+      city: hasText(incoming.location.city)
+        ? incoming.location.city
+        : cached.location.city,
+    },
+    condition: {
+      code: incoming.condition.code === "unknown"
+        ? cached.condition.code
+        : incoming.condition.code,
+    },
+    temperature: {
+      maxCelsius:
+        incoming.temperature.maxCelsius ?? cached.temperature.maxCelsius,
+      minCelsius:
+        incoming.temperature.minCelsius ?? cached.temperature.minCelsius,
+    },
+    precipitation: [
+      ...cached.precipitation.map((previous) => {
+        const current = incomingPrecipitation.get(
+          `${previous.startHour}-${previous.endHour}`,
+        );
+        return current
+          ? {
+              ...current,
+              probability: current.probability ?? previous.probability,
+            }
+          : previous;
+      }),
+      ...incoming.precipitation.filter(
+        (period) => !cachedPeriodKeys.has(
+          `${period.startHour}-${period.endHour}`,
+        ),
+      ),
+    ],
+  };
+}
+
 export class CachedWeatherProvider {
   private readonly weatherCache = new Map<string, CachedWeather>();
   private readonly inFlightRequests = new Map<string, Promise<WeatherForecast>>();
@@ -42,7 +113,10 @@ export class CachedWeatherProvider {
     }
 
     try {
-      const forecast = await request;
+      const incoming = await request;
+      const forecast = cached
+        ? mergeSameDayForecast(cached.data, incoming)
+        : incoming;
       this.weatherCache.set(locationId, {
         data: forecast,
         expiresAt: Date.now() + this.ttlMs,
