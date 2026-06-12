@@ -45,6 +45,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=builder /app/resources/openweather ./resources/openweather
 
 # Copy drizzle migrations + migration runner
 COPY --from=builder /app/drizzle ./drizzle

@@ -33,6 +33,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/*": ["./resources/openweather/city.list.json.gz"],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "50mb",

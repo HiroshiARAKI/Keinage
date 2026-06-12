@@ -114,7 +114,8 @@ Issues and pull requests are welcome. Please use GitHub Issues for bug reports a
 
 ## Acknowledgements
 
-- Weather forecast data is provided by the [Weather Forecast API (livedoor Weather compatible)](https://weather.tsukumijima.net/).
+- Weather data and the city list are provided by [OpenWeather](https://openweathermap.org/).
+- The optional Japanese weather adapter uses the [Weather Forecast API (livedoor Weather compatible)](https://weather.tsukumijima.net/).
 
 ## License
 

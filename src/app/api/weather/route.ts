@@ -4,11 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { boards } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { DEFAULT_CITY_ID } from "@/lib/weather-areas";
 import { getSessionUser } from "@/lib/auth";
 import { isBoardDisplayable } from "@/lib/board-status";
 import { getOwnerSetting } from "@/lib/owner-settings";
 import { isInOwnerScope, resolveOwnerUserId } from "@/lib/ownership";
+import { findOpenWeatherCity } from "@/lib/weather/openweather-cities";
 import { getWeatherProvider } from "@/lib/weather/provider";
 import { getWeatherForecast } from "@/lib/weather/service";
 
@@ -48,11 +48,19 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const cityId = ownerUserId
-    ? (await getOwnerSetting(ownerUserId, "weatherCityId")) ?? DEFAULT_CITY_ID
-    : DEFAULT_CITY_ID;
+  const provider = getWeatherProvider();
+  let cityId = ownerUserId
+    ? (await getOwnerSetting(ownerUserId, "weatherCityId")) ??
+      provider.defaultLocationId
+    : provider.defaultLocationId;
+  if (
+    provider.id === "openweatherapi" &&
+    !(await findOpenWeatherCity(cityId))
+  ) {
+    cityId = provider.defaultLocationId;
+  }
 
-  if (!getWeatherProvider().isLocationId(cityId)) {
+  if (!provider.isLocationId(cityId)) {
     return NextResponse.json(
       { error: "Invalid city ID" },
       { status: 400 },
@@ -63,14 +71,19 @@ export async function GET(request: NextRequest) {
     const result = await getWeatherForecast(cityId);
     return NextResponse.json(result.forecast, {
       headers: {
-        "Cache-Control": "private, max-age=60, stale-while-revalidate=1740",
+        "Cache-Control": "private, no-store",
         "X-Weather-Cache": result.cacheStatus,
       },
     });
-  } catch {
+  } catch (error) {
+    console.error("[weather] Failed to fetch forecast", {
+      provider: provider.id,
+      cityId,
+      error,
+    });
     return NextResponse.json(
       { error: "Failed to fetch weather" },
-      { status: 502 },
+      { status: provider.id === "openweatherapi" ? 503 : 502 },
     );
   }
 }

@@ -48,7 +48,8 @@ A basic self-hosted deployment needs only the following settings:
 | `WEBAUTHN_*` | Optional | Configure to require Passkey two-factor authentication for Owners. |
 | `S3_*` / `STORAGE_*` | Optional | Configure to use S3-compatible storage instead of local `uploads/`. |
 | `AUDIT_LOG_*` | Optional | Audit logging and retention settings for authentication, billing, account deletion, Super Owner operations, and more. |
-| `WEATHER_PROVIDER` | Optional | Weather adapter. Currently supported: `tsukumijima` (default). |
+| `WEATHER_PROVIDER` | Optional | Weather adapter: `openweatherapi` (default) or `tenkiyoho_api_jp`. |
+| `OPENWEATHER_API_KEY` | Optional | OpenWeather API key fallback. The Super Owner can configure the key from Settings instead. |
 
 ## 4. Official SaaS Mode
 

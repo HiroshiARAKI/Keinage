@@ -448,9 +448,9 @@ Subscribers are held in process memory. Cross-instance event distribution is not
 
 ## 10. Weather Provider
 
-`src/lib/weather/types.ts` defines the provider-independent forecast model and provider interface. Provider-specific response parsing is isolated under `src/lib/weather/providers/`; the current `tsukumijima` adapter converts Japanese forecast data into normalized condition codes, Celsius temperatures, and four precipitation periods.
+`src/lib/weather/types.ts` defines the provider-independent forecast model and provider interface. Provider-specific response parsing is isolated under `src/lib/weather/providers/`. The default `openweatherapi` adapter uses OpenWeather One Call API 4.0 Current and 1-hour Timeline endpoints, resolves saved City IDs through the bundled city list, and converts condition IDs, Celsius temperatures, and hourly `pop` values into the normalized model. `tenkiyoho_api_jp` remains available for the Japanese forecast API.
 
-`src/lib/weather/service.ts` refreshes forecasts every 30 minutes per provider and location. For the same forecast date, non-null values from each refresh are merged into the daily cached forecast so later provider responses cannot erase temperatures or elapsed precipitation periods. A different forecast date starts a fresh cache entry. Requests for the same uncached location share one in-flight external request. If a refresh fails after data has previously been fetched, the service returns stale data instead of removing weather from active signage. `/api/weather` handles board authorization and Owner-location resolution, then delegates all external access to this service.
+`src/lib/weather/service.ts` refreshes forecasts per provider and location (hourly for OpenWeather, every 30 minutes for the Japanese adapter). For the same forecast date, non-null values from each refresh are merged into the daily cached forecast so later provider responses cannot erase temperatures or elapsed precipitation periods. A different forecast date starts a fresh cache entry. During a refresh, duplicate requests immediately receive stale cached data; if the refresh fails, stale data is retained. `/api/weather` handles board authorization and Owner-location resolution, then delegates all external access to this service.
 
 The dashboard never renders provider-owned weather images. `WeatherDisplay` maps normalized condition codes to Keinage-owned monochrome SVG components, keeping the visual language consistent when providers are added or replaced. Select the adapter with `WEATHER_PROVIDER`; unsupported values fail explicitly.
 
@@ -482,7 +482,8 @@ Owner settings use a key/value model so new settings can be introduced without d
 | --- | --- |
 | Google OIDC | Google account registration and login |
 | SMTP | Registration, invitations, PIN reset, and account-deletion URLs |
-| Weather provider (`tsukumijima` by default) | Normalized forecast data |
+| OpenWeather (`openweatherapi` by default) | Current weather, hourly precipitation, and City ID data |
+| Weather Forecast API (`tenkiyoho_api_jp`) | Optional Japanese forecast adapter |
 | GitHub Releases API | Latest-version checks |
 | S3-compatible storage | Media storage |
 

@@ -3,8 +3,6 @@
 import { getWeatherProvider } from "@/lib/weather/provider";
 import type { WeatherForecast, WeatherProvider } from "@/lib/weather/types";
 
-export const WEATHER_CACHE_TTL_MS = 30 * 60 * 1000;
-
 interface CachedWeather {
   data: WeatherForecast;
   expiresAt: number;
@@ -92,7 +90,7 @@ export class CachedWeatherProvider {
 
   constructor(
     private readonly provider: WeatherProvider,
-    private readonly ttlMs = WEATHER_CACHE_TTL_MS,
+    private readonly ttlMs = provider.cacheTtlMs,
   ) {}
 
   async getForecast(locationId: string): Promise<WeatherResult> {
@@ -107,6 +105,9 @@ export class CachedWeatherProvider {
     }
 
     let request = this.inFlightRequests.get(locationId);
+    if (request && cached) {
+      return { forecast: cached.data, cacheStatus: "stale" };
+    }
     if (!request) {
       request = this.provider.fetchForecast(locationId);
       this.inFlightRequests.set(locationId, request);

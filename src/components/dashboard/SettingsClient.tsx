@@ -4,14 +4,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Fingerprint, Trash2 } from "lucide-react";
 import { startRegistration } from "@simplewebauthn/browser";
 import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -19,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Switch } from "@/components/ui/switch";
-import { WEATHER_AREAS, DEFAULT_CITY_ID } from "@/lib/weather-areas";
+import { WEATHER_AREAS } from "@/lib/weather-areas";
 import type { WeatherPrefecture } from "@/lib/weather-areas";
 import { PinInput } from "@/components/auth/PinInput";
 import { useLocale } from "@/components/i18n/LocaleProvider";
@@ -47,24 +50,79 @@ interface PasskeyCredential {
   lastUsedAt: string | null;
 }
 
+interface OpenWeatherCountry {
+  code: string;
+  count: number;
+}
+
+interface OpenWeatherLocation {
+  id: string;
+  name: string;
+  displayName?: string;
+  prefectureName?: string;
+  state: string;
+  country: string;
+  lat: number;
+  lon: number;
+}
+
+const FEATURED_WEATHER_COUNTRIES = new Set(["JP", "US", "CN"]);
+
+function openWeatherCityLabel(city: OpenWeatherLocation): string {
+  return city.displayName ?? city.name;
+}
+
+function OpenWeatherCityName({ city }: { city: OpenWeatherLocation }) {
+  const areaLabel = city.prefectureName || city.state;
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="truncate">{openWeatherCityLabel(city)}</span>
+      {areaLabel && (
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          {areaLabel}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function SettingsClient({
   role,
   currentUserId,
   initialOrganizationName,
   isOwner,
+  isSuperOwner,
   hasPasswordAuth,
+  weatherProvider,
+  defaultWeatherCityId,
 }: {
   role: "admin" | "general";
   currentUserId: string;
   initialOrganizationName: string;
   isOwner: boolean;
+  isSuperOwner: boolean;
   hasPasswordAuth: boolean;
+  weatherProvider: "openweatherapi" | "tenkiyoho_api_jp";
+  defaultWeatherCityId: string;
 }) {
   const router = useRouter();
-  const [cityId, setCityId] = useState(DEFAULT_CITY_ID);
+  const [cityId, setCityId] = useState(defaultWeatherCityId);
   const [selectedPref, setSelectedPref] = useState<WeatherPrefecture | null>(
     null,
   );
+  const [weatherCountry, setWeatherCountry] = useState("");
+  const [weatherCountries, setWeatherCountries] = useState<OpenWeatherCountry[]>([]);
+  const [citySearch, setCitySearch] = useState("");
+  const [openWeatherCities, setOpenWeatherCities] = useState<OpenWeatherLocation[]>([]);
+  const [selectedOpenWeatherCity, setSelectedOpenWeatherCity] =
+    useState<OpenWeatherLocation | null>(null);
+  const [citySearchLoading, setCitySearchLoading] = useState(false);
+  const [citySearchOpen, setCitySearchOpen] = useState(false);
+  const [openWeatherApiKey, setOpenWeatherApiKey] = useState("");
+  const [openWeatherApiKeyConfigured, setOpenWeatherApiKeyConfigured] = useState(false);
+  const [openWeatherApiKeySaving, setOpenWeatherApiKeySaving] = useState(false);
+  const [openWeatherApiKeyResult, setOpenWeatherApiKeyResult] =
+    useState<{ ok: boolean; msg: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -81,6 +139,10 @@ export function SettingsClient({
   const [imageError, setImageError] = useState<string | null>(null);
   const { theme, setTheme } = useTheme();
   const { locale, setLocale, t, formatDate } = useLocale();
+  const regionNames = useMemo(
+    () => new Intl.DisplayNames([locale], { type: "region" }),
+    [locale],
+  );
   const [dashboardUrl, setDashboardUrl] = useState<string | null>(null);
   const [localeSaving, setLocaleSaving] = useState(false);
 
@@ -178,13 +240,36 @@ export function SettingsClient({
         const res = await fetch("/api/settings");
         if (!res.ok) return;
         const data = await res.json();
-        const saved = data.weatherCityId ?? DEFAULT_CITY_ID;
+        const saved = data.weatherCityId ?? defaultWeatherCityId;
         setCityId(saved);
-        // Find the prefecture for the saved city
-        const pref = WEATHER_AREAS.find((p) =>
-          p.cities.some((c) => c.id === saved),
-        );
-        if (pref) setSelectedPref(pref);
+        if (weatherProvider === "tenkiyoho_api_jp") {
+          const pref = WEATHER_AREAS.find((p) =>
+            p.cities.some((c) => c.id === saved),
+          );
+          if (pref) setSelectedPref(pref);
+        } else {
+          const [countriesResponse, cityResponse] = await Promise.all([
+            fetch("/api/weather/locations"),
+            fetch(`/api/weather/locations?id=${encodeURIComponent(saved)}`),
+          ]);
+          if (countriesResponse.ok) {
+            const countriesData = await countriesResponse.json();
+            setWeatherCountries(countriesData.countries ?? []);
+          }
+          const resolvedCityResponse = cityResponse.ok
+            ? cityResponse
+            : await fetch(
+                `/api/weather/locations?id=${encodeURIComponent(defaultWeatherCityId)}`,
+              );
+          if (resolvedCityResponse.ok) {
+            const cityData = await resolvedCityResponse.json();
+            if (cityData.city) {
+              setCityId(cityData.city.id);
+              setSelectedOpenWeatherCity(cityData.city);
+              setWeatherCountry(cityData.city.country);
+            }
+          }
+        }
         // Load image resize setting
         if (data.imageMaxLongEdge !== undefined) {
           const val = parseInt(data.imageMaxLongEdge, 10);
@@ -242,7 +327,71 @@ export function SettingsClient({
         }
       })
       .catch(() => {});
-  }, [fetchMedia, fetchPasskeys, role]);
+  }, [
+    defaultWeatherCityId,
+    fetchMedia,
+    fetchPasskeys,
+    role,
+    weatherProvider,
+  ]);
+
+  useEffect(() => {
+    if (!isSuperOwner || weatherProvider !== "openweatherapi") return;
+
+    let cancelled = false;
+    void fetch("/api/super-owner/weather-settings")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!cancelled && data) {
+          setOpenWeatherApiKeyConfigured(Boolean(data.configured));
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperOwner, weatherProvider]);
+
+  useEffect(() => {
+    const query = citySearch.trim();
+    if (
+      weatherProvider !== "openweatherapi" ||
+      !weatherCountry ||
+      query.length < 2
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setCitySearchLoading(true);
+      try {
+        const response = await fetch(
+          `/api/weather/locations?country=${encodeURIComponent(weatherCountry)}&q=${encodeURIComponent(query)}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw new Error("City search failed");
+        const data = await response.json();
+        setOpenWeatherCities(data.cities ?? []);
+        setCitySearchOpen(true);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setOpenWeatherCities([]);
+          setCitySearchOpen(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setCitySearchLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [citySearch, weatherCountry, weatherProvider]);
 
   function handlePrefChange(prefName: string | null) {
     if (!prefName) return;
@@ -259,6 +408,73 @@ export function SettingsClient({
     if (!id) return;
     setCityId(id);
     setSaved(false);
+  }
+
+  function handleWeatherCountryChange(country: string | null) {
+    if (!country) return;
+    setWeatherCountry(country);
+    setCitySearch("");
+    setOpenWeatherCities([]);
+    setCitySearchOpen(false);
+    setSelectedOpenWeatherCity(null);
+    setSaved(false);
+  }
+
+  function handleOpenWeatherCityChange(id: string | null) {
+    if (!id) return;
+    const city = openWeatherCities.find((item) => item.id === id);
+    if (!city) return;
+    setSelectedOpenWeatherCity(city);
+    setCityId(city.id);
+    setCitySearch("");
+    setCitySearchOpen(false);
+    setSaved(false);
+  }
+
+  async function handleOpenWeatherApiKeySave() {
+    const apiKey = openWeatherApiKey.trim();
+    if (!apiKey) return;
+
+    setOpenWeatherApiKeySaving(true);
+    setOpenWeatherApiKeyResult(null);
+    try {
+      const response = await fetch("/api/super-owner/weather-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey }),
+      });
+      if (!response.ok) throw new Error("API key save failed");
+      const data = await response.json();
+      setOpenWeatherApiKey("");
+      setOpenWeatherApiKeyConfigured(true);
+      if (
+        typeof data.weatherCityId === "string" &&
+        data.weatherCityId !== cityId
+      ) {
+        const cityResponse = await fetch(
+          `/api/weather/locations?id=${encodeURIComponent(data.weatherCityId)}`,
+        );
+        if (cityResponse.ok) {
+          const cityData = await cityResponse.json();
+          if (cityData.city) {
+            setCityId(cityData.city.id);
+            setWeatherCountry(cityData.city.country);
+            setSelectedOpenWeatherCity(cityData.city);
+          }
+        }
+      }
+      setOpenWeatherApiKeyResult({
+        ok: true,
+        msg: t("settings.openWeatherApiSaved"),
+      });
+    } catch {
+      setOpenWeatherApiKeyResult({
+        ok: false,
+        msg: t("settings.openWeatherApiSaveFailed"),
+      });
+    } finally {
+      setOpenWeatherApiKeySaving(false);
+    }
   }
 
   async function handleSave() {
@@ -846,62 +1062,251 @@ export function SettingsClient({
         )}
       </div>
 
+      {/* OpenWeather API key */}
+      {isSuperOwner && weatherProvider === "openweatherapi" && (
+        <div className="rounded-lg border p-6">
+          <h2 className="mb-2 text-lg font-semibold">
+            {t("settings.openWeatherApiTitle")}
+          </h2>
+          <p className="mb-2 text-sm text-muted-foreground">
+            {t("settings.openWeatherApiDescription")}
+          </p>
+          <p className="mb-4 text-sm text-muted-foreground">
+            {openWeatherApiKeyConfigured
+              ? t("settings.openWeatherApiConfigured")
+              : t("settings.openWeatherApiNotConfigured")}
+          </p>
+          <div className="flex max-w-xl flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-1.5">
+              <Label htmlFor="openweather-api-key">
+                {t("settings.openWeatherApiKeyLabel")}
+              </Label>
+              <Input
+                id="openweather-api-key"
+                type="password"
+                autoComplete="off"
+                value={openWeatherApiKey}
+                placeholder={t("settings.openWeatherApiKeyPlaceholder")}
+                onChange={(event) => {
+                  setOpenWeatherApiKey(event.target.value);
+                  setOpenWeatherApiKeyResult(null);
+                }}
+              />
+            </div>
+            <Button
+              onClick={handleOpenWeatherApiKeySave}
+              disabled={openWeatherApiKeySaving || !openWeatherApiKey.trim()}
+            >
+              {openWeatherApiKeySaving
+                ? t("common.loading")
+                : t("settings.saveButton")}
+            </Button>
+          </div>
+          {openWeatherApiKeyResult && (
+            <span
+              className={`mt-2 block text-sm ${
+                openWeatherApiKeyResult.ok ? "text-green-600" : "text-red-600"
+              }`}
+            >
+              {openWeatherApiKeyResult.msg}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Weather Area Selection */}
       {role === "admin" && <div className="rounded-lg border p-6">
         <h2 className="mb-4 text-lg font-semibold">{t("settings.weatherAreaTitle")}</h2>
         <p className="mb-4 text-sm text-muted-foreground">
-          {t("settings.weatherAreaDescription")}
+          {weatherProvider === "openweatherapi"
+            ? t("settings.weatherAreaDescriptionGlobal")
+            : t("settings.weatherAreaDescription")}
         </p>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {/* Prefecture selector */}
-          <div className="space-y-1.5">
-            <Label htmlFor="setting-pref">{t("settings.prefectureLabel")}</Label>
-            <Select
-              value={selectedPref?.name ?? ""}
-              onValueChange={handlePrefChange}
-            >
-              <SelectTrigger id="setting-pref" className="w-full">
-                <SelectValue placeholder={t("settings.prefecturePlaceholder")}>
-                  {selectedPref?.name ?? t("settings.prefecturePlaceholder")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {WEATHER_AREAS.map((pref) => (
-                  <SelectItem key={pref.name} value={pref.name}>
-                    {pref.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {weatherProvider === "openweatherapi" ? (
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="setting-country">
+                  {t("settings.countryLabel")}
+                </Label>
+                <Select
+                  value={weatherCountry}
+                  onValueChange={handleWeatherCountryChange}
+                >
+                  <SelectTrigger id="setting-country" className="w-full">
+                    <SelectValue placeholder={t("settings.countryPlaceholder")}>
+                      {weatherCountry
+                        ? regionNames.of(weatherCountry) ?? weatherCountry
+                        : t("settings.countryPlaceholder")}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>
+                        {t("settings.featuredCountries")}
+                      </SelectLabel>
+                      {weatherCountries
+                        .filter((country) =>
+                          FEATURED_WEATHER_COUNTRIES.has(country.code),
+                        )
+                        .map((country) => (
+                          <SelectItem key={country.code} value={country.code}>
+                            {regionNames.of(country.code) ?? country.code}
+                          </SelectItem>
+                        ))}
+                    </SelectGroup>
+                    <SelectSeparator />
+                    <SelectGroup>
+                      <SelectLabel>{t("settings.allCountries")}</SelectLabel>
+                      {weatherCountries
+                        .filter((country) =>
+                          !FEATURED_WEATHER_COUNTRIES.has(country.code),
+                        )
+                        .map((country) => (
+                          <SelectItem key={country.code} value={country.code}>
+                            {regionNames.of(country.code) ?? country.code}
+                          </SelectItem>
+                        ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {/* City selector */}
-          <div className="space-y-1.5">
-            <Label htmlFor="setting-city">{t("settings.cityLabel")}</Label>
-            <Select
-              value={cityId}
-              onValueChange={handleCityChange}
-              disabled={!selectedPref}
-            >
-              <SelectTrigger id="setting-city" className="w-full">
-                <SelectValue placeholder={t("settings.cityPlaceholder")}>
-                  {currentCity?.name ?? t("settings.cityPlaceholder")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {selectedPref?.cities.map((city) => (
-                  <SelectItem key={city.id} value={city.id}>
-                    {city.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <div className="space-y-1.5">
+                <Label htmlFor="setting-city-search">
+                  {t("settings.citySearchLabel")}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="setting-city-search"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={
+                      citySearchOpen && citySearch.trim().length >= 2
+                    }
+                    value={citySearch}
+                    placeholder={t("settings.citySearchPlaceholder")}
+                    disabled={!weatherCountry}
+                    onChange={(event) => {
+                      setCitySearch(event.target.value);
+                      setCitySearchOpen(event.target.value.trim().length >= 2);
+                    }}
+                    onFocus={() => {
+                      if (citySearch.trim().length >= 2) {
+                        setCitySearchOpen(true);
+                      }
+                    }}
+                    onBlur={() => setCitySearchOpen(false)}
+                  />
+                  {citySearchOpen && citySearch.trim().length >= 2 && (
+                    <div
+                      role="listbox"
+                      className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+                    >
+                      {citySearchLoading ? (
+                        <div className="px-2.5 py-2 text-sm text-muted-foreground">
+                          {t("common.loading")}
+                        </div>
+                      ) : openWeatherCities.length === 0 ? (
+                        <div className="px-2.5 py-2 text-sm text-muted-foreground">
+                          {t("settings.citySearchEmpty")}
+                        </div>
+                      ) : (
+                        openWeatherCities.map((city) => (
+                          <button
+                            key={city.id}
+                            type="button"
+                            role="option"
+                            aria-selected={
+                              selectedOpenWeatherCity?.id === city.id
+                            }
+                            className="flex w-full rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() =>
+                              handleOpenWeatherCityChange(city.id)
+                            }
+                          >
+                            <OpenWeatherCityName city={city} />
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t("settings.citySearchHint")}
+                </p>
+              </div>
+            </div>
+
+            {selectedOpenWeatherCity && (
+              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">
+                  {t("common.currentSetting")}:
+                </span>{" "}
+                <span className="font-medium">
+                  <OpenWeatherCityName city={selectedOpenWeatherCity} />
+                </span>
+              </div>
+            )}
           </div>
-        </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="setting-pref">{t("settings.prefectureLabel")}</Label>
+              <Select
+                value={selectedPref?.name ?? ""}
+                onValueChange={handlePrefChange}
+              >
+                <SelectTrigger id="setting-pref" className="w-full">
+                  <SelectValue placeholder={t("settings.prefecturePlaceholder")}>
+                    {selectedPref?.name ?? t("settings.prefecturePlaceholder")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {WEATHER_AREAS.map((pref) => (
+                    <SelectItem key={pref.name} value={pref.name}>
+                      {pref.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="setting-city">{t("settings.cityLabel")}</Label>
+              <Select
+                value={cityId}
+                onValueChange={handleCityChange}
+                disabled={!selectedPref}
+              >
+                <SelectTrigger id="setting-city" className="w-full">
+                  <SelectValue placeholder={t("settings.cityPlaceholder")}>
+                    {currentCity?.name ?? t("settings.cityPlaceholder")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {selectedPref?.cities.map((city) => (
+                    <SelectItem key={city.id} value={city.id}>
+                      {city.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 flex items-center gap-3">
-          <Button onClick={handleSave} disabled={saving}>
+          <Button
+            onClick={handleSave}
+            disabled={
+              saving ||
+              (weatherProvider === "openweatherapi" &&
+                !selectedOpenWeatherCity)
+            }
+          >
             {saving ? t("boardEdit.saving") : t("settings.saveButton")}
           </Button>
           {saved && (
@@ -909,7 +1314,17 @@ export function SettingsClient({
           )}
         </div>
 
-        {currentCity && (
+        {weatherProvider === "openweatherapi" && selectedOpenWeatherCity ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {t("settings.weatherCurrent", {
+              pref:
+                selectedOpenWeatherCity.prefectureName ??
+                selectedOpenWeatherCity.country,
+              city: openWeatherCityLabel(selectedOpenWeatherCity),
+              code: cityId,
+            })}
+          </p>
+        ) : currentCity && (
           <p className="mt-3 text-sm text-muted-foreground">
             {t("settings.weatherCurrent", { pref: selectedPref?.name ?? "", city: currentCity.name, code: cityId })}
           </p>

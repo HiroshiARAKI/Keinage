@@ -113,7 +113,8 @@ Issue や Pull Request は歓迎します。バグ報告や機能リクエスト
 
 ## 謝辞
 
-- 天気予報データは [天気予報 API（livedoor 天気互換）](https://weather.tsukumijima.net/) を利用させていただいています。
+- 天気情報と都市リストは [OpenWeather](https://openweathermap.org/) を利用しています。
+- 日本向けの任意プロバイダでは [天気予報 API（livedoor 天気互換）](https://weather.tsukumijima.net/) を利用させていただいています。
 
 ## ライセンス
 
