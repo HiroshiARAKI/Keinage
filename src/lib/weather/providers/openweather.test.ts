@@ -51,12 +51,15 @@ test("OpenWeather provider combines timeline pages into a daily forecast", async
       lat: 35.689499,
       lon: 139.691711,
     }),
+    async (city) => ({ ...city, displayName: "東京都" }),
   );
   const forecast = await provider.fetchForecast("1850147");
 
   assert.equal(requests.length, 3);
   assert.ok(requests.every((url) => url.searchParams.get("units") === "metric"));
   assert.equal(forecast.condition.code, "partly-cloudy");
+  assert.equal(forecast.location.name, "東京都");
+  assert.equal(forecast.location.city, "東京都");
   assert.equal(forecast.forecastDate, "2026-06-12");
   assert.deepEqual(forecast.temperature, {
     maxCelsius: 24,
@@ -82,6 +85,7 @@ test("OpenWeather provider fails before requesting data when the key is missing"
       lat: 35.689499,
       lon: 139.691711,
     }),
+    async (city) => city,
   );
 
   await assert.rejects(
@@ -140,6 +144,7 @@ test("OpenWeather provider retains elapsed hourly data across same-day refreshes
       lat: 35.689499,
       lon: 139.691711,
     }),
+    async (city) => city,
   );
   await provider.fetchForecast("1850147");
   const refreshed = await provider.fetchForecast("1850147");

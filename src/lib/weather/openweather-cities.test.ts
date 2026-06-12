@@ -83,7 +83,7 @@ test("Japanese geocoding search maps localized names to the largest City ID", as
   }]);
 });
 
-test("Japanese reverse geocoding localizes a selected city", async (t) => {
+test("Japanese geocoding localizes a selected city", async (t) => {
   t.mock.method(globalThis, "fetch", async () => Response.json([
     {
       name: "Tokyo",
@@ -101,4 +101,60 @@ test("Japanese reverse geocoding localizes a selected city", async (t) => {
     "test-key",
   );
   assert.equal(localized.displayName, "東京都");
+});
+
+test("Japanese prefecture search returns cities in the matched prefecture index", async (t) => {
+  const fetchMock = t.mock.method(globalThis, "fetch", async (input) => {
+    const query = new URL(String(input)).searchParams.get("q") ?? "";
+    if (query.startsWith("横浜,") || query.startsWith("Yokohama,")) {
+      return Response.json([
+        {
+          name: "Yokohama",
+          local_names: { en: "Yokohama", ja: "横浜市" },
+          lat: 35.4503381,
+          lon: 139.6343802,
+          country: "JP",
+        },
+        {
+          name: "Yokohama",
+          local_names: { en: "Yokohama", ja: "横浜町" },
+          lat: 41.0830879,
+          lon: 141.2478217,
+          country: "JP",
+        },
+      ]);
+    }
+    if (query.startsWith("小田原,") || query.startsWith("Odawara,")) {
+      return Response.json([
+        {
+          name: "Odawara",
+          local_names: { en: "Odawara", ja: "小田原市" },
+          lat: 35.25556,
+          lon: 139.15972,
+          country: "JP",
+        },
+      ]);
+    }
+    return Response.json([]);
+  });
+
+  const cities = await searchJapaneseOpenWeatherCities({
+    query: "神奈川県",
+    apiKey: "test-key",
+  });
+  assert.deepEqual(
+    cities.map((city) => city.id).sort(),
+    ["1854747", "2127436"],
+  );
+  assert.ok(cities.some((city) => city.displayName === "横浜町"));
+  assert.ok(cities.some((city) => city.displayName === "小田原市"));
+  const callsAfterFirstSearch = fetchMock.mock.callCount();
+  assert.ok(callsAfterFirstSearch >= 2);
+
+  const cached = await searchJapaneseOpenWeatherCities({
+    query: "神奈川",
+    apiKey: "test-key",
+  });
+  assert.deepEqual(cached, cities);
+  assert.equal(fetchMock.mock.callCount(), callsAfterFirstSearch);
 });

@@ -1,6 +1,10 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
-import { findOpenWeatherCity } from "@/lib/weather/openweather-cities";
+import {
+  findOpenWeatherCity,
+  localizeJapaneseOpenWeatherCity,
+  type OpenWeatherCity,
+} from "@/lib/weather/openweather-cities";
 import { getOpenWeatherApiKey } from "@/lib/weather/openweather-config";
 import type {
   WeatherCondition,
@@ -154,6 +158,7 @@ export class OpenWeatherProvider implements WeatherProvider {
   constructor(
     private readonly apiKeyResolver = getOpenWeatherApiKey,
     private readonly cityResolver = findOpenWeatherCity,
+    private readonly cityLocalizer = localizeJapaneseOpenWeatherCity,
   ) {}
 
   isLocationId(value: string): boolean {
@@ -165,12 +170,16 @@ export class OpenWeatherProvider implements WeatherProvider {
       throw new Error("Invalid OpenWeather city ID");
     }
 
-    const [apiKey, city] = await Promise.all([
+    const [apiKey, resolvedCity] = await Promise.all([
       this.apiKeyResolver(),
       this.cityResolver(locationId),
     ]);
     if (!apiKey) throw new Error("OpenWeather API key is not configured");
-    if (!city) throw new Error("OpenWeather city ID was not found");
+    if (!resolvedCity) throw new Error("OpenWeather city ID was not found");
+    const city: OpenWeatherCity =
+      resolvedCity.country === "JP"
+        ? await this.cityLocalizer(resolvedCity, apiKey)
+        : resolvedCity;
 
     const current = await fetchOpenWeather("current", {
       lat: city.lat,
@@ -256,9 +265,12 @@ export class OpenWeatherProvider implements WeatherProvider {
       provider: this.id,
       locationId,
       location: {
-        name: [city.name, city.state, city.country].filter(Boolean).join(", "),
+        name:
+          city.country === "JP"
+            ? city.displayName ?? city.name
+            : [city.name, city.state, city.country].filter(Boolean).join(", "),
         prefecture: city.state || null,
-        city: city.name,
+        city: city.displayName ?? city.name,
       },
       condition: {
         code: conditionCode(currentEntry),
