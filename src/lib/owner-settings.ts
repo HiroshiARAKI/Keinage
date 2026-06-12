@@ -4,6 +4,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { settings } from "@/db/schema";
 
+const SENSITIVE_SETTING_KEYS = new Set(["openWeatherApiKey"]);
+
 export async function getOwnerSetting(
   ownerUserId: string,
   key: string,
@@ -27,6 +29,7 @@ export async function listOwnerSettings(
 
   const result: Record<string, string> = {};
   for (const row of rows) {
+    if (SENSITIVE_SETTING_KEYS.has(row.key)) continue;
     result[row.key] = row.value;
   }
   return result;

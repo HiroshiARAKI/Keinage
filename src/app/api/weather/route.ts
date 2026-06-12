@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { boards } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { DEFAULT_CITY_ID } from "@/lib/weather-areas";
 import { getSessionUser } from "@/lib/auth";
 import { isBoardDisplayable } from "@/lib/board-status";
 import { getOwnerSetting } from "@/lib/owner-settings";
@@ -48,11 +47,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const provider = getWeatherProvider();
   const cityId = ownerUserId
-    ? (await getOwnerSetting(ownerUserId, "weatherCityId")) ?? DEFAULT_CITY_ID
-    : DEFAULT_CITY_ID;
+    ? (await getOwnerSetting(ownerUserId, "weatherCityId")) ??
+      provider.defaultLocationId
+    : provider.defaultLocationId;
 
-  if (!getWeatherProvider().isLocationId(cityId)) {
+  if (!provider.isLocationId(cityId)) {
     return NextResponse.json(
       { error: "Invalid city ID" },
       { status: 400 },
@@ -67,10 +68,15 @@ export async function GET(request: NextRequest) {
         "X-Weather-Cache": result.cacheStatus,
       },
     });
-  } catch {
+  } catch (error) {
+    console.error("[weather] Failed to fetch forecast", {
+      provider: provider.id,
+      cityId,
+      error,
+    });
     return NextResponse.json(
       { error: "Failed to fetch weather" },
-      { status: 502 },
+      { status: provider.id === "openweatherapi" ? 503 : 502 },
     );
   }
 }

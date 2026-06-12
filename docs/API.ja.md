@@ -260,10 +260,12 @@ Plan 制限に到達した場合、ボード作成・更新やメディア追加
 | `PATCH` | `/api/settings` | Owner 設定更新 | `admin` / 一部 Owner `admin` |
 | `GET` | `/api/board-devices` | 表示端末の最終アクセス状態を取得 | `admin` |
 | `GET` | `/api/weather` | 現在のOwnerまたはボード向けに正規化した天気情報を取得 | 不要 / 非公開ボードの表示権限 |
+| `GET` | `/api/weather/locations` | OpenWeatherの国一覧、都市検索、City ID解決 | `admin` |
+| `GET`, `PATCH` | `/api/super-owner/weather-settings` | OpenWeather APIキーの設定状態確認・更新（値は返さない） | Super Owner |
 | `GET` | `/api/version` | 現在バージョンと最新リリース情報 | 不要 |
 | `GET` | `/api/network` | ネットワーク情報取得 | 不要 |
 
-`/api/settings` の `authExpireDays` はOwnerスコープ全体のセキュリティ設定のため Owner user の `admin` だけが更新できます。`/api/weather` はOwner設定の観測地を解決し、内部の天気プロバイダサービスから、プロバイダ非依存の天気状態、気温、4区分の降水確率を返します。予報はプロバイダ・観測地単位で30分ごとに更新し、同じ予報日について一度取得できた値は、後続レスポンスで欠損していても保持します。同時更新は1回の外部リクエストへ集約し、一度取得済みの場合は更新失敗時にstaleデータを返します。`/api/version` は GitHub Releases API を参照します。
+`/api/settings` の `authExpireDays` はOwnerスコープ全体のセキュリティ設定のため Owner user の `admin` だけが更新できます。`/api/weather` はOwner設定の観測地を解決し、内部の天気プロバイダサービスから、プロバイダ非依存の天気状態、気温、4区分の降水確率を返します。OpenWeatherは1時間、日本向けプロバイダは30分ごとに更新します。同じ予報日について一度取得できた値は後続レスポンスで欠損していても保持し、更新中の重複リクエストや更新失敗時にはstaleデータを返します。`/api/version` は GitHub Releases API を参照します。
 
 ## 12. SSE API
 

@@ -48,7 +48,8 @@ Self-hosted では、次の設定だけで基本運用を開始できます。
 | `WEBAUTHN_*` | 任意 | Owner に Passkey 二要素認証を要求する場合に設定。 |
 | `S3_*` / `STORAGE_*` | 任意 | ローカル `uploads/` ではなく S3互換ストレージを使う場合に設定。 |
 | `AUDIT_LOG_*` | 任意 | 認証、課金、退会、Super Owner などの監査ログ設定と保持期間。 |
-| `WEATHER_PROVIDER` | 任意 | 天気アダプタ。現在は `tsukumijima`（既定）に対応。 |
+| `WEATHER_PROVIDER` | 任意 | 天気アダプタ。`openweatherapi`（既定）または `tenkiyoho_api_jp`。 |
+| `OPENWEATHER_API_KEY` | 任意 | OpenWeather API キーのフォールバック値。代わりに Super Owner が設定画面から登録できます。 |
 
 ## 4. 公式SaaS mode
 

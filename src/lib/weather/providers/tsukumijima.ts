@@ -68,7 +68,9 @@ function displayLocation(location: NonNullable<TsukumijimaForecastResponse["loca
 }
 
 export class TsukumijimaWeatherProvider implements WeatherProvider {
-  readonly id = "tsukumijima";
+  readonly id = "tenkiyoho_api_jp";
+  readonly defaultLocationId = "130010";
+  readonly cacheTtlMs = 30 * 60 * 1000;
 
   isLocationId(value: string): boolean {
     return LOCATION_ID_RE.test(value);

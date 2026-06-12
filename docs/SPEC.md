@@ -281,7 +281,7 @@ Display screens subscribe to Server-Sent Events and automatically reflect dashbo
 | Media creation, reorder, or deletion | Refetch media |
 | Message creation, update, or deletion | Refetch messages |
 
-Weather uses an internal provider shared by every board. Forecasts are refreshed and recached every 30 minutes per location, so multiple boards do not independently call the external API. The display uses a consistent Keinage monochrome icon set rather than provider images. The horizontal card shows the configured observation area, today's condition, high and low temperatures, and precipitation probabilities for 0-6, 6-12, 12-18, and 18-24. An admin selects the region.
+Weather uses an internal provider shared by every board. OpenWeather forecasts are refreshed and recached hourly per City ID, so multiple boards do not independently call the external API. The display uses a consistent Keinage monochrome icon set rather than provider images. The horizontal card shows the configured city, today's condition, high and low temperatures, and precipitation probabilities for 0-6, 6-12, 12-18, and 18-24. An admin selects the country and city; the Super Owner configures the OpenWeather API key.
 
 ## 6. Settings
 

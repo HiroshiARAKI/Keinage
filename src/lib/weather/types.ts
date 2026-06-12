@@ -39,6 +39,8 @@ export interface WeatherForecast {
 
 export interface WeatherProvider {
   readonly id: string;
+  readonly defaultLocationId: string;
+  readonly cacheTtlMs: number;
   isLocationId(value: string): boolean;
   fetchForecast(locationId: string): Promise<WeatherForecast>;
 }

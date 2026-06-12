@@ -15,6 +15,8 @@ import {
 import { emitSSE } from "@/lib/sse";
 import { WEATHER_UPDATED_EVENT } from "@/lib/weather/events";
 import { getWeatherProvider } from "@/lib/weather/provider";
+import { findOpenWeatherCity } from "@/lib/weather/openweather-cities";
+import { OPENWEATHER_API_KEY_SETTING } from "@/lib/weather/openweather-config";
 
 const OWNER_ONLY_SETTING_KEYS = new Set(["authExpireDays"]);
 
@@ -49,6 +51,12 @@ export async function PATCH(request: Request) {
     if (typeof key !== "string" || typeof value !== "string") continue;
     updates[key] = value;
   }
+  if (OPENWEATHER_API_KEY_SETTING in updates) {
+    return NextResponse.json(
+      { error: "Super Owner API is required" },
+      { status: 403 },
+    );
+  }
 
   const containsOwnerOnlySetting = Object.keys(updates).some((key) =>
     OWNER_ONLY_SETTING_KEYS.has(key),
@@ -61,11 +69,17 @@ export async function PATCH(request: Request) {
   }
 
   const ownerUserId = resolveOwnerUserId(session.user);
-  if (
-    typeof updates.weatherCityId === "string" &&
-    !getWeatherProvider().isLocationId(updates.weatherCityId)
-  ) {
-    return NextResponse.json({ error: "Invalid weatherCityId" }, { status: 400 });
+  if (typeof updates.weatherCityId === "string") {
+    const provider = getWeatherProvider();
+    if (!provider.isLocationId(updates.weatherCityId)) {
+      return NextResponse.json({ error: "Invalid weatherCityId" }, { status: 400 });
+    }
+    if (
+      provider.id === "openweatherapi" &&
+      !(await findOpenWeatherCity(updates.weatherCityId))
+    ) {
+      return NextResponse.json({ error: "Unknown weatherCityId" }, { status: 400 });
+    }
   }
 
   if (typeof updates.imageMaxLongEdge === "string") {
