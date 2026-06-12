@@ -35,7 +35,7 @@ test("OpenWeather city list resolves City IDs and supports country searches", as
   });
   assert.deepEqual(
     cities.map((city) => city.id),
-    ["2127436"],
+    ["1848354", "2127436"],
   );
 });
 
@@ -50,7 +50,7 @@ test("OpenWeather city search requires a country and two query characters", asyn
   );
 });
 
-test("Japanese geocoding search maps localized names to the largest City ID", async (t) => {
+test("Japanese geocoding search preserves same-name cities by location", async (t) => {
   t.mock.method(globalThis, "fetch", async () => Response.json([
     {
       name: "Yokohama",
@@ -72,15 +72,28 @@ test("Japanese geocoding search maps localized names to the largest City ID", as
     query: "横浜",
     apiKey: "test-key",
   });
-  assert.deepEqual(cities, [{
-    id: "2127436",
-    name: "Yokohama",
-    displayName: "横浜町",
-    state: "",
-    country: "JP",
-    lat: 41.083328,
-    lon: 141.25,
-  }]);
+  assert.deepEqual(cities.sort((left, right) => Number(left.id) - Number(right.id)), [
+    {
+      id: "1848354",
+      name: "Yokohama",
+      displayName: "横浜市",
+      prefectureName: "神奈川県",
+      state: "",
+      country: "JP",
+      lat: 35.447781,
+      lon: 139.642502,
+    },
+    {
+      id: "2127436",
+      name: "Yokohama",
+      displayName: "横浜町",
+      prefectureName: "青森県",
+      state: "",
+      country: "JP",
+      lat: 41.083328,
+      lon: 141.25,
+    },
+  ]);
 });
 
 test("Japanese geocoding localizes a selected city", async (t) => {
@@ -101,6 +114,7 @@ test("Japanese geocoding localizes a selected city", async (t) => {
     "test-key",
   );
   assert.equal(localized.displayName, "東京都");
+  assert.equal(localized.prefectureName, "東京都");
 });
 
 test("Japanese prefecture search returns cities in the matched prefecture index", async (t) => {
@@ -148,6 +162,7 @@ test("Japanese prefecture search returns cities in the matched prefecture index"
   );
   assert.ok(cities.some((city) => city.displayName === "横浜市"));
   assert.ok(cities.some((city) => city.displayName === "小田原市"));
+  assert.ok(cities.every((city) => city.prefectureName === "神奈川県"));
   const callsAfterFirstSearch = fetchMock.mock.callCount();
   assert.ok(callsAfterFirstSearch >= 2);
 

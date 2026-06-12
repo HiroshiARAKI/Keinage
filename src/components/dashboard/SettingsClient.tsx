@@ -59,6 +59,7 @@ interface OpenWeatherLocation {
   id: string;
   name: string;
   displayName?: string;
+  prefectureName?: string;
   state: string;
   country: string;
   lat: number;
@@ -68,9 +69,21 @@ interface OpenWeatherLocation {
 const FEATURED_WEATHER_COUNTRIES = new Set(["JP", "US", "CN"]);
 
 function openWeatherCityLabel(city: OpenWeatherLocation): string {
-  return [city.displayName ?? city.name, city.state]
-    .filter(Boolean)
-    .join(", ");
+  return city.displayName ?? city.name;
+}
+
+function OpenWeatherCityName({ city }: { city: OpenWeatherLocation }) {
+  const areaLabel = city.prefectureName || city.state;
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="truncate">{openWeatherCityLabel(city)}</span>
+      {areaLabel && (
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          {areaLabel}
+        </span>
+      )}
+    </span>
+  );
 }
 
 export function SettingsClient({
@@ -1214,7 +1227,7 @@ export function SettingsClient({
                               handleOpenWeatherCityChange(city.id)
                             }
                           >
-                            {openWeatherCityLabel(city)}
+                            <OpenWeatherCityName city={city} />
                           </button>
                         ))
                       )}
@@ -1233,7 +1246,7 @@ export function SettingsClient({
                   {t("common.currentSetting")}:
                 </span>{" "}
                 <span className="font-medium">
-                  {openWeatherCityLabel(selectedOpenWeatherCity)}
+                  <OpenWeatherCityName city={selectedOpenWeatherCity} />
                 </span>
               </div>
             )}
@@ -1304,11 +1317,10 @@ export function SettingsClient({
         {weatherProvider === "openweatherapi" && selectedOpenWeatherCity ? (
           <p className="mt-3 text-sm text-muted-foreground">
             {t("settings.weatherCurrent", {
-              pref: selectedOpenWeatherCity.country,
-              city: [
-                selectedOpenWeatherCity.name,
-                selectedOpenWeatherCity.state,
-              ].filter(Boolean).join(", "),
+              pref:
+                selectedOpenWeatherCity.prefectureName ??
+                selectedOpenWeatherCity.country,
+              city: openWeatherCityLabel(selectedOpenWeatherCity),
               code: cityId,
             })}
           </p>

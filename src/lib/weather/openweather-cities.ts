@@ -19,6 +19,7 @@ export interface OpenWeatherCity {
   id: string;
   name: string;
   displayName?: string;
+  prefectureName?: string;
   state: string;
   country: string;
   lat: number;
@@ -45,15 +46,20 @@ interface OpenWeatherGeocodingLocation {
   state?: unknown;
 }
 
-let citiesPromise: Promise<OpenWeatherCity[]> | null = null;
 let allCitiesPromise: Promise<OpenWeatherCity[]> | null = null;
 let cityIndexPromise: Promise<Map<string, OpenWeatherCity>> | null = null;
-let cityNameIndexPromise: Promise<Map<string, OpenWeatherCity>> | null = null;
 let allCityNameIndexPromise:
   | Promise<Map<string, OpenWeatherCity[]>>
   | null = null;
-const japaneseCityNameCache = new Map<string, string>();
+const japaneseCityLocalizationCache = new Map<
+  string,
+  Pick<OpenWeatherCity, "displayName" | "prefectureName">
+>();
 const japanesePrefectureSearchCache = new Map<string, OpenWeatherCity[]>();
+const JAPANESE_PREFECTURE_OVERRIDES = new Map([
+  ["1850147", "東京都"],
+  ["2127436", "青森県"],
+]);
 
 function normalizeSearchText(value: string): string {
   return value
@@ -92,20 +98,6 @@ function cityNameKey(country: string, name: string): string {
   return `${country}:${normalizeSearchText(name)}`;
 }
 
-function preferLargerCityId(
-  cities: OpenWeatherCity[],
-): OpenWeatherCity[] {
-  const byName = new Map<string, OpenWeatherCity>();
-  for (const city of cities) {
-    const key = cityNameKey(city.country, city.name);
-    const previous = byName.get(key);
-    if (!previous || Number(city.id) > Number(previous.id)) {
-      byName.set(key, city);
-    }
-  }
-  return [...byName.values()];
-}
-
 async function loadAllCities(): Promise<OpenWeatherCity[]> {
   if (!allCitiesPromise) {
     allCitiesPromise = (async () => {
@@ -120,13 +112,6 @@ async function loadAllCities(): Promise<OpenWeatherCity[]> {
   return allCitiesPromise;
 }
 
-async function loadCities(): Promise<OpenWeatherCity[]> {
-  if (!citiesPromise) {
-    citiesPromise = loadAllCities().then(preferLargerCityId);
-  }
-  return citiesPromise;
-}
-
 async function getCityIndex() {
   if (!cityIndexPromise) {
     cityIndexPromise = loadAllCities().then(
@@ -134,17 +119,6 @@ async function getCityIndex() {
     );
   }
   return cityIndexPromise;
-}
-
-async function getCityNameIndex() {
-  if (!cityNameIndexPromise) {
-    cityNameIndexPromise = loadCities().then(
-      (cities) => new Map(
-        cities.map((city) => [cityNameKey(city.country, city.name), city]),
-      ),
-    );
-  }
-  return cityNameIndexPromise;
 }
 
 async function getAllCityNameIndex() {
@@ -248,17 +222,31 @@ function matchingJapanesePrefectureCities(query: string) {
   );
 }
 
+function inferJapanesePrefecture(
+  city: OpenWeatherCity,
+  displayName: string,
+): string | undefined {
+  const override = JAPANESE_PREFECTURE_OVERRIDES.get(city.id);
+  if (override) return override;
+  if (city.state.endsWith("都") || city.state.endsWith("道") ||
+      city.state.endsWith("府") || city.state.endsWith("県")) {
+    return city.state;
+  }
+
+  const municipality = displayName.replace(/[市区]$/, "");
+  for (const area of WEATHER_AREAS) {
+    if (area.cities.some((candidate) => candidate.name === municipality)) {
+      return japanesePrefectureName(area.name);
+    }
+  }
+  return undefined;
+}
+
 async function mapGeocodingLocationsToJapaneseCities(
   locations: OpenWeatherGeocodingLocation[],
   cacheDisplayNames = true,
-  preserveGeographicDuplicates = false,
 ): Promise<OpenWeatherCity[]> {
-  const cityNameIndex = preserveGeographicDuplicates
-    ? null
-    : await getCityNameIndex();
-  const allCityNameIndex = preserveGeographicDuplicates
-    ? await getAllCityNameIndex()
-    : null;
+  const allCityNameIndex = await getAllCityNameIndex();
   const matches = new Map<
     string,
     { city: OpenWeatherCity; distance: number }
@@ -268,32 +256,45 @@ async function mapGeocodingLocationsToJapaneseCities(
     if (location.country !== "JP") continue;
     const englishName = geocodingEnglishName(location);
     const key = cityNameKey("JP", englishName);
-    const city = preserveGeographicDuplicates
-      ? (allCityNameIndex?.get(key) ?? [])
-          .sort(
-            (left, right) =>
-              geographicDistanceSquared(left, location) -
-              geographicDistanceSquared(right, location),
-          )[0]
-      : cityNameIndex?.get(key);
+    const city = (allCityNameIndex.get(key) ?? [])
+      .sort(
+        (left, right) =>
+          geographicDistanceSquared(left, location) -
+          geographicDistanceSquared(right, location),
+      )[0];
     if (!city) continue;
     const distance = geographicDistanceSquared(city, location);
     const previous = matches.get(city.id);
     if (!previous || distance < previous.distance) {
       const displayName = geocodingJapaneseName(location);
+      const prefectureName = inferJapanesePrefecture(city, displayName);
       if (cacheDisplayNames) {
-        japaneseCityNameCache.set(city.id, displayName);
+        japaneseCityLocalizationCache.set(city.id, {
+          displayName,
+          prefectureName,
+        });
       }
       matches.set(city.id, {
-        city: { ...city, displayName },
+        city: { ...city, displayName, prefectureName },
         distance,
       });
     }
   }
 
   return [...matches.values()]
-    .sort((left, right) => left.distance - right.distance)
-    .map(({ city }) => city);
+    .map(({ city }) => city)
+    .sort((left, right) => {
+      const prefecture = (left.prefectureName ?? "").localeCompare(
+        right.prefectureName ?? "",
+        "ja",
+      );
+      if (prefecture) return prefecture;
+      const name = (left.displayName ?? left.name).localeCompare(
+        right.displayName ?? right.name,
+        "ja",
+      );
+      return name || Number(left.id) - Number(right.id);
+    });
 }
 
 export async function findOpenWeatherCity(
@@ -307,8 +308,8 @@ export async function localizeJapaneseOpenWeatherCity(
   apiKey: string,
 ): Promise<OpenWeatherCity> {
   if (city.country !== "JP") return city;
-  const cached = japaneseCityNameCache.get(city.id);
-  if (cached) return { ...city, displayName: cached };
+  const cached = japaneseCityLocalizationCache.get(city.id);
+  if (cached) return { ...city, ...cached };
 
   let locations = await fetchGeocodingLocations(
     geocodingUrl("direct", apiKey, {
@@ -335,15 +336,19 @@ export async function localizeJapaneseOpenWeatherCity(
   const displayName = closest
     ? geocodingJapaneseName(closest)
     : city.name;
-  japaneseCityNameCache.set(city.id, displayName);
-  return { ...city, displayName };
+  const prefectureName = inferJapanesePrefecture(city, displayName);
+  japaneseCityLocalizationCache.set(city.id, {
+    displayName,
+    prefectureName,
+  });
+  return { ...city, displayName, prefectureName };
 }
 
 export async function listOpenWeatherCountries(): Promise<
   Array<{ code: string; count: number }>
 > {
   const counts = new Map<string, number>();
-  for (const city of await loadCities()) {
+  for (const city of await loadAllCities()) {
     counts.set(city.country, (counts.get(city.country) ?? 0) + 1);
   }
   return [...counts]
@@ -370,7 +375,7 @@ export async function searchOpenWeatherCities(input: {
   const limit = Math.min(Math.max(input.limit ?? 100, 1), 200);
   if (!/^[A-Z]{2}$/.test(country) || query.length < 2) return [];
 
-  return (await loadCities())
+  return (await loadAllCities())
     .filter((city) => {
       if (city.country !== country) return false;
       return normalizeSearchText(`${city.state} ${city.name}`).includes(query);
@@ -415,7 +420,6 @@ export async function searchJapaneseOpenWeatherCities(input: {
     const matchedCities = await mapGeocodingLocationsToJapaneseCities(
       locations,
       false,
-      true,
     );
     const cities = await Promise.all(
       matchedCities.map((city) =>
