@@ -97,15 +97,21 @@ test("Japanese geocoding search preserves same-name cities by location", async (
 });
 
 test("Japanese geocoding localizes a selected city", async (t) => {
-  t.mock.method(globalThis, "fetch", async () => Response.json([
-    {
-      name: "Tokyo",
-      local_names: { ja: "東京都" },
-      lat: 35.6768601,
-      lon: 139.7638947,
-      country: "JP",
-    },
-  ]));
+  t.mock.method(globalThis, "fetch", async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "mreversegeocoder.gsi.go.jp") {
+      return Response.json({ results: { muniCd: "13104" } });
+    }
+    return Response.json([
+      {
+        name: "Tokyo",
+        local_names: { ja: "東京都" },
+        lat: 35.6768601,
+        lon: 139.7638947,
+        country: "JP",
+      },
+    ]);
+  });
   const tokyo = await findOpenWeatherCity("1850147");
   assert.ok(tokyo);
 
@@ -115,6 +121,33 @@ test("Japanese geocoding localizes a selected city", async (t) => {
   );
   assert.equal(localized.displayName, "東京都");
   assert.equal(localized.prefectureName, "東京都");
+});
+
+test("GSI municipality codes fill prefectures for towns missing from the local index", async (t) => {
+  t.mock.method(globalThis, "fetch", async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "mreversegeocoder.gsi.go.jp") {
+      return Response.json({ results: { muniCd: "19430" } });
+    }
+    return Response.json([
+      {
+        name: "Fujikawaguchiko",
+        local_names: { en: "Fujikawaguchiko", ja: "富士河口湖町" },
+        lat: 35.5010653,
+        lon: 138.7653041,
+        country: "JP",
+      },
+    ]);
+  });
+  const city = await findOpenWeatherCity("7281819");
+  assert.ok(city);
+
+  const localized = await localizeJapaneseOpenWeatherCity(
+    city,
+    "test-key",
+  );
+  assert.equal(localized.displayName, "富士河口湖町");
+  assert.equal(localized.prefectureName, "山梨県");
 });
 
 test("Japanese prefecture search returns cities in the matched prefecture index", async (t) => {

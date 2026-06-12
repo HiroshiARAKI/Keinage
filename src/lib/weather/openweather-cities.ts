@@ -14,6 +14,57 @@ const CITY_LIST_PATH = path.join(
   "openweather",
   "city.list.json.gz",
 );
+const GSI_REVERSE_GEOCODER_URL =
+  "https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress";
+const JAPANESE_PREFECTURES: Record<string, string> = {
+  "01": "北海道",
+  "02": "青森県",
+  "03": "岩手県",
+  "04": "宮城県",
+  "05": "秋田県",
+  "06": "山形県",
+  "07": "福島県",
+  "08": "茨城県",
+  "09": "栃木県",
+  "10": "群馬県",
+  "11": "埼玉県",
+  "12": "千葉県",
+  "13": "東京都",
+  "14": "神奈川県",
+  "15": "新潟県",
+  "16": "富山県",
+  "17": "石川県",
+  "18": "福井県",
+  "19": "山梨県",
+  "20": "長野県",
+  "21": "岐阜県",
+  "22": "静岡県",
+  "23": "愛知県",
+  "24": "三重県",
+  "25": "滋賀県",
+  "26": "京都府",
+  "27": "大阪府",
+  "28": "兵庫県",
+  "29": "奈良県",
+  "30": "和歌山県",
+  "31": "鳥取県",
+  "32": "島根県",
+  "33": "岡山県",
+  "34": "広島県",
+  "35": "山口県",
+  "36": "徳島県",
+  "37": "香川県",
+  "38": "愛媛県",
+  "39": "高知県",
+  "40": "福岡県",
+  "41": "佐賀県",
+  "42": "長崎県",
+  "43": "熊本県",
+  "44": "大分県",
+  "45": "宮崎県",
+  "46": "鹿児島県",
+  "47": "沖縄県",
+};
 
 export interface OpenWeatherCity {
   id: string;
@@ -44,6 +95,12 @@ interface OpenWeatherGeocodingLocation {
   lon?: unknown;
   country?: unknown;
   state?: unknown;
+}
+
+interface GsiReverseGeocoderResponse {
+  results?: {
+    muniCd?: unknown;
+  };
 }
 
 let allCitiesPromise: Promise<OpenWeatherCity[]> | null = null;
@@ -242,6 +299,33 @@ function inferJapanesePrefecture(
   return undefined;
 }
 
+async function resolveJapanesePrefecture(
+  city: OpenWeatherCity,
+  displayName: string,
+): Promise<string | undefined> {
+  try {
+    const url = new URL(GSI_REVERSE_GEOCODER_URL);
+    url.searchParams.set("lat", String(city.lat));
+    url.searchParams.set("lon", String(city.lon));
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    if (response.ok) {
+      const data = await response.json() as GsiReverseGeocoderResponse;
+      const municipalityCode =
+        typeof data.results?.muniCd === "string"
+          ? data.results.muniCd
+          : "";
+      const prefecture = JAPANESE_PREFECTURES[municipalityCode.slice(0, 2)];
+      if (prefecture) return prefecture;
+    }
+  } catch {
+    // Fall back to the local weather-area index when GSI is unavailable.
+  }
+  return inferJapanesePrefecture(city, displayName);
+}
+
 async function mapGeocodingLocationsToJapaneseCities(
   locations: OpenWeatherGeocodingLocation[],
   cacheDisplayNames = true,
@@ -267,7 +351,7 @@ async function mapGeocodingLocationsToJapaneseCities(
     const previous = matches.get(city.id);
     if (!previous || distance < previous.distance) {
       const displayName = geocodingJapaneseName(location);
-      const prefectureName = inferJapanesePrefecture(city, displayName);
+      const prefectureName = await resolveJapanesePrefecture(city, displayName);
       if (cacheDisplayNames) {
         japaneseCityLocalizationCache.set(city.id, {
           displayName,
@@ -336,7 +420,7 @@ export async function localizeJapaneseOpenWeatherCity(
   const displayName = closest
     ? geocodingJapaneseName(closest)
     : city.name;
-  const prefectureName = inferJapanesePrefecture(city, displayName);
+  const prefectureName = await resolveJapanesePrefecture(city, displayName);
   japaneseCityLocalizationCache.set(city.id, {
     displayName,
     prefectureName,
