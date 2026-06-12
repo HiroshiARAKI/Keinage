@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Fingerprint, Trash2 } from "lucide-react";
 import { startRegistration } from "@simplewebauthn/browser";
 import { Label } from "@/components/ui/label";
@@ -66,6 +66,8 @@ interface OpenWeatherLocation {
   lon: number;
 }
 
+type SettingsTab = "account" | "security" | "admin" | "super-owner";
+
 const FEATURED_WEATHER_COUNTRIES = new Set(["JP", "US", "CN"]);
 
 function openWeatherCityLabel(city: OpenWeatherLocation): string {
@@ -123,9 +125,12 @@ export function SettingsClient({
   const [openWeatherApiKeySaving, setOpenWeatherApiKeySaving] = useState(false);
   const [openWeatherApiKeyResult, setOpenWeatherApiKeyResult] =
     useState<{ ok: boolean; msg: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("account");
+  const [adminSettingsLoaded, setAdminSettingsLoaded] = useState(false);
+  const [adminSettingsLoading, setAdminSettingsLoading] = useState(false);
+  const adminSettingsRequestStarted = useRef(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [deleteResult, setDeleteResult] = useState<string | null>(null);
   const [mediaList, setMediaList] = useState<UploadedFile[]>([]);
@@ -148,6 +153,7 @@ export function SettingsClient({
 
   // PIN/Email change states
   const [pinConfigured, setPinConfigured] = useState(false);
+  const [pinStatusLoading, setPinStatusLoading] = useState(true);
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -228,75 +234,8 @@ export function SettingsClient({
     }
   }, [role]);
 
-  // Load current settings
+  // Load account information needed by the common tabs.
   useEffect(() => {
-    (async () => {
-      if (role !== "admin") {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const res = await fetch("/api/settings");
-        if (!res.ok) return;
-        const data = await res.json();
-        const saved = data.weatherCityId ?? defaultWeatherCityId;
-        setCityId(saved);
-        if (weatherProvider === "tenkiyoho_api_jp") {
-          const pref = WEATHER_AREAS.find((p) =>
-            p.cities.some((c) => c.id === saved),
-          );
-          if (pref) setSelectedPref(pref);
-        } else {
-          const [countriesResponse, cityResponse] = await Promise.all([
-            fetch("/api/weather/locations"),
-            fetch(`/api/weather/locations?id=${encodeURIComponent(saved)}`),
-          ]);
-          if (countriesResponse.ok) {
-            const countriesData = await countriesResponse.json();
-            setWeatherCountries(countriesData.countries ?? []);
-          }
-          const resolvedCityResponse = cityResponse.ok
-            ? cityResponse
-            : await fetch(
-                `/api/weather/locations?id=${encodeURIComponent(defaultWeatherCityId)}`,
-              );
-          if (resolvedCityResponse.ok) {
-            const cityData = await resolvedCityResponse.json();
-            if (cityData.city) {
-              setCityId(cityData.city.id);
-              setSelectedOpenWeatherCity(cityData.city);
-              setWeatherCountry(cityData.city.country);
-            }
-          }
-        }
-        // Load image resize setting
-        if (data.imageMaxLongEdge !== undefined) {
-          const val = parseInt(data.imageMaxLongEdge, 10);
-          if (val === 0) {
-            setResizeEnabled(false);
-            setMaxLongEdge(3840);
-          } else {
-            setResizeEnabled(true);
-            setMaxLongEdge(val);
-          }
-        }
-        const planRes = await fetch("/api/billing/plan");
-        if (planRes.ok) {
-          const planData = await planRes.json();
-          const limit = planData?.plan?.limits?.maxResolution;
-          if (typeof limit === "number" && Number.isFinite(limit)) {
-            setPlanMaxResolution(limit);
-            setResizeEnabled(true);
-            setMaxLongEdge((current) => Math.min(current || limit, limit));
-          }
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-    fetchMedia();
-    void fetchPasskeys();
     // Resolve dashboard URL for QR code
     (async () => {
       const origin = window.location.origin;
@@ -326,17 +265,108 @@ export function SettingsClient({
           if (data.fullAuthExpiry) setFullAuthExpiry(data.fullAuthExpiry);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setPinStatusLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== "security") return;
+    void fetchPasskeys();
+  }, [activeTab, fetchPasskeys]);
+
+  useEffect(() => {
+    if (
+      activeTab !== "admin" ||
+      role !== "admin" ||
+      adminSettingsLoaded ||
+      adminSettingsRequestStarted.current
+    ) {
+      return;
+    }
+
+    adminSettingsRequestStarted.current = true;
+    setAdminSettingsLoading(true);
+    void (async () => {
+      try {
+        const res = await fetch("/api/settings");
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const saved = data.weatherCityId ?? defaultWeatherCityId;
+        setCityId(saved);
+        if (weatherProvider === "tenkiyoho_api_jp") {
+          const pref = WEATHER_AREAS.find((item) =>
+            item.cities.some((city) => city.id === saved),
+          );
+          if (pref) setSelectedPref(pref);
+        } else {
+          const [countriesResponse, cityResponse] = await Promise.all([
+            fetch("/api/weather/locations"),
+            fetch(`/api/weather/locations?id=${encodeURIComponent(saved)}`),
+          ]);
+          if (countriesResponse.ok) {
+            const countriesData = await countriesResponse.json();
+            setWeatherCountries(countriesData.countries ?? []);
+          }
+          const resolvedCityResponse = cityResponse.ok
+            ? cityResponse
+            : await fetch(
+                `/api/weather/locations?id=${encodeURIComponent(defaultWeatherCityId)}`,
+              );
+          if (resolvedCityResponse.ok) {
+            const cityData = await resolvedCityResponse.json();
+            if (cityData.city) {
+              setCityId(cityData.city.id);
+              setSelectedOpenWeatherCity(cityData.city);
+              setWeatherCountry(cityData.city.country);
+            }
+          }
+        }
+
+        if (data.imageMaxLongEdge !== undefined) {
+          const value = parseInt(data.imageMaxLongEdge, 10);
+          if (value === 0) {
+            setResizeEnabled(false);
+            setMaxLongEdge(3840);
+          } else {
+            setResizeEnabled(true);
+            setMaxLongEdge(value);
+          }
+        }
+
+        const planRes = await fetch("/api/billing/plan");
+        if (planRes.ok) {
+          const planData = await planRes.json();
+          const limit = planData?.plan?.limits?.maxResolution;
+          if (typeof limit === "number" && Number.isFinite(limit)) {
+            setPlanMaxResolution(limit);
+            setResizeEnabled(true);
+            setMaxLongEdge((current) => Math.min(current || limit, limit));
+          }
+        }
+        await fetchMedia();
+      } finally {
+        setAdminSettingsLoaded(true);
+        setAdminSettingsLoading(false);
+      }
+    })();
   }, [
+    activeTab,
+    adminSettingsLoaded,
     defaultWeatherCityId,
     fetchMedia,
-    fetchPasskeys,
     role,
     weatherProvider,
   ]);
 
   useEffect(() => {
-    if (!isSuperOwner || weatherProvider !== "openweatherapi") return;
+    if (
+      activeTab !== "super-owner" ||
+      !isSuperOwner ||
+      weatherProvider !== "openweatherapi"
+    ) {
+      return;
+    }
 
     let cancelled = false;
     void fetch("/api/super-owner/weather-settings")
@@ -351,7 +381,7 @@ export function SettingsClient({
     return () => {
       cancelled = true;
     };
-  }, [isSuperOwner, weatherProvider]);
+  }, [activeTab, isSuperOwner, weatherProvider]);
 
   useEffect(() => {
     const query = citySearch.trim();
@@ -910,13 +940,51 @@ export function SettingsClient({
   const currentCity = WEATHER_AREAS.flatMap((p) => p.cities).find(
     (c) => c.id === cityId,
   );
-
-  if (loading) {
-    return <div className="text-sm text-muted-foreground">{t("common.loading")}</div>;
-  }
+  const tabs: { id: SettingsTab; label: string }[] = [
+    { id: "account", label: t("settings.accountTab") },
+    { id: "security", label: t("settings.securityTab") },
+    ...(role === "admin"
+      ? [{ id: "admin" as const, label: t("settings.adminTab") }]
+      : []),
+    ...(isSuperOwner && weatherProvider === "openweatherapi"
+      ? [{ id: "super-owner" as const, label: t("settings.superOwnerTab") }]
+      : []),
+  ];
 
   return (
     <div className="space-y-6">
+      <div
+        role="tablist"
+        aria-label={t("settings.title")}
+        className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1"
+      >
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`settings-panel-${tab.id}`}
+            id={`settings-tab-${tab.id}`}
+            onClick={() => setActiveTab(tab.id)}
+            className={`shrink-0 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === tab.id
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "account" && (
+        <div
+          id="settings-panel-account"
+          role="tabpanel"
+          aria-labelledby="settings-tab-account"
+          className="space-y-6"
+        >
       {/* Dashboard QR Code */}
       {dashboardUrl && (
         <div className="rounded-lg border p-6">
@@ -1023,48 +1091,20 @@ export function SettingsClient({
             </span>
           )}
         </div>
-
-        {isOwner && (
-          <div className="mt-6 border-t pt-6">
-            <h3 className="mb-2 text-sm font-medium">{t("settings.organizationNameTitle")}</h3>
-            <p className="mb-4 text-sm text-muted-foreground">
-              {t("settings.organizationNameDescription")}
-            </p>
-            {storedOrganizationName && (
-              <p className="mb-3 text-sm text-muted-foreground">
-                {t("common.currentSetting")}: <span className="font-medium">{storedOrganizationName}</span>
-              </p>
-            )}
-            <div className="flex max-w-xl flex-col gap-3 sm:flex-row sm:items-center">
-              <Input
-                type="text"
-                placeholder={t("settings.organizationNamePlaceholder")}
-                value={organizationNameDraft}
-                onChange={(e) => {
-                  setOrganizationNameDraft(e.target.value);
-                  setOrganizationResult(null);
-                }}
-                maxLength={120}
-              />
-              <Button
-                onClick={handleOrganizationNameSave}
-                disabled={organizationSaving || organizationNameDraft.trim() === storedOrganizationName}
-              >
-                {organizationSaving ? t("common.loading") : t("common.change")}
-              </Button>
-            </div>
-            {organizationResult && (
-              <span className={`mt-2 block text-sm ${organizationResult.ok ? "text-green-600" : "text-red-600"}`}>
-                {organizationResult.msg}
-              </span>
-            )}
-          </div>
-        )}
       </div>
+        </div>
+      )}
 
       {/* OpenWeather API key */}
-      {isSuperOwner && weatherProvider === "openweatherapi" && (
-        <div className="rounded-lg border p-6">
+      {activeTab === "super-owner" &&
+        isSuperOwner &&
+        weatherProvider === "openweatherapi" && (
+        <div
+          id="settings-panel-super-owner"
+          role="tabpanel"
+          aria-labelledby="settings-tab-super-owner"
+          className="rounded-lg border p-6"
+        >
           <h2 className="mb-2 text-lg font-semibold">
             {t("settings.openWeatherApiTitle")}
           </h2>
@@ -1109,6 +1149,54 @@ export function SettingsClient({
               }`}
             >
               {openWeatherApiKeyResult.msg}
+            </span>
+          )}
+        </div>
+      )}
+
+      {activeTab === "admin" && role === "admin" && (
+        <div
+          id="settings-panel-admin"
+          role="tabpanel"
+          aria-labelledby="settings-tab-admin"
+          className="space-y-6"
+        >
+      {adminSettingsLoading ? (
+        <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
+      ) : (
+        <>
+      {isOwner && (
+        <div className="rounded-lg border p-6">
+          <h2 className="mb-2 text-lg font-semibold">{t("settings.organizationNameTitle")}</h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            {t("settings.organizationNameDescription")}
+          </p>
+          {storedOrganizationName && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              {t("common.currentSetting")}: <span className="font-medium">{storedOrganizationName}</span>
+            </p>
+          )}
+          <div className="flex max-w-xl flex-col gap-3 sm:flex-row sm:items-center">
+            <Input
+              type="text"
+              placeholder={t("settings.organizationNamePlaceholder")}
+              value={organizationNameDraft}
+              onChange={(e) => {
+                setOrganizationNameDraft(e.target.value);
+                setOrganizationResult(null);
+              }}
+              maxLength={120}
+            />
+            <Button
+              onClick={handleOrganizationNameSave}
+              disabled={organizationSaving || organizationNameDraft.trim() === storedOrganizationName}
+            >
+              {organizationSaving ? t("common.loading") : t("common.change")}
+            </Button>
+          </div>
+          {organizationResult && (
+            <span className={`mt-2 block text-sm ${organizationResult.ok ? "text-green-600" : "text-red-600"}`}>
+              {organizationResult.msg}
             </span>
           )}
         </div>
@@ -1391,9 +1479,21 @@ export function SettingsClient({
           </div>
         </div>
       </div>}
+        </>
+      )}
+        </div>
+      )}
 
       {/* Security / PIN Settings */}
-      {pinConfigured ? (
+      {activeTab === "security" && (
+        <div
+          id="settings-panel-security"
+          role="tabpanel"
+          aria-labelledby="settings-tab-security"
+        >
+      {pinStatusLoading ? (
+        <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
+      ) : pinConfigured ? (
         <div className="rounded-lg border p-6">
           <h2 className="mb-4 text-lg font-semibold">{t("settings.securityTitle")}</h2>
 
@@ -1820,9 +1920,13 @@ export function SettingsClient({
           </div>
         </div>
       )}
+        </div>
+      )}
 
       {/* Media Management - admin only */}
-      {role === "admin" && <div id="media-management" className="rounded-lg border border-red-200 p-6">
+      {activeTab === "admin" && role === "admin" && adminSettingsLoaded && (
+        <div className="space-y-6">
+      <div id="media-management" className="rounded-lg border border-red-200 p-6">
         <h2 className="mb-4 text-lg font-semibold">{t("settings.mediaManagementTitle")}</h2>
 
         {/* Individual media list */}
@@ -1920,7 +2024,7 @@ export function SettingsClient({
             )}
           </div>
         </div>
-      </div>}
+      </div>
 
       {isOwner && (
         <div className="rounded-lg border border-red-300 bg-red-50/60 p-6">
@@ -1937,6 +2041,8 @@ export function SettingsClient({
               {t("settings.ownerDeletionButton")}
             </Link>
           </div>
+        </div>
+      )}
         </div>
       )}
     </div>
