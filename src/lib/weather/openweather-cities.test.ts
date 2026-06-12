@@ -144,9 +144,9 @@ test("Japanese prefecture search returns cities in the matched prefecture index"
   });
   assert.deepEqual(
     cities.map((city) => city.id).sort(),
-    ["1854747", "2127436"],
+    ["1848354", "1854747"],
   );
-  assert.ok(cities.some((city) => city.displayName === "横浜町"));
+  assert.ok(cities.some((city) => city.displayName === "横浜市"));
   assert.ok(cities.some((city) => city.displayName === "小田原市"));
   const callsAfterFirstSearch = fetchMock.mock.callCount();
   assert.ok(callsAfterFirstSearch >= 2);

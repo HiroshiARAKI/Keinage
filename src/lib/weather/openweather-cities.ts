@@ -46,8 +46,12 @@ interface OpenWeatherGeocodingLocation {
 }
 
 let citiesPromise: Promise<OpenWeatherCity[]> | null = null;
+let allCitiesPromise: Promise<OpenWeatherCity[]> | null = null;
 let cityIndexPromise: Promise<Map<string, OpenWeatherCity>> | null = null;
 let cityNameIndexPromise: Promise<Map<string, OpenWeatherCity>> | null = null;
+let allCityNameIndexPromise:
+  | Promise<Map<string, OpenWeatherCity[]>>
+  | null = null;
 const japaneseCityNameCache = new Map<string, string>();
 const japanesePrefectureSearchCache = new Map<string, OpenWeatherCity[]>();
 
@@ -102,23 +106,30 @@ function preferLargerCityId(
   return [...byName.values()];
 }
 
-async function loadCities(): Promise<OpenWeatherCity[]> {
-  if (!citiesPromise) {
-    citiesPromise = (async () => {
+async function loadAllCities(): Promise<OpenWeatherCity[]> {
+  if (!allCitiesPromise) {
+    allCitiesPromise = (async () => {
       const compressed = await readFile(CITY_LIST_PATH);
       const json = await gunzipAsync(compressed);
       const values = JSON.parse(json.toString("utf8")) as RawOpenWeatherCity[];
-      return preferLargerCityId(values
+      return values
         .map(parseCity)
-        .filter((city): city is OpenWeatherCity => city !== null));
+        .filter((city): city is OpenWeatherCity => city !== null);
     })();
+  }
+  return allCitiesPromise;
+}
+
+async function loadCities(): Promise<OpenWeatherCity[]> {
+  if (!citiesPromise) {
+    citiesPromise = loadAllCities().then(preferLargerCityId);
   }
   return citiesPromise;
 }
 
 async function getCityIndex() {
   if (!cityIndexPromise) {
-    cityIndexPromise = loadCities().then(
+    cityIndexPromise = loadAllCities().then(
       (cities) => new Map(cities.map((city) => [city.id, city])),
     );
   }
@@ -134,6 +145,20 @@ async function getCityNameIndex() {
     );
   }
   return cityNameIndexPromise;
+}
+
+async function getAllCityNameIndex() {
+  if (!allCityNameIndexPromise) {
+    allCityNameIndexPromise = loadAllCities().then((cities) => {
+      const index = new Map<string, OpenWeatherCity[]>();
+      for (const city of cities) {
+        const key = cityNameKey(city.country, city.name);
+        index.set(key, [...(index.get(key) ?? []), city]);
+      }
+      return index;
+    });
+  }
+  return allCityNameIndexPromise;
 }
 
 function geocodingUrl(
@@ -226,8 +251,14 @@ function matchingJapanesePrefectureCities(query: string) {
 async function mapGeocodingLocationsToJapaneseCities(
   locations: OpenWeatherGeocodingLocation[],
   cacheDisplayNames = true,
+  preserveGeographicDuplicates = false,
 ): Promise<OpenWeatherCity[]> {
-  const cityNameIndex = await getCityNameIndex();
+  const cityNameIndex = preserveGeographicDuplicates
+    ? null
+    : await getCityNameIndex();
+  const allCityNameIndex = preserveGeographicDuplicates
+    ? await getAllCityNameIndex()
+    : null;
   const matches = new Map<
     string,
     { city: OpenWeatherCity; distance: number }
@@ -236,7 +267,15 @@ async function mapGeocodingLocationsToJapaneseCities(
   for (const location of locations) {
     if (location.country !== "JP") continue;
     const englishName = geocodingEnglishName(location);
-    const city = cityNameIndex.get(cityNameKey("JP", englishName));
+    const key = cityNameKey("JP", englishName);
+    const city = preserveGeographicDuplicates
+      ? (allCityNameIndex?.get(key) ?? [])
+          .sort(
+            (left, right) =>
+              geographicDistanceSquared(left, location) -
+              geographicDistanceSquared(right, location),
+          )[0]
+      : cityNameIndex?.get(key);
     if (!city) continue;
     const distance = geographicDistanceSquared(city, location);
     const previous = matches.get(city.id);
@@ -364,13 +403,19 @@ export async function searchJapaneseOpenWeatherCities(input: {
               q: `${city.name},${city.prefecture},JP`,
               limit: "5",
             }),
-          ),
+          ).then((locations) => {
+            const firstJapaneseLocation = locations.find(
+              (location) => location.country === "JP",
+            );
+            return firstJapaneseLocation ? [firstJapaneseLocation] : [];
+          }),
         ),
       )
     ).flat();
     const matchedCities = await mapGeocodingLocationsToJapaneseCities(
       locations,
       false,
+      true,
     );
     const cities = await Promise.all(
       matchedCities.map((city) =>

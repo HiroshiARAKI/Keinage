@@ -65,7 +65,9 @@ export function WeatherDisplay({
   const fetchWeather = useCallback(async () => {
     try {
       const search = boardId ? `?boardId=${encodeURIComponent(boardId)}` : "";
-      const response = await fetch(`/api/weather${search}`);
+      const response = await fetch(`/api/weather${search}`, {
+        cache: "no-store",
+      });
       if (!response.ok) return;
       setWeather(await response.json() as WeatherForecast);
     } catch {

@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     const result = await getWeatherForecast(cityId);
     return NextResponse.json(result.forecast, {
       headers: {
-        "Cache-Control": "private, max-age=60, stale-while-revalidate=1740",
+        "Cache-Control": "private, no-store",
         "X-Weather-Cache": result.cacheStatus,
       },
     });
