@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { gunzip } from "node:zlib";
 
 const gunzipAsync = promisify(gunzip);
+const FEATURED_COUNTRY_CODES = ["JP", "US", "CN"];
 const CITY_LIST_PATH = path.join(
   process.cwd(),
   "resources",
@@ -107,7 +108,16 @@ export async function listOpenWeatherCountries(): Promise<
   }
   return [...counts]
     .map(([code, count]) => ({ code, count }))
-    .sort((left, right) => left.code.localeCompare(right.code));
+    .sort((left, right) => {
+      const leftRank = FEATURED_COUNTRY_CODES.indexOf(left.code);
+      const rightRank = FEATURED_COUNTRY_CODES.indexOf(right.code);
+      if (leftRank !== -1 || rightRank !== -1) {
+        if (leftRank === -1) return 1;
+        if (rightRank === -1) return -1;
+        return leftRank - rightRank;
+      }
+      return left.code.localeCompare(right.code);
+    });
 }
 
 export async function searchOpenWeatherCities(input: {

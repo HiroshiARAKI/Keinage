@@ -11,7 +11,10 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -61,6 +64,12 @@ interface OpenWeatherLocation {
   lon: number;
 }
 
+const FEATURED_WEATHER_COUNTRIES = new Set(["JP", "US", "CN"]);
+
+function openWeatherCityLabel(city: OpenWeatherLocation): string {
+  return [city.name, city.state].filter(Boolean).join(", ");
+}
+
 export function SettingsClient({
   role,
   currentUserId,
@@ -92,6 +101,7 @@ export function SettingsClient({
   const [selectedOpenWeatherCity, setSelectedOpenWeatherCity] =
     useState<OpenWeatherLocation | null>(null);
   const [citySearchLoading, setCitySearchLoading] = useState(false);
+  const [citySearchOpen, setCitySearchOpen] = useState(false);
   const [openWeatherApiKey, setOpenWeatherApiKey] = useState("");
   const [openWeatherApiKeyConfigured, setOpenWeatherApiKeyConfigured] = useState(false);
   const [openWeatherApiKeySaving, setOpenWeatherApiKeySaving] = useState(false);
@@ -230,9 +240,15 @@ export function SettingsClient({
             const countriesData = await countriesResponse.json();
             setWeatherCountries(countriesData.countries ?? []);
           }
-          if (cityResponse.ok) {
-            const cityData = await cityResponse.json();
+          const resolvedCityResponse = cityResponse.ok
+            ? cityResponse
+            : await fetch(
+                `/api/weather/locations?id=${encodeURIComponent(defaultWeatherCityId)}`,
+              );
+          if (resolvedCityResponse.ok) {
+            const cityData = await resolvedCityResponse.json();
             if (cityData.city) {
+              setCityId(cityData.city.id);
               setSelectedOpenWeatherCity(cityData.city);
               setWeatherCountry(cityData.city.country);
             }
@@ -321,6 +337,46 @@ export function SettingsClient({
     };
   }, [isSuperOwner, weatherProvider]);
 
+  useEffect(() => {
+    const query = citySearch.trim();
+    if (
+      weatherProvider !== "openweatherapi" ||
+      !weatherCountry ||
+      query.length < 2
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setCitySearchLoading(true);
+      try {
+        const response = await fetch(
+          `/api/weather/locations?country=${encodeURIComponent(weatherCountry)}&q=${encodeURIComponent(query)}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw new Error("City search failed");
+        const data = await response.json();
+        setOpenWeatherCities(data.cities ?? []);
+        setCitySearchOpen(true);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setOpenWeatherCities([]);
+          setCitySearchOpen(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setCitySearchLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [citySearch, weatherCountry, weatherProvider]);
+
   function handlePrefChange(prefName: string | null) {
     if (!prefName) return;
     const pref = WEATHER_AREAS.find((p) => p.name === prefName) ?? null;
@@ -343,27 +399,9 @@ export function SettingsClient({
     setWeatherCountry(country);
     setCitySearch("");
     setOpenWeatherCities([]);
+    setCitySearchOpen(false);
     setSelectedOpenWeatherCity(null);
     setSaved(false);
-  }
-
-  async function handleOpenWeatherCitySearch() {
-    const query = citySearch.trim();
-    if (!weatherCountry || query.length < 2) return;
-
-    setCitySearchLoading(true);
-    try {
-      const response = await fetch(
-        `/api/weather/locations?country=${encodeURIComponent(weatherCountry)}&q=${encodeURIComponent(query)}`,
-      );
-      if (!response.ok) throw new Error("City search failed");
-      const data = await response.json();
-      setOpenWeatherCities(data.cities ?? []);
-    } catch {
-      setOpenWeatherCities([]);
-    } finally {
-      setCitySearchLoading(false);
-    }
   }
 
   function handleOpenWeatherCityChange(id: string | null) {
@@ -372,6 +410,8 @@ export function SettingsClient({
     if (!city) return;
     setSelectedOpenWeatherCity(city);
     setCityId(city.id);
+    setCitySearch("");
+    setCitySearchOpen(false);
     setSaved(false);
   }
 
@@ -388,8 +428,25 @@ export function SettingsClient({
         body: JSON.stringify({ apiKey }),
       });
       if (!response.ok) throw new Error("API key save failed");
+      const data = await response.json();
       setOpenWeatherApiKey("");
       setOpenWeatherApiKeyConfigured(true);
+      if (
+        typeof data.weatherCityId === "string" &&
+        data.weatherCityId !== cityId
+      ) {
+        const cityResponse = await fetch(
+          `/api/weather/locations?id=${encodeURIComponent(data.weatherCityId)}`,
+        );
+        if (cityResponse.ok) {
+          const cityData = await cityResponse.json();
+          if (cityData.city) {
+            setCityId(cityData.city.id);
+            setWeatherCountry(cityData.city.country);
+            setSelectedOpenWeatherCity(cityData.city);
+          }
+        }
+      }
       setOpenWeatherApiKeyResult({
         ok: true,
         msg: t("settings.openWeatherApiSaved"),
@@ -1065,11 +1122,33 @@ export function SettingsClient({
                     <SelectValue placeholder={t("settings.countryPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {weatherCountries.map((country) => (
-                      <SelectItem key={country.code} value={country.code}>
-                        {regionNames.of(country.code) ?? country.code}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>
+                        {t("settings.featuredCountries")}
+                      </SelectLabel>
+                      {weatherCountries
+                        .filter((country) =>
+                          FEATURED_WEATHER_COUNTRIES.has(country.code),
+                        )
+                        .map((country) => (
+                          <SelectItem key={country.code} value={country.code}>
+                            {regionNames.of(country.code) ?? country.code}
+                          </SelectItem>
+                        ))}
+                    </SelectGroup>
+                    <SelectSeparator />
+                    <SelectGroup>
+                      <SelectLabel>{t("settings.allCountries")}</SelectLabel>
+                      {weatherCountries
+                        .filter((country) =>
+                          !FEATURED_WEATHER_COUNTRIES.has(country.code),
+                        )
+                        .map((country) => (
+                          <SelectItem key={country.code} value={country.code}>
+                            {regionNames.of(country.code) ?? country.code}
+                          </SelectItem>
+                        ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
@@ -1078,34 +1157,62 @@ export function SettingsClient({
                 <Label htmlFor="setting-city-search">
                   {t("settings.citySearchLabel")}
                 </Label>
-                <div className="flex gap-2">
+                <div className="relative">
                   <Input
                     id="setting-city-search"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={
+                      citySearchOpen && citySearch.trim().length >= 2
+                    }
                     value={citySearch}
                     placeholder={t("settings.citySearchPlaceholder")}
                     disabled={!weatherCountry}
-                    onChange={(event) => setCitySearch(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        void handleOpenWeatherCitySearch();
+                    onChange={(event) => {
+                      setCitySearch(event.target.value);
+                      setCitySearchOpen(event.target.value.trim().length >= 2);
+                    }}
+                    onFocus={() => {
+                      if (citySearch.trim().length >= 2) {
+                        setCitySearchOpen(true);
                       }
                     }}
+                    onBlur={() => setCitySearchOpen(false)}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleOpenWeatherCitySearch}
-                    disabled={
-                      !weatherCountry ||
-                      citySearch.trim().length < 2 ||
-                      citySearchLoading
-                    }
-                  >
-                    {citySearchLoading
-                      ? t("common.loading")
-                      : t("settings.citySearchButton")}
-                  </Button>
+                  {citySearchOpen && citySearch.trim().length >= 2 && (
+                    <div
+                      role="listbox"
+                      className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+                    >
+                      {citySearchLoading ? (
+                        <div className="px-2.5 py-2 text-sm text-muted-foreground">
+                          {t("common.loading")}
+                        </div>
+                      ) : openWeatherCities.length === 0 ? (
+                        <div className="px-2.5 py-2 text-sm text-muted-foreground">
+                          {t("settings.citySearchEmpty")}
+                        </div>
+                      ) : (
+                        openWeatherCities.map((city) => (
+                          <button
+                            key={city.id}
+                            type="button"
+                            role="option"
+                            aria-selected={
+                              selectedOpenWeatherCity?.id === city.id
+                            }
+                            className="flex w-full rounded-md px-2.5 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() =>
+                              handleOpenWeatherCityChange(city.id)
+                            }
+                          >
+                            {openWeatherCityLabel(city)}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {t("settings.citySearchHint")}
@@ -1113,48 +1220,16 @@ export function SettingsClient({
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="setting-openweather-city">
-                {t("settings.cityLabel")}
-              </Label>
-              <Select
-                value={selectedOpenWeatherCity?.id ?? ""}
-                onValueChange={handleOpenWeatherCityChange}
-                disabled={openWeatherCities.length === 0}
-              >
-                <SelectTrigger id="setting-openweather-city" className="w-full">
-                  <SelectValue placeholder={t("settings.cityPlaceholder")}>
-                    {selectedOpenWeatherCity
-                      ? [
-                          selectedOpenWeatherCity.name,
-                          selectedOpenWeatherCity.state,
-                        ].filter(Boolean).join(", ")
-                      : t("settings.cityPlaceholder")}
-                  </SelectValue>
-                </SelectTrigger>
-              <SelectContent>
-                {selectedOpenWeatherCity &&
-                  !openWeatherCities.some(
-                    (city) => city.id === selectedOpenWeatherCity.id,
-                  ) && (
-                    <SelectItem
-                      key={selectedOpenWeatherCity.id}
-                      value={selectedOpenWeatherCity.id}
-                    >
-                      {[
-                        selectedOpenWeatherCity.name,
-                        selectedOpenWeatherCity.state,
-                      ].filter(Boolean).join(", ")}
-                    </SelectItem>
-                  )}
-                {openWeatherCities.map((city) => (
-                    <SelectItem key={city.id} value={city.id}>
-                      {[city.name, city.state].filter(Boolean).join(", ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {selectedOpenWeatherCity && (
+              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">
+                  {t("common.currentSetting")}:
+                </span>{" "}
+                <span className="font-medium">
+                  {openWeatherCityLabel(selectedOpenWeatherCity)}
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">

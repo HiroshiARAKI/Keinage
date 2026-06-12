@@ -8,6 +8,7 @@ import { getSessionUser } from "@/lib/auth";
 import { isBoardDisplayable } from "@/lib/board-status";
 import { getOwnerSetting } from "@/lib/owner-settings";
 import { isInOwnerScope, resolveOwnerUserId } from "@/lib/ownership";
+import { findOpenWeatherCity } from "@/lib/weather/openweather-cities";
 import { getWeatherProvider } from "@/lib/weather/provider";
 import { getWeatherForecast } from "@/lib/weather/service";
 
@@ -48,10 +49,16 @@ export async function GET(request: NextRequest) {
   }
 
   const provider = getWeatherProvider();
-  const cityId = ownerUserId
+  let cityId = ownerUserId
     ? (await getOwnerSetting(ownerUserId, "weatherCityId")) ??
       provider.defaultLocationId
     : provider.defaultLocationId;
+  if (
+    provider.id === "openweatherapi" &&
+    !(await findOpenWeatherCity(cityId))
+  ) {
+    cityId = provider.defaultLocationId;
+  }
 
   if (!provider.isLocationId(cityId)) {
     return NextResponse.json(

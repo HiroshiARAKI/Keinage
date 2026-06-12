@@ -20,6 +20,10 @@ test("OpenWeather city list resolves City IDs and supports country searches", as
   });
 
   const countries = await listOpenWeatherCountries();
+  assert.deepEqual(
+    countries.slice(0, 3).map((country) => country.code),
+    ["JP", "US", "CN"],
+  );
   assert.ok(countries.some((country) => country.code === "JP"));
   assert.ok(countries.some((country) => country.code === "US"));
 

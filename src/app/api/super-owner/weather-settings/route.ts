@@ -1,11 +1,22 @@
 // Copyright 2026 Hiroshi Araki (https://hiroshi.araki.tech)
 // SPDX-License-Identifier: Apache-2.0
 import { NextResponse } from "next/server";
-import { upsertOwnerSettings } from "@/lib/owner-settings";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { boards } from "@/db/schema";
+import {
+  getOwnerSetting,
+  upsertOwnerSettings,
+} from "@/lib/owner-settings";
+import { resolveOwnerUserId } from "@/lib/ownership";
+import { emitSSE } from "@/lib/sse";
+import { WEATHER_UPDATED_EVENT } from "@/lib/weather/events";
+import { findOpenWeatherCity } from "@/lib/weather/openweather-cities";
 import {
   getOpenWeatherApiKey,
   OPENWEATHER_API_KEY_SETTING,
 } from "@/lib/weather/openweather-config";
+import { OpenWeatherProvider } from "@/lib/weather/providers/openweather";
 import {
   requireSuperOwner,
   SuperOwnerAuthError,
@@ -38,10 +49,33 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 400 });
     }
 
+    const ownerUserId = resolveOwnerUserId(session.user);
+    const currentCityId = await getOwnerSetting(ownerUserId, "weatherCityId");
+    const weatherCityId =
+      currentCityId && await findOpenWeatherCity(currentCityId)
+        ? currentCityId
+        : new OpenWeatherProvider().defaultLocationId;
+
     await upsertOwnerSettings(session.user.id, {
       [OPENWEATHER_API_KEY_SETTING]: apiKey,
     });
-    return NextResponse.json({ ok: true, configured: true });
+    await upsertOwnerSettings(ownerUserId, {
+      weatherCityId,
+    });
+
+    const ownerBoards = await db
+      .select({ id: boards.id })
+      .from(boards)
+      .where(eq(boards.ownerUserId, ownerUserId));
+    for (const board of ownerBoards) {
+      emitSSE(board.id, WEATHER_UPDATED_EVENT);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      configured: true,
+      weatherCityId,
+    });
   } catch (error) {
     if (error instanceof SuperOwnerAuthError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
