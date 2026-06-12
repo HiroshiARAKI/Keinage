@@ -111,6 +111,9 @@ services:
       - CONTACT_SMTP_PASS=${CONTACT_SMTP_PASS:-}
       - CONTACT_SMTP_FROM=${CONTACT_SMTP_FROM:-}
       - CONTACT_TO_EMAIL=${CONTACT_TO_EMAIL:-}
+      # Weather provider settings
+      - WEATHER_PROVIDER=${WEATHER_PROVIDER:-openweatherapi}
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))\""]
