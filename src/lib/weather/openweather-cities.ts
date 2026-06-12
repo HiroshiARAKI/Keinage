@@ -17,6 +17,7 @@ const CITY_LIST_PATH = path.join(
 export interface OpenWeatherCity {
   id: string;
   name: string;
+  displayName?: string;
   state: string;
   country: string;
   lat: number;
@@ -34,8 +35,19 @@ interface RawOpenWeatherCity {
   };
 }
 
+interface OpenWeatherGeocodingLocation {
+  name?: unknown;
+  local_names?: Record<string, unknown>;
+  lat?: unknown;
+  lon?: unknown;
+  country?: unknown;
+  state?: unknown;
+}
+
 let citiesPromise: Promise<OpenWeatherCity[]> | null = null;
 let cityIndexPromise: Promise<Map<string, OpenWeatherCity>> | null = null;
+let cityNameIndexPromise: Promise<Map<string, OpenWeatherCity>> | null = null;
+const japaneseCityNameCache = new Map<string, string>();
 
 function normalizeSearchText(value: string): string {
   return value
@@ -70,15 +82,33 @@ function parseCity(value: RawOpenWeatherCity): OpenWeatherCity | null {
   return { id, name, state, country, lat, lon };
 }
 
+function cityNameKey(country: string, name: string): string {
+  return `${country}:${normalizeSearchText(name)}`;
+}
+
+function preferLargerCityId(
+  cities: OpenWeatherCity[],
+): OpenWeatherCity[] {
+  const byName = new Map<string, OpenWeatherCity>();
+  for (const city of cities) {
+    const key = cityNameKey(city.country, city.name);
+    const previous = byName.get(key);
+    if (!previous || Number(city.id) > Number(previous.id)) {
+      byName.set(key, city);
+    }
+  }
+  return [...byName.values()];
+}
+
 async function loadCities(): Promise<OpenWeatherCity[]> {
   if (!citiesPromise) {
     citiesPromise = (async () => {
       const compressed = await readFile(CITY_LIST_PATH);
       const json = await gunzipAsync(compressed);
       const values = JSON.parse(json.toString("utf8")) as RawOpenWeatherCity[];
-      return values
+      return preferLargerCityId(values
         .map(parseCity)
-        .filter((city): city is OpenWeatherCity => city !== null);
+        .filter((city): city is OpenWeatherCity => city !== null));
     })();
   }
   return citiesPromise;
@@ -93,10 +123,107 @@ async function getCityIndex() {
   return cityIndexPromise;
 }
 
+async function getCityNameIndex() {
+  if (!cityNameIndexPromise) {
+    cityNameIndexPromise = loadCities().then(
+      (cities) => new Map(
+        cities.map((city) => [cityNameKey(city.country, city.name), city]),
+      ),
+    );
+  }
+  return cityNameIndexPromise;
+}
+
+function geocodingUrl(
+  endpoint: "direct" | "reverse",
+  apiKey: string,
+  params: Record<string, string>,
+) {
+  const url = new URL(`https://api.openweathermap.org/geo/1.0/${endpoint}`);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  url.searchParams.set("appid", apiKey);
+  return url;
+}
+
+async function fetchGeocodingLocations(
+  url: URL,
+): Promise<OpenWeatherGeocodingLocation[]> {
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) return [];
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
+}
+
+function geographicDistanceSquared(
+  city: OpenWeatherCity,
+  location: OpenWeatherGeocodingLocation,
+): number {
+  const lat = Number(location.lat);
+  const lon = Number(location.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return (city.lat - lat) ** 2 + (city.lon - lon) ** 2;
+}
+
+function geocodingEnglishName(
+  location: OpenWeatherGeocodingLocation,
+): string {
+  const localEnglish = location.local_names?.en;
+  if (typeof localEnglish === "string" && localEnglish.trim()) {
+    return localEnglish.trim();
+  }
+  return typeof location.name === "string" ? location.name.trim() : "";
+}
+
+function geocodingJapaneseName(
+  location: OpenWeatherGeocodingLocation,
+): string {
+  const localJapanese = location.local_names?.ja;
+  if (typeof localJapanese === "string" && localJapanese.trim()) {
+    return localJapanese.trim();
+  }
+  return typeof location.name === "string" ? location.name.trim() : "";
+}
+
 export async function findOpenWeatherCity(
   cityId: string,
 ): Promise<OpenWeatherCity | null> {
   return (await getCityIndex()).get(cityId) ?? null;
+}
+
+export async function localizeJapaneseOpenWeatherCity(
+  city: OpenWeatherCity,
+  apiKey: string,
+): Promise<OpenWeatherCity> {
+  if (city.country !== "JP") return city;
+  const cached = japaneseCityNameCache.get(city.id);
+  if (cached) return { ...city, displayName: cached };
+
+  const locations = await fetchGeocodingLocations(
+    geocodingUrl("reverse", apiKey, {
+      lat: String(city.lat),
+      lon: String(city.lon),
+      limit: "5",
+    }),
+  );
+  const closest = locations
+    .filter((location) => location.country === "JP")
+    .sort(
+      (left, right) =>
+        geographicDistanceSquared(city, left) -
+        geographicDistanceSquared(city, right),
+    )[0];
+  const displayName = closest
+    ? geocodingJapaneseName(closest)
+    : city.name;
+  japaneseCityNameCache.set(city.id, displayName);
+  return { ...city, displayName };
 }
 
 export async function listOpenWeatherCountries(): Promise<
@@ -140,4 +267,45 @@ export async function searchOpenWeatherCities(input: {
       return state || left.name.localeCompare(right.name);
     })
     .slice(0, limit);
+}
+
+export async function searchJapaneseOpenWeatherCities(input: {
+  query: string;
+  apiKey: string;
+}): Promise<OpenWeatherCity[]> {
+  const query = input.query.trim();
+  if (query.length < 2) return [];
+
+  const locations = await fetchGeocodingLocations(
+    geocodingUrl("direct", input.apiKey, {
+      q: `${query},JP`,
+      limit: "5",
+    }),
+  );
+  const cityNameIndex = await getCityNameIndex();
+  const matches = new Map<
+    string,
+    { city: OpenWeatherCity; distance: number }
+  >();
+
+  for (const location of locations) {
+    if (location.country !== "JP") continue;
+    const englishName = geocodingEnglishName(location);
+    const city = cityNameIndex.get(cityNameKey("JP", englishName));
+    if (!city) continue;
+    const distance = geographicDistanceSquared(city, location);
+    const previous = matches.get(city.id);
+    if (!previous || distance < previous.distance) {
+      const displayName = geocodingJapaneseName(location);
+      japaneseCityNameCache.set(city.id, displayName);
+      matches.set(city.id, {
+        city: { ...city, displayName },
+        distance,
+      });
+    }
+  }
+
+  return [...matches.values()]
+    .sort((left, right) => left.distance - right.distance)
+    .map(({ city }) => city);
 }

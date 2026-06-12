@@ -58,6 +58,7 @@ interface OpenWeatherCountry {
 interface OpenWeatherLocation {
   id: string;
   name: string;
+  displayName?: string;
   state: string;
   country: string;
   lat: number;
@@ -67,7 +68,9 @@ interface OpenWeatherLocation {
 const FEATURED_WEATHER_COUNTRIES = new Set(["JP", "US", "CN"]);
 
 function openWeatherCityLabel(city: OpenWeatherLocation): string {
-  return [city.name, city.state].filter(Boolean).join(", ");
+  return [city.displayName ?? city.name, city.state]
+    .filter(Boolean)
+    .join(", ");
 }
 
 export function SettingsClient({
@@ -1119,7 +1122,11 @@ export function SettingsClient({
                   onValueChange={handleWeatherCountryChange}
                 >
                   <SelectTrigger id="setting-country" className="w-full">
-                    <SelectValue placeholder={t("settings.countryPlaceholder")} />
+                    <SelectValue placeholder={t("settings.countryPlaceholder")}>
+                      {weatherCountry
+                        ? regionNames.of(weatherCountry) ?? weatherCountry
+                        : t("settings.countryPlaceholder")}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
