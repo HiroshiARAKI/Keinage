@@ -1091,43 +1091,6 @@ export function SettingsClient({
             </span>
           )}
         </div>
-
-        {isOwner && (
-          <div className="mt-6 border-t pt-6">
-            <h3 className="mb-2 text-sm font-medium">{t("settings.organizationNameTitle")}</h3>
-            <p className="mb-4 text-sm text-muted-foreground">
-              {t("settings.organizationNameDescription")}
-            </p>
-            {storedOrganizationName && (
-              <p className="mb-3 text-sm text-muted-foreground">
-                {t("common.currentSetting")}: <span className="font-medium">{storedOrganizationName}</span>
-              </p>
-            )}
-            <div className="flex max-w-xl flex-col gap-3 sm:flex-row sm:items-center">
-              <Input
-                type="text"
-                placeholder={t("settings.organizationNamePlaceholder")}
-                value={organizationNameDraft}
-                onChange={(e) => {
-                  setOrganizationNameDraft(e.target.value);
-                  setOrganizationResult(null);
-                }}
-                maxLength={120}
-              />
-              <Button
-                onClick={handleOrganizationNameSave}
-                disabled={organizationSaving || organizationNameDraft.trim() === storedOrganizationName}
-              >
-                {organizationSaving ? t("common.loading") : t("common.change")}
-              </Button>
-            </div>
-            {organizationResult && (
-              <span className={`mt-2 block text-sm ${organizationResult.ok ? "text-green-600" : "text-red-600"}`}>
-                {organizationResult.msg}
-              </span>
-            )}
-          </div>
-        )}
       </div>
         </div>
       )}
@@ -1202,6 +1165,43 @@ export function SettingsClient({
         <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
       ) : (
         <>
+      {isOwner && (
+        <div className="rounded-lg border p-6">
+          <h2 className="mb-2 text-lg font-semibold">{t("settings.organizationNameTitle")}</h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            {t("settings.organizationNameDescription")}
+          </p>
+          {storedOrganizationName && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              {t("common.currentSetting")}: <span className="font-medium">{storedOrganizationName}</span>
+            </p>
+          )}
+          <div className="flex max-w-xl flex-col gap-3 sm:flex-row sm:items-center">
+            <Input
+              type="text"
+              placeholder={t("settings.organizationNamePlaceholder")}
+              value={organizationNameDraft}
+              onChange={(e) => {
+                setOrganizationNameDraft(e.target.value);
+                setOrganizationResult(null);
+              }}
+              maxLength={120}
+            />
+            <Button
+              onClick={handleOrganizationNameSave}
+              disabled={organizationSaving || organizationNameDraft.trim() === storedOrganizationName}
+            >
+              {organizationSaving ? t("common.loading") : t("common.change")}
+            </Button>
+          </div>
+          {organizationResult && (
+            <span className={`mt-2 block text-sm ${organizationResult.ok ? "text-green-600" : "text-red-600"}`}>
+              {organizationResult.msg}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Weather Area Selection */}
       {role === "admin" && <div className="rounded-lg border p-6">
         <h2 className="mb-4 text-lg font-semibold">{t("settings.weatherAreaTitle")}</h2>
