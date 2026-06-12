@@ -1,14 +1,18 @@
+<p align="center">
+  English | <a href="./DESIGN.ja.md">日本語</a>
+</p>
+
 # Keinage Design
 
-最終更新: 2026-05-03
+Last updated: May 3, 2026
 
-## 1. このドキュメントの目的
+## 1. Purpose
 
-このドキュメントは、Keinage のメンテナーおよび開発者向けに、全体設計、技術要素、Database schema、ディレクトリ構成、i18n、主要な実装判断をまとめます。ユーザー視点の仕様は [SPEC.md](./SPEC.md)、ルーティング一覧は [API.md](./API.md) を参照してください。
+This document describes Keinage's architecture, technology choices, database schema, directory layout, internationalization, and major implementation decisions for maintainers and developers. See [SPEC.md](./SPEC.md) for user-facing behavior and [API.md](./API.md) for routes.
 
-## 2. 全体アーキテクチャ
+## 2. Architecture
 
-Keinage は Next.js App Router を中心に、表示画面、管理画面、Route Handler API を 1 つのアプリで提供します。
+Keinage uses one Next.js App Router application to provide display pages, the dashboard, and Route Handler APIs.
 
 ```mermaid
 flowchart TB
@@ -28,6 +32,7 @@ flowchart TB
     oidc[OIDC Provider Foundation]
     media[Media Processing]
     storage[Media Storage Adapter]
+    weatherProvider[Weather Provider and Cache]
     templates[Board Template Registry]
     i18n[i18n]
   end
@@ -48,6 +53,7 @@ flowchart TB
   routes --> auth
   routes --> oidc
   routes --> media
+  routes --> weatherProvider
   routes --> templates
   routes --> i18n
   auth --> db
@@ -58,15 +64,15 @@ flowchart TB
   uploadRoute --> storage
   oidc --> google
   routes --> smtp
-  routes --> weather
+  weatherProvider --> weather
   routes --> github
   routes --> db
   sse --> browser
 ```
 
-## 3. 技術要素
+## 3. Technology
 
-| 項目 | 採用技術 |
+| Area | Technology |
 | --- | --- |
 | Framework | Next.js 16 App Router |
 | Language | TypeScript |
@@ -75,37 +81,37 @@ flowchart TB
 | Database | PostgreSQL |
 | ORM | Drizzle ORM |
 | Media processing | sharp |
-| Realtime | Server-Sent Events |
-| Auth | App session Cookie, device auth Cookie, PIN, Google OAuth/OIDC, WebAuthn / Passkey |
+| Real-time | Server-Sent Events |
+| Authentication | App-session cookie, device-auth cookie, PIN, Google OAuth/OIDC, WebAuthn / Passkey |
 | OIDC | Discovery, Authorization Code + PKCE, nonce, JWKS RS256 verification |
 | Storage | Local filesystem or S3-compatible storage |
 | Package manager | pnpm |
-| Container | Docker standalone Next.js output |
+| Container | Docker with standalone Next.js output |
 
-## 4. ディレクトリ構成
+## 4. Directory Layout
 
-| パス | 役割 |
+| Path | Responsibility |
 | --- | --- |
-| `src/app` | App Router。画面、Route Handler、アップロード配信 route を配置 |
-| `src/app/(board)` | 公開ボード表示 |
-| `src/app/(dashboard)` | 認証後の管理画面 |
-| `src/app/api` | API Route Handler |
-| `src/app/call` | 呼び出し番号テンプレート用の操作画面 |
-| `src/app/uploads/[...path]` | ローカル/S3 上のアップロード済みファイルを配信 |
-| `src/components/board` | ボード表示、テンプレート、表示用部品 |
-| `src/components/dashboard` | 管理画面 UI |
-| `src/components/auth` | 認証 UI |
-| `src/components/i18n` | クライアント側 i18n provider |
-| `src/db` | Drizzle schema と DB 接続 |
-| `src/lib` | 認証、OIDC、SSE、メディア、設定、i18n などの共通ロジック |
-| `src/types` | 共有型定義 |
-| `drizzle` | SQL migration と snapshot |
-| `docker` | Dockerfile、entrypoint、migration runner |
-| `uploads` | ローカル保存時のメディア実体 |
+| `src/app` | App Router pages, Route Handlers, and upload delivery |
+| `src/app/(board)` | Public board display |
+| `src/app/(dashboard)` | Authenticated dashboard |
+| `src/app/api` | API Route Handlers |
+| `src/app/call` | Call Number operator screen |
+| `src/app/uploads/[...path]` | Delivery of files from local or S3 storage |
+| `src/components/board` | Board presentation, templates, and display components |
+| `src/components/dashboard` | Dashboard UI |
+| `src/components/auth` | Authentication UI |
+| `src/components/i18n` | Client-side i18n provider |
+| `src/db` | Drizzle schema and database connection |
+| `src/lib` | Shared authentication, OIDC, SSE, media, settings, and i18n logic |
+| `src/types` | Shared type definitions |
+| `drizzle` | SQL migrations and snapshots |
+| `docker` | Dockerfile, entrypoint, and migration runner |
+| `uploads` | Media files when using local storage |
 
 ## 5. Database Schema
 
-### 5.1 ER 図
+### 5.1 ER Diagram
 
 ```mermaid
 erDiagram
@@ -153,6 +159,7 @@ erDiagram
     text user_agent
     text created_at
   }
+
   audit_logs {
     text id PK
     text actor_user_id FK
@@ -248,35 +255,35 @@ erDiagram
   }
 ```
 
-### 5.2 主要テーブル
+### 5.2 Main Tables
 
-| テーブル | 役割 |
+| Table | Responsibility |
 | --- | --- |
-| `users` | ログイン主体。Owner / Shared、ロール、Shared userのプラン適用状態、Super Owner属性、表示設定、PIN、認証時刻を保持 |
-| `auth_accounts` | 認証方式と外部アカウントの紐付け。`provider + providerAccountId` が一意 |
-| `auth_sessions` | 24 時間のアプリセッション |
-| `device_auth_grants` | 端末単位のフル認証履歴。PIN ログイン対象ユーザーを決める |
-| `webauthn_credentials` | Owner の Passkey credential public key、counter、transports、最終使用日時 |
-| `webauthn_challenges` | WebAuthn 登録・認証 challenge。有効期限と使用済み状態を保持 |
-| `audit_logs` | 認証、課金、Webhook、退会、Super Owner操作などの横断監査ログ |
-| `super_owner_audit_logs` | Super Owner付与、専用APIアクセス、専用操作の監査ログ |
-| `admin_announcements` | Super Ownerが作成する運営通知。種別、重要度、対象プラン、公開期間、メール送信有無を保持 |
-| `announcement_reads` | ユーザーごとの運営通知の既読・確認状態 |
-| `signup_requests` | Owner のメールアドレス + パスワード仮登録 |
-| `shared_signup_requests` | Shared user 招待。招待中・プラン上限による停止・完了・取り消しの状態を保持 |
-| `google_oauth_flows` | Google OAuth/OIDC の state、PKCE verifier、nonce、mode、redirectTo |
-| `pin_reset_tokens` | PIN リセット用トークン |
-| `account_deletion_requests` | Owner アカウント削除用トークン |
-| `boards` | ボード本体。テンプレート ID と JSON config を保持 |
-| `board_display_devices` | 表示端末 heartbeat。匿名 device key と表示中ボードの組み合わせごとに、User-Agent、最終アクセス時刻を保持 |
-| `media_items` | ボードに紐づく画像・動画 |
-| `messages` | ボードに紐づくメッセージ |
-| `settings` | Owner 単位の KV 設定 |
-| `pin_attempts` | 認証失敗回数と各種 rate limit bucket の記録 |
+| `users` | Login principals, Owner/Shared relationship, roles, plan activation, Super Owner state, display settings, PIN, and authentication timestamps |
+| `auth_accounts` | Authentication method and external account mapping; `provider + providerAccountId` is unique |
+| `auth_sessions` | 24-hour application sessions |
+| `device_auth_grants` | Per-device full-authentication history used to choose the PIN-login user |
+| `webauthn_credentials` | Owner Passkey public key, counter, transports, and last-used time |
+| `webauthn_challenges` | Single-use registration/authentication challenges and expiration |
+| `audit_logs` | Cross-cutting authentication, billing, webhook, deletion, and Super Owner audit events |
+| `super_owner_audit_logs` | Super Owner grants, API access, and privileged operations |
+| `admin_announcements` | Operator announcements, severity, target plan, publication window, and email behavior |
+| `announcement_reads` | Per-user read and acknowledgement state |
+| `signup_requests` | Pending email/password Owner registration |
+| `shared_signup_requests` | Shared invitations and invited, plan-inactive, completed, or cancelled state |
+| `google_oauth_flows` | OAuth state, PKCE verifier, nonce, mode, and redirect target |
+| `pin_reset_tokens` | PIN reset tokens |
+| `account_deletion_requests` | Owner account-deletion tokens |
+| `boards` | Board template ID and JSON configuration |
+| `board_display_devices` | Anonymous device/board heartbeat, User-Agent, and last access |
+| `media_items` | Images and videos associated with a board |
+| `messages` | Messages associated with a board |
+| `settings` | Owner-scoped key/value settings |
+| `pin_attempts` | Authentication failures and rate-limit buckets |
 
-## 6. 認証設計
+## 6. Authentication Design
 
-### 6.1 セッションモデル
+### 6.1 Session Model
 
 ```mermaid
 sequenceDiagram
@@ -297,15 +304,15 @@ sequenceDiagram
   A-->>U: auth-session Cookie
 ```
 
-Keinage は「フル認証」と「PIN による軽量再認証」を分けています。フル認証はメールアドレス + パスワードまたは Google OAuth/OIDC で行います。PIN ログインは `device-auth` に紐づくユーザーだけを対象にし、フル認証期限が切れていれば拒否します。
+Keinage separates full authentication from lightweight PIN reauthentication. Full authentication uses email + password or Google OAuth/OIDC. PIN login is restricted to the user associated with `device-auth` and is rejected after full authentication expires.
 
-`WEBAUTHN_ENABLED=true` かつ `WEBAUTHN_OWNER_REQUIRED=true` の場合、Owner の新規 `auth_sessions` は `webauthn_verified=false` で作成されます。ダッシュボード layout と `getSessionUser()` は未検証セッションをブロックし、Passkey 登録または認証画面だけが `getSessionUserAllowingWebAuthnPending()` で一時的に通過します。
+When Passkeys are required, new Owner sessions start with `webauthn_verified=false`. The dashboard layout and `getSessionUser()` block pending sessions. Only registration and verification pages temporarily accept them through `getSessionUserAllowingWebAuthnPending()`.
 
 ### 6.2 WebAuthn / Passkey
 
-WebAuthn 処理は `src/lib/webauthn.ts` に集約し、RP ID / Origin は `WEBAUTHN_RP_ID`、`WEBAUTHN_ORIGIN`、`APP_PUBLIC_ORIGIN` から解決します。登録・認証の開始 API は challenge を `webauthn_challenges` に保存し、完了 API は client data の challenge と照合して一度だけ消費します。
+`src/lib/webauthn.ts` contains WebAuthn logic and resolves RP ID / Origin from `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN`, and `APP_PUBLIC_ORIGIN`. Start APIs store challenges in `webauthn_challenges`; completion APIs compare client data and consume a challenge exactly once.
 
-Owner が Passkey 必須で、credential が未登録の場合は `/passkey/setup`、登録済みの場合は `/passkey/verify` へ誘導します。認証成功後は現在の `auth-session` の `webauthn_verified` を true に更新します。失敗試行は既存の `pin_attempts` bucket を再利用し、24 時間に 5 回までに制限します。
+Owners without credentials go to `/passkey/setup`; those with credentials go to `/passkey/verify`. Success marks the current session verified. Failures reuse the `pin_attempts` bucket and are limited to five per 24 hours.
 
 ### 6.3 Google OAuth/OIDC
 
@@ -330,48 +337,43 @@ sequenceDiagram
   S-->>B: session cookies and redirect
 ```
 
-Google は `issuer=https://accounts.google.com` の OIDC Provider preset です。実装は `src/lib/oidc.ts` に集約し、次を provider 非依存にしています。
+Google is an OIDC provider preset with `issuer=https://accounts.google.com`. Provider-independent logic in `src/lib/oidc.ts` handles discovery, authorization URL generation, Authorization Code + PKCE exchange, issuer/audience/expiration/nonce verification, JWKS RS256 verification, and userinfo retrieval.
 
-- Discovery (`/.well-known/openid-configuration`)
-- 認可 URL 生成
-- Authorization Code + PKCE token exchange
-- ID token の issuer / audience / expiration / nonce 検証
-- JWKS による RS256 署名検証
-- userinfo 取得
-
-Google 固有 route は後方互換のため `src/app/api/auth/google/*` に残します。環境変数名も `GOOGLE_OAUTH_*` を維持します。
+Google-specific routes remain under `src/app/api/auth/google/*` for compatibility, and environment variables retain the `GOOGLE_OAUTH_*` names.
 
 ### 6.4 Super Owner
 
-Super Owner は公式SaaSの運営通知やメンテナンス通知など、通常Ownerより高い権限を必要とする運営者向けユーザーです。隠しURLや初期パスワードは使わず、通常のOwner登録・ログイン後に環境変数で指定されたメールアドレスと照合して初回bootstrapします。
+Super Owner is an operator account with privileges beyond a normal Owner. It uses no hidden URL or initial password. Bootstrap compares the verified email of a normally registered and authenticated Owner with the configured email.
 
-bootstrap は `SUPER_OWNER_BOOTSTRAP_ENABLED=true`、`SUPER_OWNER_EMAIL` 設定済み、対象ユーザーが検証済みメールアドレスを持つOwner admin、かつ既存Super Ownerが存在しない場合だけ実行されます。`SUPER_OWNER_REQUIRE_GOOGLE=true` の場合は、現在の認証経路が Google OIDC のときだけ付与します。DBには `users.is_super_owner=true` の部分ユニークインデックスを置き、アプリ実装の競合や設定ミスがあっても2人目は作成されません。
+Bootstrap runs only when enabled, an email is configured, the user is an Owner `admin` with verified email, and no Super Owner exists. When Google is required, the current authentication path must be Google OIDC. A partial unique index on `users.is_super_owner=true` prevents a second Super Owner even under races or misconfiguration.
 
-Super Owner専用処理は `requireSuperOwner()` を通してサーバー側で必ず確認します。Super Owner付与と専用APIアクセスは `super_owner_audit_logs` に記録し、IPアドレスは直接保存せずハッシュ化します。
+Every privileged operation calls `requireSuperOwner()` server-side. Grants and API access are stored in `super_owner_audit_logs`; IP addresses are hashed rather than stored directly.
 
-### 6.5 運営通知
+The operator user directory is served at `/super-owner/users` and `/api/super-owner/users`. SQL selection and responses are restricted to approved fields. Authentication data, phone numbers, lock expiration, and other private values are excluded. Shared user organization and effective plan are resolved from the Owner, and a currently locked account receives only the derived `locked` status.
 
-Super Owner は `/announcements` から公式SaaSまたはSelf-hosted内の運営通知を作成できます。通知は `draft`、`published`、`archived` の状態を持ち、通常ユーザーには `published` かつ `starts_at` / `ends_at` の公開期間内で、対象プランに一致するものだけを返します。対象プラン判定はクライアントに任せず、サーバー側でユーザーの effective plan から解決します。
+### 6.5 Operator Announcements
 
-未読の `high` / `critical` 通知は管理画面上部にバナー表示します。`require_acknowledgement=true` の通知は、確認済みになるまで管理画面右下にも固定表示します。既読・確認状態は `announcement_reads` に保存します。`send_email=true` の通知は公開時に既存SMTP設定で対象ユーザーへ送信を試行します。メール送信に失敗しても通知公開は取り消さず、失敗件数を通知レコードとSuper Owner監査ログに残します。
+Super Owner creates announcements for official SaaS or self-hosted instances from `/announcements`. Records move among `draft`, `published`, and `archived`. Regular users receive only published records inside `starts_at` / `ends_at` that match their server-resolved effective plan.
 
-### 6.6 監査ログ
+Unread `high` / `critical` announcements appear in the dashboard header. Records with `require_acknowledgement=true` remain fixed in the lower-right corner until acknowledged. Read state is stored in `announcement_reads`. Publishing with `send_email=true` attempts SMTP delivery without rolling back publication; failure counts are recorded on the announcement and in Super Owner audit logs.
 
-`audit_logs` は `src/lib/audit-log.ts` の `writeAuditLog()` / `writeUserAuditLog()` 経由でのみ書き込みます。ログ書き込みに失敗してもユーザー操作は原則止めず、`serverLog()` でターミナルへ構造化エラーを出します。
+### 6.6 Audit Logs
 
-IPアドレスは生値を保存せず、`AUDIT_LOG_IP_HASH_SECRET` が設定されている場合は HMAC-SHA256、未設定時も固定salt付き SHA-256 でハッシュ化します。`metadata_json` は最小限の情報に留め、password、token、secret、signature、cookie、credential、challenge などのキーはターミナルログとDB保存前に redaction します。
+`audit_logs` is written only through `writeAuditLog()` / `writeUserAuditLog()` in `src/lib/audit-log.ts`. Logging failures normally do not stop the user operation; `serverLog()` emits a structured terminal error.
 
-`AUDIT_LOG_ENABLED=false` の場合、DB保存は無効化されますが、重要イベントのターミナルログは維持されます。Super Owner は `/api/super-owner/audit-logs` で直近ログを確認できます。
+Raw IP addresses are never stored. When configured, `AUDIT_LOG_IP_HASH_SECRET` is used with HMAC-SHA256; otherwise SHA-256 with a fixed salt is used. `metadata_json` is minimal, and keys such as password, token, secret, signature, cookie, credential, and challenge are redacted before terminal or database output.
 
-`docker/cleanup-audit-logs.cjs` は `AUDIT_LOG_RETENTION_DAYS` が正の整数の場合に、指定日数より古い `audit_logs.created_at` を削除します。未設定または `0` では cleanup を無効化します。処理はコンテナ起動時に migration 後へ実行するほか、`pnpm audit:cleanup` を cron / scheduled task から呼び出せます。PostgreSQL advisory lock により同時実行を避け、削除件数と失敗だけをターミナルへ出力します。`AUDIT_LOG_ENABLED=false` でも既存ログの cleanup は継続します。
+`AUDIT_LOG_ENABLED=false` disables database persistence but retains terminal logs for important events. Super Owner can inspect recent entries through `/api/super-owner/audit-logs`.
 
-`docker/maintenance-cleanup.cjs` は長期運用向けの任意実行jobです。既定はdry-runで、`--execute` 指定時だけ期限切れsession/OAuth flow/signup request、保持期間を過ぎた処理済みStripe event、期限切れdirect upload sessionを削除します。direct upload init時に `direct_upload_sessions` へobject keyとcomplete猶予期限を記録し、complete成功時にsessionを消費します。cleanupはDB登録済みmediaのobjectを削除せず、未完了sessionとして追跡されたS3 objectだけを削除します。
+`docker/cleanup-audit-logs.cjs` removes records older than `AUDIT_LOG_RETENTION_DAYS` when it is a positive integer. It runs after migrations during container startup and can be scheduled through `pnpm audit:cleanup`. A PostgreSQL advisory lock prevents concurrent cleanup. Existing-log cleanup continues even when new audit persistence is disabled.
 
-orphan mediaは `media_items.file_path` とstorage object一覧を突き合わせますが、初期実装では件数と容量のdry-run報告だけを行います。local uploadsを含め自動削除は行いません。job全体はPostgreSQL advisory lockで多重実行を避けます。
+`docker/maintenance-cleanup.cjs` is an optional long-running maintenance job. It defaults to dry-run and deletes expired sessions, OAuth flows, signup requests, retained processed Stripe events, and expired direct-upload sessions only with `--execute`. Direct-upload init stores the object key and completion grace deadline; successful completion consumes the session. Cleanup never deletes objects with registered media rows.
 
-## 7. ボードとテンプレート設計
+Orphan media reporting compares storage objects with `media_items.file_path`. The initial implementation reports count and size only, including local uploads, and never automatically deletes orphan media. The whole job uses an advisory lock.
 
-テンプレートは registry 方式です。`boards.templateId` と `boards.config` で表示を決め、DB schema を増やさずにテンプレート固有設定を JSON として保持します。
+## 7. Board and Template Design
+
+Templates use a registry. `boards.templateId` chooses the implementation, while `boards.config` stores template-specific JSON without schema expansion.
 
 ```mermaid
 flowchart LR
@@ -384,29 +386,31 @@ flowchart LR
   messages[messages] --> component
 ```
 
-テンプレート追加時は、表示コンポーネント、既定 config、必要な dashboard editor、i18n 文字列、registry 登録を追加します。
+Adding a template requires a display component, default config, dashboard editor when needed, i18n strings, and registry entry.
 
-標準テンプレートは `simple`、`photo-clock`、`retro`、`message`、`call-number` の5種類です。拡張テンプレートは `clinic-hours`、`restaurant-menu`、`qr-info` で、`PlanLimits.extendedTemplates` によって Free では作成・変更を制限します。`restaurant-menu` の料理画像は `PlanLimits.menuItemImages` と公開ボード payload の `boardPlan.menuItemImages` で表示可否を制御します。
+The five standard templates are `simple`, `photo-clock`, `retro`, `message`, and `call-number`. Extended templates are `clinic-hours`, `restaurant-menu`, and `qr-info`; Free creation and changes are restricted by `PlanLimits.extendedTemplates`. Restaurant menu images are controlled by `PlanLimits.menuItemImages` and `boardPlan.menuItemImages`.
 
-`LiveBoard` は表示領域の高さを基準高さ 1080px に正規化した仮想キャンバスを作り、実画面高との比率でテンプレート全体を `transform: scale()` します。仮想キャンバスの横幅は実表示領域のアスペクト比から算出します。これにより、各テンプレート内の文字、アイコン、画像枠、余白を同じ比率で拡大縮小しつつ、横長・タブレットなどの画面比率には追従します。テンプレートのルート要素は viewport 単位ではなく親キャンバスに対する `width: 100%` / `height: 100%` を使用します。文字サイズ設定値は基準キャンバス上の design point とし、管理画面では `pt` と表示します。
+`LiveBoard` creates a virtual canvas normalized to 1080 px height and scales it to the display with `transform: scale()`. Canvas width follows the real aspect ratio. Template roots use parent-relative `width: 100%` / `height: 100%`, and font settings are design points displayed as `pt`.
 
-`simple` / `photo-clock` のスケジュール設定は `boards.config` に保持します。主なキーは `mediaSchedules`、`messageSchedules`、`fallbackMediaId` です。表示判定は `src/lib/scheduling.ts` に集約し、表示端末のブラウザが持つローカルタイムゾーンの `Date` で評価します。
+Simple Board and Photo Clock scheduling lives in `boards.config`, primarily under `mediaSchedules`, `messageSchedules`, and `fallbackMediaId`. `src/lib/scheduling.ts` evaluates schedules using the display browser's local `Date`.
 
-プラン制限は `PlanLimits.scheduling` で表現します。管理 API は保存時に `sanitizeSchedulingConfig` を通し、Free ではスケジュール設定を保存せず、Lite では日付期間を除外します。公開ボード API は `boardPlan.scheduling` を返し、表示コンポーネント側でもプランに応じて判定します。
+Simple Board and Photo Clock slideshows use `/api/time` to estimate the offset between the display clock and server time. `src/lib/slideshow-sync.ts` maps corrected absolute time onto the media-duration timeline, so displays opened at different times select the same slide. The offset is refreshed every five minutes. Random playback uses a deterministic order seeded by board ID and cycle number. Video playback position itself is not synchronized.
 
-ボードのプラン適用状態は `boards.status` で管理します。`active` はプラン上有効、`inactive_due_to_plan` はダウングレード適用により表示対象外になった状態です。従来の `is_active` はユーザー操作による表示オン/オフとして残します。表示ページと公開ボード API は、表示成功時に `boards.last_viewed_at` を一定間隔で更新し、ダウングレード予約時の自動候補選択に使います。
+`PlanLimits.scheduling` defines allowed scheduling. `sanitizeSchedulingConfig` removes all scheduling for Free and date ranges for Lite. Public board responses include `boardPlan.scheduling`, and display components also enforce the plan.
 
-Stripe のダウングレード予約またはキャンセル予約を検知した場合、Webhook payload だけで確定せず Stripe API から Subscription / Subscription Schedule を再取得します。`owner_subscriptions.current_price_id`、`current_period_end`、`cancel_at`、`stripe_schedule_id`、`pending_plan_code`、`pending_price_id`、`pending_billing_interval`、`pending_plan_effective_at`、`pending_active_board_ids` を保存します。`pending_active_board_ids` は `last_viewed_at`、`updated_at`、`created_at` の降順で、移行先プランの `PlanLimits.boards` 件まで自動生成します。実際の切替時は pending 候補だけを `active` とし、それ以外を `inactive_due_to_plan` にします。pending 候補が空または不正な場合も同じ順序で再選択します。
+Plan activation uses `boards.status`: `active` means available under the plan; `inactive_due_to_plan` means disabled by a downgrade. Existing `is_active` remains the user's display on/off switch. Successful display requests periodically update `last_viewed_at` for downgrade candidate selection.
 
-ダウングレード影響の表示は `src/lib/plan-impact.ts` に集約します。`OwnerUsage` と対象 `PlanDefinition` を比較し、ボード数、画像数、ストレージ、動画可否、動画解像度、1ファイル上限の超過候補を `PlanImpact` として返します。Billing 画面は予約中プランの影響警告、現在プランの over-limit 解消案内、プラン比較カードの事前警告に同じ判定を使います。
+On a scheduled Stripe downgrade or cancellation, Keinage refetches Subscription / Subscription Schedule state rather than trusting webhook payloads alone. It stores current and pending prices, period and cancellation timestamps, schedule ID, effective date, and `pending_active_board_ids`. Candidates are ordered by `last_viewed_at`, `updated_at`, and `created_at`, descending. At transition, only candidates remain active; missing or invalid selections are regenerated.
 
-Shared user上限は `PlanLimits.sharedUsers` と `src/lib/shared-user-plan.ts` に集約します。有効な Shared user と期限内で `invited` の招待をカウントし、招待作成・招待完了・再有効化時にサーバー側で検証します。Stripe webhookでプラン変更が実適用された時は、既存の有効ユーザーを優先して上限内を `active`、超過分を `inactive_due_to_plan` に変更し、超過ユーザーのセッションを削除します。`PLAN_ENFORCEMENT_MODE=unlimited` では上限は `null` となり、停止済みユーザーと招待を再度有効化します。
+`src/lib/plan-impact.ts` compares `OwnerUsage` with a target `PlanDefinition` and reports board, image, storage, video, resolution, and per-file overages. Billing uses the same result for future-plan warnings, current over-limit guidance, and plan comparison.
 
-## 8. メディア保存と配信
+Shared user limits are centralized in `PlanLimits.sharedUsers` and `src/lib/shared-user-plan.ts`. Active users and unexpired invited requests count. Creation, completion, and reactivation validate server-side. When a plan change takes effect, existing active users are prioritized, excess users become `inactive_due_to_plan`, and their sessions are deleted. Unlimited mode uses a `null` limit and reactivates plan-disabled users and invitations.
 
-`src/lib/media-storage.ts` がローカル保存と S3 互換ストレージを抽象化します。
+## 8. Media Storage and Delivery
 
-`media_items.file_size_bytes` と `thumbnail_size_bytes` は Owner のストレージ使用量計算に使います。`media_items.width` / `height` はアップロード時に取得した画像・動画寸法で、`media_items.video_duration_seconds` は動画ファイルの長さを秒単位で保持します。既存メディアは自動削除・自動リサイズせず、現在プランの `storageBytes`、`images`、`videoEnabled`、`maxResolution`、対象テンプレートのボード単位メディア上限を超える場合は、新規アップロード、テンプレート変更、設定保存、表示時の動画再生を制限します。
+`src/lib/media-storage.ts` abstracts local and S3-compatible storage.
+
+`file_size_bytes` and `thumbnail_size_bytes` contribute to Owner storage usage. Width, height, and video duration are captured at upload. Existing media is not automatically deleted or resized; new uploads, template changes, settings saves, and video playback are restricted when current limits are exceeded.
 
 ```mermaid
 flowchart TB
@@ -420,76 +424,83 @@ flowchart TB
   adapter --> response[Media response]
 ```
 
-- DB には `/uploads/<filename>` の公開パスを保存します。
-- 新規アップロードの object key は `owners/<owner>/boards/<board>/media/<mediaId>.<ext>` とし、Owner / board scope を key に含めます。サムネイルは同じ scope の `media/thumbs/` に保存します。既存の flat key も引き続き読み出せます。
-- S3 未設定時は `uploads/` に保存します。S3 利用時は `S3_REGION` と `S3_BUCKET` が必須です。`S3_INTERNAL_ENDPOINT` / `S3_ENDPOINT` は任意で、AWS S3 では省略できます。`S3_ACCESS_KEY_ID` と `S3_SECRET_ACCESS_KEY` は両方ある場合のみ明示 credentials として使い、空の場合は AWS SDK の default credential provider chain に任せます。
-- `STORAGE_DELIVERY_MODE=cloudfront-signed-url` の場合、board に返す media URL は `/uploads/<mediaId>` 形式にし、`/uploads/[...path]` route で board の公開設定と Owner scope を確認してから CloudFront Signed URL へ 302 redirect します。署名生成には `STORAGE_CDN_BASE_URL`、`CLOUDFRONT_KEY_PAIR_ID`、`CLOUDFRONT_PRIVATE_KEY` を使い、有効期限は `CLOUDFRONT_SIGNED_URL_EXPIRES_SECONDS` で調整できます。
-- 署名付き配信を使わない場合は、`S3_PUBLIC_BASE_URL`、`STORAGE_PUBLIC_BASE_URL`、`CLOUDFRONT_BASE_URL` の順で公開 base URL を参照し、設定されている場合は public board の media URL に使います。private board は `/uploads/[...path]` route を維持し、認可と `private, no-store` cache-control を適用します。
-- 画像は `src/lib/image.ts` でリサイズとサムネイル生成を行います。
-- standalone build 後の動的ファイル配信に対応するため、`/uploads/[...path]` route で保存先から読み出します。動画のシークと終端ループを安定させるため、ローカル保存と S3 保存のどちらでも `Range` リクエストへ `206 Partial Content` で応答します。
+- Database paths use `/uploads/<filename>`.
+- New object keys use `owners/<owner>/boards/<board>/media/<mediaId>.<ext>`; thumbnails use `media/thumbs/` in the same scope. Existing flat keys remain readable.
+- Without S3 configuration, files go to `uploads/`. S3 requires region and bucket. Explicit credentials are used only when both key and secret are present; otherwise the AWS SDK provider chain is used.
+- With CloudFront signed delivery, board URLs use `/uploads/<mediaId>`. The upload route verifies board visibility and Owner scope before a 302 redirect. Signing uses `STORAGE_CDN_BASE_URL`, `CLOUDFRONT_KEY_PAIR_ID`, `CLOUDFRONT_PRIVATE_KEY`, and the configured expiry.
+- Without signed delivery, public base URLs are considered in configured order. Private boards remain behind authorized `/uploads/[...path]` delivery with `private, no-store`.
+- `src/lib/image.ts` handles image resize and thumbnails.
+- The upload route reads dynamic files in standalone builds and supports byte ranges for both local and S3 video delivery.
 
-## 9. リアルタイム更新
+## 9. Real-time Updates
 
-Keinage は WebSocket ではなく Server-Sent Events を使います。
+Keinage uses Server-Sent Events rather than WebSockets.
 
 ```mermaid
 flowchart LR
   mutation["API mutation"] --> emit["emitSSE(boardId, event)"]
   emit --> hub["src/lib/sse.ts in-memory clients"]
   hub --> display["Board display"]
-  display --> refetch["Refetch board/media/messages"]
+  display --> refetch["Refetch board/media/messages or weather"]
 ```
 
-SSE はプロセス内メモリで購読者を管理します。複数アプリインスタンス間のイベント共有は未対応です。
+Subscribers are held in process memory. Cross-instance event distribution is not currently supported.
 
-## 10. i18n
+## 10. Weather Provider
 
-| ファイル | 役割 |
+`src/lib/weather/types.ts` defines the provider-independent forecast model and provider interface. Provider-specific response parsing is isolated under `src/lib/weather/providers/`. The default `openweatherapi` adapter uses OpenWeather One Call API 4.0 Current and 1-hour Timeline endpoints, resolves saved City IDs through the bundled city list, and converts condition IDs, Celsius temperatures, and hourly `pop` values into the normalized model. `tenkiyoho_api_jp` remains available for the Japanese forecast API.
+
+`src/lib/weather/service.ts` refreshes forecasts per provider and location (hourly for OpenWeather, every 30 minutes for the Japanese adapter). For the same forecast date, non-null values from each refresh are merged into the daily cached forecast so later provider responses cannot erase temperatures or elapsed precipitation periods. A different forecast date starts a fresh cache entry. During a refresh, duplicate requests immediately receive stale cached data; if the refresh fails, stale data is retained. `/api/weather` handles board authorization and Owner-location resolution, then delegates all external access to this service.
+
+The dashboard never renders provider-owned weather images. `WeatherDisplay` maps normalized condition codes to Keinage-owned monochrome SVG components, keeping the visual language consistent when providers are added or replaced. Select the adapter with `WEATHER_PROVIDER`; unsupported values fail explicitly.
+
+## 11. Internationalization
+
+| File | Responsibility |
 | --- | --- |
-| `src/lib/i18n.ts` | 対応 locale、fallback、format helper |
-| `src/lib/i18n/messages/*.ts` | locale ごとの UI 文字列 catalog |
-| `src/lib/i18n/messages/index.ts` | locale catalog の集約 / 型公開 |
-| `src/lib/i18n-messages.ts` | 互換 re-export |
-| `src/lib/i18n-server.ts` | Server Component / Route Handler 側の request locale 解決 |
-| `src/components/i18n/LocaleProvider.tsx` | Client Component 側の locale context |
+| `src/lib/i18n.ts` | Supported locales, fallback, and formatting helpers |
+| `src/lib/i18n/messages/*.ts` | Per-locale UI message catalogs |
+| `src/lib/i18n/messages/index.ts` | Catalog aggregation and shared types |
+| `src/lib/i18n-messages.ts` | Compatibility re-export |
+| `src/lib/i18n-server.ts` | Request locale resolution for Server Components and Route Handlers |
+| `src/components/i18n/LocaleProvider.tsx` | Client-side locale context |
 
-Locale はユーザー設定、Cookie、`Accept-Language` の順に解決します。新しい表示文字列を追加する場合は、`src/lib/i18n/messages/en-US.ts` を基準に各 locale ファイルへ同じ key を追加します。各翻訳は `satisfies Record<MessageKey, string>` で翻訳漏れを型検出します。
+Locale resolution order is user setting, cookie, then `Accept-Language`. New UI strings are added first to `en-US.ts` and then to every locale with the same key. `satisfies Record<MessageKey, string>` catches missing translations at type-check time.
 
-## 11. 設定管理
+## 12. Settings
 
-設定は大きく 2 種類です。
-
-| 種類 | 保存先 | 例 |
+| Type | Storage | Examples |
 | --- | --- | --- |
-| ユーザー設定 | `users` | `colorTheme`, `locale`, userId, email, PIN |
-| Owner 設定 | `settings` | `weatherCityId`, `imageMaxLongEdge`, `authExpireDays` |
+| User settings | `users` | `colorTheme`, `locale`, user ID, email, PIN |
+| Owner settings | `settings` | `weatherCityId`, `imageMaxLongEdge`, `authExpireDays` |
 
-Owner 設定は KV 形式のため、DB migration を増やさずに設定項目を追加できます。型変換や既定値は `src/lib/owner-settings.ts` と各 Route Handler / UI で扱います。
+Owner settings use a key/value model so new settings can be introduced without database migrations. Type conversion and defaults live in `src/lib/owner-settings.ts`, Route Handlers, and UI code.
 
-## 12. 外部連携
+## 13. External Integrations
 
-| 連携先 | 用途 |
+| Service | Purpose |
 | --- | --- |
-| Google OIDC | Google アカウントによる登録・ログイン |
-| SMTP | 登録、招待、PIN リセット、アカウント削除 URL の送信 |
-| weather.tsukumijima.net | 天気情報表示 |
-| GitHub Releases API | 最新バージョン確認 |
-| S3-compatible storage | メディア保存 |
+| Google OIDC | Google account registration and login |
+| SMTP | Registration, invitations, PIN reset, and account-deletion URLs |
+| OpenWeather (`openweatherapi` by default) | Current weather, hourly precipitation, and City ID data |
+| Weather Forecast API (`tenkiyoho_api_jp`) | Optional Japanese forecast adapter |
+| GitHub Releases API | Latest-version checks |
+| S3-compatible storage | Media storage |
 
-## 13. Docker / デプロイ
+## 14. Docker and Deployment
 
-Docker は multi-stage build です。
+Docker uses a multi-stage build:
 
-1. `deps`: pnpm 依存関係をインストール
-2. `builder`: `pnpm build`
-3. `runner`: standalone output と静的ファイルを実行
+1. `deps`: install pnpm dependencies
+2. `builder`: run `pnpm build`
+3. `runner`: execute standalone output and static assets
 
-`docker/entrypoint.sh` は起動前に migration を実行してから `node server.js` を起動します。Docker Compose では PostgreSQL health check 後に app が起動します。
+`docker/entrypoint.sh` runs migrations before `node server.js`. In Docker Compose, the application starts after the PostgreSQL health check passes.
 
-## 14. 開発時の注意
+## 15. Development Notes
 
-- Route Handler の認可境界は endpoint ごとに確認してください。
-- 新しい UI 文字列は i18n catalog に追加してください。
-- 新しいテンプレート設定は `boards.config` の後方互換を意識してください。
-- OAuth redirect で `0.0.0.0` を使わず、ローカルでは `http://localhost:3000` を使ってください。
-- SSE は単一プロセス前提です。水平スケール時は共有 pub/sub が必要です。
+- Review authorization boundaries for every Route Handler.
+- Add all new UI strings to the i18n catalogs.
+- Preserve backward compatibility when adding template configuration.
+- Do not use `0.0.0.0` for OAuth redirects; use `http://localhost:3000` locally.
+- SSE assumes a single process. Horizontal scaling requires shared pub/sub.

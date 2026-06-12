@@ -5,7 +5,9 @@
 import { startTransition, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocale } from "@/components/i18n/LocaleProvider";
+import { useServerTimeOffset } from "@/hooks/useServerTimeOffset";
 import { clampMediaDuration, DEFAULT_MEDIA_DURATION_SECONDS } from "@/lib/media-duration";
+import { getSynchronizedSlidePosition } from "@/lib/slideshow-sync";
 import {
   normalizeSlideshowTransition,
   type SlideshowTransition,
@@ -91,6 +93,7 @@ interface MediaSliderProps {
   objectFit?: "contain" | "cover";
   playbackOrder?: "sequential" | "random";
   transition?: SlideshowTransition;
+  synchronizationKey?: string;
 }
 
 interface DeferredVideoSlideProps {
@@ -242,10 +245,13 @@ export function MediaSlider({
   objectFit = "contain",
   playbackOrder = "sequential",
   transition = "fade-black",
+  synchronizationKey,
 }: MediaSliderProps) {
   const { t } = useLocale();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [readyImageKey, setReadyImageKey] = useState<string | null>(null);
+  const [synchronizedUpcomingIndexes, setSynchronizedUpcomingIndexes] =
+    useState<number[]>([]);
   const videoPreloadRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const advanceTokenRef = useRef(0);
   const randomQueueRef = useRef<number[]>([]);
@@ -253,9 +259,19 @@ export function MediaSlider({
   const currentIndexRef = useRef(0);
   const playbackOrderRef = useRef(playbackOrder);
   const mediaKey = useMemo(
-    () => mediaItems.map((item) => `${item.id}:${item.filePath}`).join("|"),
+    () => mediaItems.map((item) => [
+      item.id,
+      item.filePath,
+      item.type,
+      item.duration,
+      item.playbackMode,
+      item.videoDurationSeconds,
+    ].join(":")).join("|"),
     [mediaItems],
   );
+  const isSynchronized =
+    Boolean(synchronizationKey) && mediaItems.length > 1;
+  const serverTimeOffset = useServerTimeOffset(isSynchronized);
   const safeCurrentIndex =
     mediaItems.length === 0 ? 0 : Math.min(currentIndex, mediaItems.length - 1);
 
@@ -330,14 +346,56 @@ export function MediaSlider({
     commit();
   }, [nextIndex]);
 
+  useEffect(() => {
+    if (!isSynchronized || !synchronizationKey) return;
+
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = () => {
+      if (stopped) return;
+      const position = getSynchronizedSlidePosition({
+        mediaItems: mediaItemsRef.current,
+        playbackOrder,
+        syncKey: synchronizationKey,
+        serverTimeMs: Date.now() + serverTimeOffset,
+        preloadAhead: PRELOAD_AHEAD,
+      });
+
+      startTransition(() => {
+        if (currentIndexRef.current !== position.index) {
+          currentIndexRef.current = position.index;
+          setReadyImageKey(null);
+          setCurrentIndex(position.index);
+        }
+        setSynchronizedUpcomingIndexes(position.upcomingIndexes);
+      });
+
+      timer = setTimeout(schedule, position.remainingMs + 20);
+    };
+
+    timer = setTimeout(schedule, 0);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [
+    isSynchronized,
+    mediaKey,
+    playbackOrder,
+    serverTimeOffset,
+    synchronizationKey,
+  ]);
+
   // --- Preload upcoming media after the active slide has had a chance to paint. ---
   useEffect(() => {
     if (mediaItems.length <= 1) return;
 
     const timers: ReturnType<typeof setTimeout>[] = [];
 
-    const preloadIndexes =
-      playbackOrder === "random"
+    const preloadIndexes = isSynchronized
+      ? synchronizedUpcomingIndexes
+      : playbackOrder === "random"
         ? ensureRandomQueue().slice(0, PRELOAD_AHEAD)
         : Array.from(
             { length: PRELOAD_AHEAD },
@@ -374,7 +432,14 @@ export function MediaSlider({
     return () => {
       for (const timer of timers) clearTimeout(timer);
     };
-  }, [ensureRandomQueue, mediaItems, playbackOrder, safeCurrentIndex]);
+  }, [
+    ensureRandomQueue,
+    isSynchronized,
+    mediaItems,
+    playbackOrder,
+    safeCurrentIndex,
+    synchronizedUpcomingIndexes,
+  ]);
 
   const current = mediaItems[safeCurrentIndex];
   const currentKey = current ? `${current.id}:${current.filePath}` : "";
@@ -392,6 +457,7 @@ export function MediaSlider({
 
   // --- Auto-advance timer (starts only after the current image has loaded) ---
   useEffect(() => {
+    if (isSynchronized) return;
     if (mediaItems.length <= 1) return;
     if (!currentKey) return;
 
@@ -411,10 +477,12 @@ export function MediaSlider({
     currentType,
     advance,
     isCurrentImageReady,
+    isSynchronized,
   ]);
 
   // --- Video timer mode ---
   useEffect(() => {
+    if (isSynchronized) return;
     if (mediaItems.length <= 1) return;
 
     if (currentType !== "video") return;
@@ -429,6 +497,7 @@ export function MediaSlider({
     currentPlaybackMode,
     currentType,
     advance,
+    isSynchronized,
   ]);
 
   if (mediaItems.length === 0) {
@@ -454,7 +523,7 @@ export function MediaSlider({
         item={current}
         fitClass={fitClass}
         loop={mediaItems.length <= 1 || current.playbackMode !== "until-ended"}
-        onEnded={advance}
+        onEnded={isSynchronized ? () => undefined : advance}
       />
     )
   ) : (

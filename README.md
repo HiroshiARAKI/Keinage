@@ -1,3 +1,7 @@
+<p align="center">
+  English | <a href="./README.ja.md">日本語</a>
+</p>
+
 # Keinage
 
 <p align="center">
@@ -7,44 +11,45 @@
 <a href="https://keinage.com">keinage.com</a>
 </p>
 <p align="center">
-Web上で簡単にカスタマイズできる掲示板、案内板、デジタルサイネージ
+A customizable web-based notice board, information display, and digital signage app
 </p>
 
-Keinage は、管理画面で作成したボードを表示端末へリアルタイム反映する OSS のデジタルサイネージ Web アプリです。病院の待合室、店舗、飲食店、オフィス、イベント会場などで、画像、動画、メッセージ、時計、天気、呼び出し番号を表示できます。
+Keinage is an open-source digital signage web application that reflects dashboard changes on display devices in real time. It can show images, videos, messages, clocks, weather, and call numbers in hospital waiting rooms, stores, restaurants, offices, event venues, and more.
 
-## 主な特徴
+## Key Features
 
-- **テンプレートベース**: 用途に合わせて掲示板、フォトクロック、呼び出し番号、診療時間、メニューなどを選択できます。
-- **リアルタイム更新**: 管理画面や API からの変更が SSE で表示画面へ反映されます。
-- **Owner / Shared user**: Owner のワークスペースに Shared user を招待して共同編集できます。
-- **Self-hosted friendly**: 既定では課金なし、プラン制限なし、ローカル保存で使えます。
-- **公式SaaS対応の基盤**: Stripe Billing、S3 / CloudFront、Google OAuth/OIDC、監査ログ、Super Owner を設定できます。
+- **Template based**: Choose from notice boards, photo clocks, call-number displays, clinic hours, menus, and other purpose-built templates.
+- **Real-time updates**: Changes made in the dashboard or through the API are delivered to display screens over SSE.
+- **Owner / Shared users**: Invite Shared users into an Owner workspace for collaborative editing.
+- **Self-hosted friendly**: The default setup has no billing, no plan restrictions, and uses local storage.
+- **Official SaaS foundation**: Configure Stripe Billing, S3 / CloudFront, Google OAuth/OIDC, audit logs, and Super Owner capabilities.
 
-## テンプレート例
-![keinage template usages](doc-res/keinage-usages.png)
+## Template Examples
 
-## 技術スタック
+![Keinage template examples](doc-res/keinage-usages.png)
 
-| カテゴリ | 技術 |
+## Technology Stack
+
+| Category | Technology |
 | --- | --- |
-| 言語 | TypeScript |
-| フレームワーク | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Framework | Next.js 16 (App Router) |
 | UI | Tailwind CSS v4, shadcn/ui, Framer Motion |
-| DB | PostgreSQL, Drizzle ORM |
-| リアルタイム通信 | Server-Sent Events (SSE) |
-| 認証 | Email + password, Google OAuth/OIDC, PIN, WebAuthn / Passkey |
-| ストレージ | Local filesystem, S3-compatible storage |
-| コンテナ | Docker, Docker Compose |
+| Database | PostgreSQL, Drizzle ORM |
+| Real-time communication | Server-Sent Events (SSE) |
+| Authentication | Email + password, Google OAuth/OIDC, PIN, WebAuthn / Passkey |
+| Storage | Local filesystem, S3-compatible storage |
+| Containers | Docker, Docker Compose |
 
-## クイックスタート
+## Quick Start
 
-### 必要環境
+### Requirements
 
-- Node.js 20 以上
-- pnpm 9 以上
+- Node.js 20 or later
+- pnpm 9 or later
 - Docker / Docker Compose
 
-### Docker Compose で起動
+### Start with Docker Compose
 
 ```bash
 git clone https://github.com/HiroshiARAKI/Keinage.git
@@ -53,23 +58,23 @@ cp .env.example .env
 docker compose up -d
 ```
 
-ブラウザで `http://localhost:3000` を開き、初回は Owner 管理者アカウントを登録してください。登録後に 6 桁 PIN を設定すると管理画面へ入れます。
+Open `http://localhost:3000` in a browser. On the first visit, register an Owner administrator account. After registration, set a six-digit PIN to enter the dashboard.
 
-停止する場合:
+To stop the services:
 
 ```bash
 docker compose down
 ```
 
-DB やアップロードファイルを含む Docker ボリュームも削除する場合:
+To also delete Docker volumes containing the database and uploaded files:
 
 ```bash
 docker compose down -v
 ```
 
-## 既定のSelf-hostedモード
+## Default Self-hosted Mode
 
-`.env.example` の既定値では、OSS / Self-hosted 利用者が課金機能なしで従来通り使える構成です。
+The defaults in `.env.example` let OSS and self-hosted users run Keinage without billing or plan restrictions.
 
 ```bash
 BILLING_MODE=disabled
@@ -77,44 +82,45 @@ PLAN_ENFORCEMENT_MODE=unlimited
 UPLOAD_MAX_BYTES=0
 ```
 
-この状態では `/billing` の課金導線は表示されず、プラン制限も適用されません。メディア保存先はローカル `uploads/` です。S3互換ストレージ、RustFS / MinIO、公式SaaS向けのStripe設定は必要になった時だけ追加してください。
+In this mode, billing links are hidden, plan restrictions are disabled, and media is stored in the local `uploads/` directory. Configure S3-compatible storage, RustFS / MinIO, or Stripe for the official SaaS mode only when needed.
 
-## 詳細ドキュメント
+## Documentation
 
-| ドキュメント | 内容 |
+| Document | Description |
 | --- | --- |
-| [docs/SPEC.md](docs/SPEC.md) | ユーザー視点の機能仕様、テンプレート、プラン別機能 |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Self-hosted / 公式SaaSの環境変数、課金、ストレージ、デプロイ注意点 |
-| [docs/DESIGN.md](docs/DESIGN.md) | メンテナー向け設計、DB schema、実装構造 |
-| [docs/API.md](docs/API.md) | 画面ルート、API Route Handler、SSE、アップロード配信 route |
-| [docs/SECURITY.md](docs/SECURITY.md) | production / 公式SaaS向けセキュリティ設定 |
-| [docs/TRADEMARK.md](docs/TRADEMARK.md) | Keinage の名称、ロゴ、ブランド利用ルール |
+| [docs/SPEC.md](docs/SPEC.md) | User-facing behavior, templates, and plan-specific features |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Self-hosted and official SaaS environment variables, billing, storage, and deployment notes |
+| [docs/DESIGN.md](docs/DESIGN.md) | Maintainer-oriented design, database schema, and implementation structure |
+| [docs/API.md](docs/API.md) | Page routes, API Route Handlers, SSE, and upload delivery routes |
+| [docs/SECURITY.md](docs/SECURITY.md) | Security configuration for production and official SaaS deployments |
+| [docs/TRADEMARK.md](docs/TRADEMARK.md) | Rules for using the Keinage name, logo, and brand |
 
-## よく使う設定の入口
+## Common Configuration Entry Points
 
-- メール送信: `APP_PUBLIC_ORIGIN` と `SMTP_*` を設定します。
-- Google OAuth/OIDC: `GOOGLE_OAUTH_ENABLED=true` と `GOOGLE_OAUTH_*` を設定します。
-- Passkey: `WEBAUTHN_ENABLED=true` と `WEBAUTHN_*` を設定します。
-- S3 / CloudFront: `S3_*` と `STORAGE_*` を設定します。
-- Stripe Billing: `BILLING_MODE=stripe`、`PLAN_ENFORCEMENT_MODE=billing`、`STRIPE_*` を設定します。
-- Super Owner: `SUPER_OWNER_*` を設定します。
-- 監査ログ: `AUDIT_LOG_*` を設定します。`AUDIT_LOG_RETENTION_DAYS` が正の整数の場合、コンテナ起動時に指定日数より古いログを削除します。手動・定期実行では `pnpm audit:cleanup` を使用できます。
-- 定期保守: `pnpm maintenance:cleanup` で dry-run、`pnpm maintenance:cleanup -- --execute` で期限切れセッション、OAuth/signup flow、Stripe event、未完了direct uploadを削除します。`--orphan-media` は未参照メディア候補を削除せず集計します。
+- Email delivery: configure `APP_PUBLIC_ORIGIN` and `SMTP_*`.
+- Google OAuth/OIDC: configure `GOOGLE_OAUTH_ENABLED=true` and `GOOGLE_OAUTH_*`.
+- Passkeys: configure `WEBAUTHN_ENABLED=true` and `WEBAUTHN_*`.
+- S3 / CloudFront: configure `S3_*` and `STORAGE_*`.
+- Stripe Billing: configure `BILLING_MODE=stripe`, `PLAN_ENFORCEMENT_MODE=billing`, and `STRIPE_*`.
+- Super Owner: configure `SUPER_OWNER_*`.
+- Audit logs: configure `AUDIT_LOG_*`. When `AUDIT_LOG_RETENTION_DAYS` is a positive integer, logs older than that value are removed during container startup. Use `pnpm audit:cleanup` for manual or scheduled cleanup.
+- Scheduled maintenance: `pnpm maintenance:cleanup` performs a dry run. Use `pnpm maintenance:cleanup -- --execute` to remove expired sessions, OAuth/signup flows, Stripe events, and incomplete direct uploads. `--orphan-media` reports unreferenced media candidates without deleting them.
 
-詳細な設定例と注意点は [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) を参照してください。
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed examples and operational notes.
 
-## コントリビューション
+## Contributing
 
-Issue や Pull Request は歓迎します。バグ報告や機能リクエストは GitHub Issues よりお願いいたします。
+Issues and pull requests are welcome. Please use GitHub Issues for bug reports and feature requests.
 
-## 謝辞
+## Acknowledgements
 
-- 天気予報データは [天気予報 API（livedoor 天気互換）](https://weather.tsukumijima.net/) を利用させていただいています。
+- Weather data and the city list are provided by [OpenWeather](https://openweathermap.org/).
+- The optional Japanese weather adapter uses the [Weather Forecast API (livedoor Weather compatible)](https://weather.tsukumijima.net/).
 
-## ライセンス
+## License
 
-このプロジェクトは [Apache License 2.0](LICENSE) の下でライセンスされています。個人利用、社内利用、商用利用、オンプレミス環境でのセルフホスト利用は、Apache License 2.0 の条件に従って自由に行えます。
+This project is licensed under the [Apache License 2.0](LICENSE). Personal, internal, commercial, and on-premises self-hosted use is permitted under its terms.
 
-ただし、Keinage の名称、ロゴ、公式サービスと誤認されるブランド表現は Apache License 2.0 の許諾対象ではありません。
+The Keinage name, logo, and branding that could imply an official service are not licensed under Apache License 2.0.
 
-詳しくは [LICENSE](LICENSE)、[NOTICE](NOTICE)、[docs/TRADEMARK.md](docs/TRADEMARK.md) を参照してください。
+See [LICENSE](LICENSE), [NOTICE](NOTICE), and [docs/TRADEMARK.md](docs/TRADEMARK.md) for details.

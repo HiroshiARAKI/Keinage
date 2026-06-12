@@ -120,6 +120,7 @@ export default function PhotoClockBoard({
           objectFit={config.objectFit}
           playbackOrder={config.randomPlayback ? "random" : "sequential"}
           transition={config.mediaTransition}
+          synchronizationKey={board.id}
         />
       ) : (
         <ScheduledMediaFallback

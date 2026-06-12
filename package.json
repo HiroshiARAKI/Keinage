@@ -1,6 +1,6 @@
 {
   "name": "keinage",
-  "version": "1.5.11",
+  "version": "1.6.0",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
@@ -15,7 +15,8 @@
     "audit:cleanup": "node docker/cleanup-audit-logs.cjs",
     "test:audit-cleanup": "node --test docker/cleanup-audit-logs.test.cjs",
     "maintenance:cleanup": "node docker/maintenance-cleanup.cjs",
-    "test:maintenance-cleanup": "node --test docker/maintenance-cleanup.test.cjs"
+    "test:maintenance-cleanup": "node --test docker/maintenance-cleanup.test.cjs",
+    "test:weather": "NODE_OPTIONS=--conditions=react-server tsx --test src/lib/weather/*.test.ts src/lib/weather/providers/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1036.0",

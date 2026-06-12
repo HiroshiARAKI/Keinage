@@ -101,11 +101,14 @@ export function DateTimeClock({
   const hasBackground = bgOpacity > 0;
   const rootClassName = className ?? "";
   const visibility = now ? undefined : "hidden";
+  const frostedCardClassName = hasBackground
+    ? "rounded-2xl border border-white/15 shadow-lg backdrop-blur-sm"
+    : "";
 
   if (layout === "compact") {
     return (
       <div
-        className={`inline-flex items-center gap-4 ${hasBackground ? "rounded-lg px-5 py-2" : ""} ${rootClassName}`}
+        className={`inline-flex items-center gap-4 ${hasBackground ? "px-5 py-2" : ""} ${frostedCardClassName} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -132,7 +135,7 @@ export function DateTimeClock({
   if (layout === "large-time") {
     return (
       <div
-        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-8 py-4" : ""} ${rootClassName}`}
+        className={`inline-flex flex-col items-center ${hasBackground ? "px-8 py-4" : ""} ${frostedCardClassName} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -165,7 +168,7 @@ export function DateTimeClock({
   if (layout === "date-top") {
     return (
       <div
-        className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
+        className={`inline-flex flex-col items-center ${hasBackground ? "px-6 py-3" : ""} ${frostedCardClassName} ${rootClassName}`}
         style={{
           backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
           color,
@@ -192,7 +195,7 @@ export function DateTimeClock({
   // "standard" layout (default)
   return (
     <div
-      className={`inline-flex flex-col items-center ${hasBackground ? "rounded-lg px-6 py-3" : ""} ${rootClassName}`}
+      className={`inline-flex flex-col items-center ${hasBackground ? "px-6 py-3" : ""} ${frostedCardClassName} ${rootClassName}`}
       style={{
         backgroundColor: hasBackground ? `rgba(0, 0, 0, ${bgOpacity})` : undefined,
         color,

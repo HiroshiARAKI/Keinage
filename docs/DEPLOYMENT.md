@@ -1,29 +1,33 @@
+<p align="center">
+  English | <a href="./DEPLOYMENT.ja.md">日本語</a>
+</p>
+
 # Keinage Deployment Guide
 
-最終更新: 2026-05-16
+Last updated: May 16, 2026
 
-## 1. このドキュメントの目的
+## 1. Purpose
 
-このドキュメントは、Keinage を Self-hosted で使う場合と、公式SaaSとして運用する場合の環境変数、課金、ストレージ、デプロイ時の注意点をまとめます。
+This document covers environment variables, billing, storage, and deployment considerations for both self-hosted Keinage installations and the official SaaS service.
 
-- Self-hosted: 課金機能なし、プラン制限なし、ローカルまたはS3互換ストレージで運用します。
-- 公式SaaS: Stripe Billing、RDS PostgreSQL、S3、CloudFront、Google OAuth/OIDC、SMTP、監査ログを組み合わせて運用します。
+- Self-hosted: runs without billing or plan restrictions, using local or S3-compatible storage.
+- Official SaaS: combines Stripe Billing, RDS PostgreSQL, S3, CloudFront, Google OAuth/OIDC, SMTP, and audit logging.
 
-secret、token、Stripe price ID、CloudFront private key、SMTP password は Git にコミットしないでください。ドキュメントや `.env.example` には placeholder のみを記載します。
+Never commit secrets, tokens, Stripe price IDs, CloudFront private keys, or SMTP passwords to Git. Use placeholders only in documentation and `.env.example`.
 
-## 2. モードの全体像
+## 2. Deployment Modes
 
-| 用途 | `BILLING_MODE` | `PLAN_ENFORCEMENT_MODE` | 代表的な挙動 |
+| Use case | `BILLING_MODE` | `PLAN_ENFORCEMENT_MODE` | Behavior |
 | --- | --- | --- | --- |
-| OSS / Self-hosted 既定 | `disabled` | `unlimited` | 課金導線なし。プラン制限なし。 |
-| Self-hosted でローカル制限だけ検証 | `disabled` | `local` | Stripeなしでプラン制限ロジックを検証。 |
-| 公式SaaS | `stripe` | `billing` | Stripe subscription と Owner の有効プランを同期し、制限を適用。 |
+| Default OSS / self-hosted | `disabled` | `unlimited` | No billing UI and no plan restrictions |
+| Test local restrictions in self-hosted mode | `disabled` | `local` | Exercises plan restriction logic without Stripe |
+| Official SaaS | `stripe` | `billing` | Synchronizes Stripe subscriptions with each Owner's effective plan and enforces limits |
 
-`BILLING_MODE=disabled` では `/billing` の課金導線は表示されず、`/api/billing/webhook` は 404 を返します。`PLAN_ENFORCEMENT_MODE=unlimited` では、プラン制限を適用しません。
+With `BILLING_MODE=disabled`, billing links are hidden and `/api/billing/webhook` returns 404. With `PLAN_ENFORCEMENT_MODE=unlimited`, no plan restrictions are enforced.
 
-## 3. Self-hosted の既定構成
+## 3. Default Self-hosted Configuration
 
-`.env.example` の既定値は、Self-hosted でそのまま使いやすい構成です。
+The defaults in `.env.example` are intended to work directly for self-hosted deployments.
 
 ```bash
 BILLING_MODE=disabled
@@ -31,23 +35,25 @@ PLAN_ENFORCEMENT_MODE=unlimited
 UPLOAD_MAX_BYTES=0
 ```
 
-`UPLOAD_MAX_BYTES=0` は Self-hosted / unlimited mode の安全上限を無制限として扱います。公式SaaSでは effective plan の `maxUploadBytes` が優先されます。
+`UPLOAD_MAX_BYTES=0` means unlimited in self-hosted / unlimited mode. In official SaaS mode, the effective plan's `maxUploadBytes` takes precedence.
 
-Self-hosted では、次の設定だけで基本運用を開始できます。
+A basic self-hosted deployment needs only the following settings:
 
-| 変数 | 必須 | 説明 |
+| Variable | Required | Description |
 | --- | --- | --- |
-| `DATABASE_URL` | 必須 | PostgreSQL 接続文字列。Docker Compose 既定値はローカルDB。 |
-| `APP_PUBLIC_ORIGIN` | 推奨 | メールリンク、OAuth callback の基準 origin。ローカルでは `http://localhost:3000`。 |
-| `SMTP_*` | 任意 | 登録、招待、PINリセット、重要通知メールに利用。未設定時は該当メール送信をスキップまたは無効化。 |
-| `GOOGLE_OAUTH_*` | 任意 | Google アカウント登録・ログインを使う場合に設定。 |
-| `WEBAUTHN_*` | 任意 | Owner に Passkey 二要素認証を要求する場合に設定。 |
-| `S3_*` / `STORAGE_*` | 任意 | ローカル `uploads/` ではなく S3互換ストレージを使う場合に設定。 |
-| `AUDIT_LOG_*` | 任意 | 認証、課金、退会、Super Owner などの監査ログ設定と保持期間。 |
+| `DATABASE_URL` | Yes | PostgreSQL connection string. Docker Compose defaults to the local database. |
+| `APP_PUBLIC_ORIGIN` | Recommended | Base origin for email links and OAuth callbacks, such as `http://localhost:3000` locally. |
+| `SMTP_*` | Optional | Used for registration, invitations, PIN resets, and important notices. Relevant email flows are skipped or disabled when unset. |
+| `GOOGLE_OAUTH_*` | Optional | Configure to enable Google account registration and login. |
+| `WEBAUTHN_*` | Optional | Configure to require Passkey two-factor authentication for Owners. |
+| `S3_*` / `STORAGE_*` | Optional | Configure to use S3-compatible storage instead of local `uploads/`. |
+| `AUDIT_LOG_*` | Optional | Audit logging and retention settings for authentication, billing, account deletion, Super Owner operations, and more. |
+| `WEATHER_PROVIDER` | Optional | Weather adapter: `openweatherapi` (default) or `tenkiyoho_api_jp`. |
+| `OPENWEATHER_API_KEY` | Optional | OpenWeather API key fallback. The Super Owner can configure the key from Settings instead. |
 
-## 4. 公式SaaS mode
+## 4. Official SaaS Mode
 
-公式SaaSでは、次を設定します。
+Set the following values for the official SaaS deployment:
 
 ```bash
 KEINAGE_DEPLOYMENT_MODE=official-saas
@@ -55,89 +61,89 @@ BILLING_MODE=stripe
 PLAN_ENFORCEMENT_MODE=billing
 ```
 
-公式SaaSでは secret 未設定、弱い設定、課金設定漏れが本番事故につながります。`KEINAGE_DEPLOYMENT_MODE=official-saas` は厳格な起動時チェックの対象になります。
+Missing secrets, weak settings, or incomplete billing configuration can cause production incidents. `KEINAGE_DEPLOYMENT_MODE=official-saas` enables strict startup validation.
 
-### 4.1 公式SaaS用 env 一覧
+### 4.1 Official SaaS Environment Variables
 
-| カテゴリ | 変数 | 説明 |
+| Category | Variable | Description |
 | --- | --- | --- |
-| App | `KEINAGE_DEPLOYMENT_MODE` | 公式SaaSでは `official-saas`。 |
-| App | `APP_PUBLIC_ORIGIN` | ブラウザで開く正式 origin。例: `https://app.keinage.com`。 |
-| DB | `DATABASE_URL` | RDS PostgreSQL などの接続文字列。 |
-| Proxy | `TRUST_PROXY_HEADERS` | ALB / CloudFront / Nginx などが全リクエストを通す場合のみ `true`。 |
-| Billing | `BILLING_MODE` | 公式SaaSでは `stripe`。 |
-| Billing | `PLAN_ENFORCEMENT_MODE` | 公式SaaSでは `billing`。 |
-| Stripe | `STRIPE_SECRET_KEY` | Stripe API secret key。 |
-| Stripe | `STRIPE_WEBHOOK_SECRET` | Stripe webhook endpoint secret。 |
-| Stripe | `STRIPE_PRICE_LITE_MONTHLY` / `STRIPE_PRICE_LITE_YEARLY` | Lite の月額 / 年額 price ID。 |
-| Stripe | `STRIPE_PRICE_STANDARD_MONTHLY` / `STRIPE_PRICE_STANDARD_YEARLY` | Standard の月額 / 年額 price ID。 |
-| Stripe | `STRIPE_PRICE_STANDARD_PLUS_MONTHLY` / `STRIPE_PRICE_STANDARD_PLUS_YEARLY` | Standard+ の月額 / 年額 price ID。 |
-| Storage | `S3_REGION` / `S3_BUCKET` | AWS S3 の region と bucket。 |
-| Storage | `S3_ENDPOINT` / `S3_INTERNAL_ENDPOINT` | AWS S3 では通常空。S3互換ストレージでは endpoint を指定。 |
-| Storage | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | IAM Role を使う本番AWSでは空。ローカル検証やS3互換ではペアで設定。 |
-| Storage | `S3_FORCE_PATH_STYLE` | RustFS / MinIO などでは `true`。AWS S3 では通常 `false`。 |
-| Storage | `S3_PRESIGNED_UPLOAD_EXPIRES_SECONDS` | ブラウザ直接PUT用の署名URL期限。 |
-| Delivery | `STORAGE_DELIVERY_MODE` | private CloudFront 配信では `cloudfront-signed-url`。 |
-| Delivery | `STORAGE_PUBLIC_BASE_URL` | ブラウザに返すアプリ側の `/uploads` URL。 |
-| Delivery | `STORAGE_CDN_BASE_URL` | CloudFront distribution の base URL。 |
-| Delivery | `CLOUDFRONT_KEY_PAIR_ID` / `CLOUDFRONT_PRIVATE_KEY` | CloudFront Signed URL 署名用。 |
-| Delivery | `CLOUDFRONT_SIGNED_URL_EXPIRES_SECONDS` | Signed URL の有効期限。 |
-| Auth | `GOOGLE_OAUTH_ENABLED` | Google OAuth/OIDC を使う場合 `true`。 |
-| Auth | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google Cloud Console の OAuth client。 |
-| Auth | `WEBAUTHN_ENABLED` / `WEBAUTHN_OWNER_REQUIRED` | Passkey を使う場合に設定。 |
-| Auth | `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN` | WebAuthn relying party 設定。 |
-| Mail | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | 登録、リセット、重要通知メール。 |
-| Contact | `CONTACT_SMTP_*` / `CONTACT_TO_EMAIL` | 問い合わせフォーム用SMTP。未設定時は問い合わせフォームを無効化。 |
-| Super Owner | `SUPER_OWNER_EMAIL` / `SUPER_OWNER_BOOTSTRAP_ENABLED` / `SUPER_OWNER_REQUIRE_GOOGLE` | 運営者用高権限ユーザーの初回bootstrap。 |
-| Audit | `AUDIT_LOG_ENABLED` / `AUDIT_LOG_IP_HASH_SECRET` / `AUDIT_LOG_RETENTION_DAYS` | 監査ログ、IP hash secret、保持期間。保持日数が正の整数の場合、コンテナ起動時に期限切れログを削除します。未設定または `0` は削除無効です。 |
+| App | `KEINAGE_DEPLOYMENT_MODE` | Set to `official-saas`. |
+| App | `APP_PUBLIC_ORIGIN` | Canonical browser origin, for example `https://app.keinage.com`. |
+| DB | `DATABASE_URL` | Connection string for RDS PostgreSQL or another PostgreSQL service. |
+| Proxy | `TRUST_PROXY_HEADERS` | Set to `true` only when every request passes through ALB, CloudFront, Nginx, or another trusted proxy. |
+| Billing | `BILLING_MODE` | Set to `stripe`. |
+| Billing | `PLAN_ENFORCEMENT_MODE` | Set to `billing`. |
+| Stripe | `STRIPE_SECRET_KEY` | Stripe API secret key. |
+| Stripe | `STRIPE_WEBHOOK_SECRET` | Stripe webhook endpoint secret. |
+| Stripe | `STRIPE_PRICE_LITE_MONTHLY` / `STRIPE_PRICE_LITE_YEARLY` | Monthly / yearly Lite price IDs. |
+| Stripe | `STRIPE_PRICE_STANDARD_MONTHLY` / `STRIPE_PRICE_STANDARD_YEARLY` | Monthly / yearly Standard price IDs. |
+| Stripe | `STRIPE_PRICE_STANDARD_PLUS_MONTHLY` / `STRIPE_PRICE_STANDARD_PLUS_YEARLY` | Monthly / yearly Standard+ price IDs. |
+| Storage | `S3_REGION` / `S3_BUCKET` | AWS S3 region and bucket. |
+| Storage | `S3_ENDPOINT` / `S3_INTERNAL_ENDPOINT` | Usually empty for AWS S3; set endpoints for S3-compatible services. |
+| Storage | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | Leave empty when using an IAM role on AWS. Set both for local testing or S3-compatible services. |
+| Storage | `S3_FORCE_PATH_STYLE` | Usually `true` for RustFS / MinIO and `false` for AWS S3. |
+| Storage | `S3_PRESIGNED_UPLOAD_EXPIRES_SECONDS` | Lifetime of browser direct-PUT signed URLs. |
+| Delivery | `STORAGE_DELIVERY_MODE` | Use `cloudfront-signed-url` for private CloudFront delivery. |
+| Delivery | `STORAGE_PUBLIC_BASE_URL` | Application `/uploads` URL returned to browsers. |
+| Delivery | `STORAGE_CDN_BASE_URL` | CloudFront distribution base URL. |
+| Delivery | `CLOUDFRONT_KEY_PAIR_ID` / `CLOUDFRONT_PRIVATE_KEY` | Credentials used to sign CloudFront URLs. |
+| Delivery | `CLOUDFRONT_SIGNED_URL_EXPIRES_SECONDS` | Signed URL lifetime. |
+| Auth | `GOOGLE_OAUTH_ENABLED` | Set to `true` to enable Google OAuth/OIDC. |
+| Auth | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth client from Google Cloud Console. |
+| Auth | `WEBAUTHN_ENABLED` / `WEBAUTHN_OWNER_REQUIRED` | Configure to enable and require Passkeys. |
+| Auth | `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN` | WebAuthn relying-party settings. |
+| Mail | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Registration, reset, and important-notice email. |
+| Contact | `CONTACT_SMTP_*` / `CONTACT_TO_EMAIL` | SMTP for the contact form. The form is disabled when unset. |
+| Super Owner | `SUPER_OWNER_EMAIL` / `SUPER_OWNER_BOOTSTRAP_ENABLED` / `SUPER_OWNER_REQUIRE_GOOGLE` | Initial bootstrap settings for the operator account. |
+| Audit | `AUDIT_LOG_ENABLED` / `AUDIT_LOG_IP_HASH_SECRET` / `AUDIT_LOG_RETENTION_DAYS` | Audit logging, IP hash secret, and retention. A positive retention value removes expired logs at container startup; unset or `0` disables deletion. |
 
-Stripe price ID は必ず env で管理し、コードや公開ドキュメントに実値を書かないでください。price ID の対応は `src/lib/plans.ts` の `getBillingConfig()` で env から読み取ります。
+Always manage Stripe price IDs through environment variables. Never place real IDs in source code or public documentation. `getBillingConfig()` in `src/lib/plans.ts` reads the mapping from the environment.
 
-監査ログ cleanup は `pnpm audit:cleanup` でも実行できます。同じスクリプトを cron や scheduled task から定期実行でき、複数プロセスから同時に呼ばれた場合は PostgreSQL advisory lock により1プロセスだけが削除を実行します。`AUDIT_LOG_ENABLED=false` は新規監査ログのDB保存だけを無効化し、既存ログの保持期間 cleanup は無効化しません。cleanup に失敗した場合は削除対象の内容を出さず、失敗をターミナルへ記録します。コンテナ起動時の cleanup 失敗はサーバー起動を妨げません。
+Audit cleanup can also be run with `pnpm audit:cleanup`. The same command may be scheduled through cron or another scheduler. A PostgreSQL advisory lock ensures that only one process deletes records when multiple processes run concurrently. `AUDIT_LOG_ENABLED=false` disables persistence of new audit logs but does not disable retention cleanup for existing logs. Cleanup failures are logged without exposing the records being deleted and do not prevent the server from starting.
 
-### 4.1 定期保守 cleanup
+### 4.2 Scheduled Maintenance Cleanup
 
-`pnpm maintenance:cleanup` は dry-run で、期限切れ `auth_sessions`、Google OAuth flow、Owner/Shared signup request、保持期間を過ぎた処理済み Stripe event、期限切れ direct upload session の対象件数を表示します。実際に削除する場合は `pnpm maintenance:cleanup -- --execute` を実行します。
+`pnpm maintenance:cleanup` performs a dry run and reports expired `auth_sessions`, Google OAuth flows, Owner/Shared signup requests, processed Stripe events beyond retention, and expired direct-upload sessions. Run `pnpm maintenance:cleanup -- --execute` to delete them.
 
-保持期間は `MAINTENANCE_SIGNUP_RETENTION_DAYS`（既定30日）と `STRIPE_EVENT_RETENTION_DAYS`（既定90日）で変更できます。未完了signup requestは期限切れ後に削除し、完了済みrequestは指定保持日数後に削除します。Stripe event は `processed` / `ignored` のみ削除し、`processing` / `failed` は再処理のため保持します。direct upload は署名URL期限後に1時間のcomplete猶予を設け、期限切れsessionに紐づく未登録S3 objectだけを削除します。DB登録済みmediaが存在する場合はobjectを残し、sessionだけを整理します。
+Change retention with `MAINTENANCE_SIGNUP_RETENTION_DAYS` (default: 30 days) and `STRIPE_EVENT_RETENTION_DAYS` (default: 90 days). Incomplete signup requests are removed after expiration; completed requests are removed after the retention period. Only `processed` and `ignored` Stripe events are removed; `processing` and `failed` events remain available for retry. Direct uploads receive a one-hour completion grace period after the signed URL expires. Cleanup removes only unregistered S3 objects associated with expired sessions. If a registered media record exists, the object remains and only the session is removed.
 
-`--orphan-media` を付けると、`ORPHAN_MEDIA_MIN_AGE_DAYS`（既定7日）より古く、`media_items` から参照されていないlocal/S3 objectの件数と合計容量を表示します。初期実装では誤削除防止のため、`--execute` と併用してもorphan mediaは削除しません。
+With `--orphan-media`, cleanup reports the count and total size of local/S3 objects older than `ORPHAN_MEDIA_MIN_AGE_DAYS` (default: 7 days) that are not referenced by `media_items`. To avoid accidental deletion, the initial implementation does not delete orphan media even when combined with `--execute`.
 
-Self-hostedでは必要な時だけ手動実行できます。公式SaaSではEventBridge、CronJobなどから同じコマンドを定期実行してください。コンテナ内では `node maintenance-cleanup.cjs`、実削除は `node maintenance-cleanup.cjs --execute` を使用できます。PostgreSQL advisory lockにより同時実行は1プロセスに限定されます。
+Self-hosted operators may run cleanup manually when needed. Official SaaS deployments should schedule the same command through EventBridge, CronJob, or an equivalent service. Inside the container, use `node maintenance-cleanup.cjs` for a dry run and `node maintenance-cleanup.cjs --execute` for deletion. A PostgreSQL advisory lock limits execution to one process.
 
-## 5. 課金単位とOwner scope
+## 5. Billing Unit and Owner Scope
 
-Keinage の課金単位は Owner user です。1人の Owner が、ボード、メディア、設定、Shared user を所有します。
+The billing unit in Keinage is the Owner user. One Owner owns boards, media, settings, and Shared users.
 
-- 有料プラン契約は Owner に紐づきます。
-- Shared user は課金単位ではありません。
-- Shared user を増やしても追加課金対象にはしません。
-- ボード数、画像数、ストレージ使用量、動画可否などの制限は Owner scope の使用量で判定します。
-- 1つのボードを複数Owner間で共有することはできません。
+- Paid subscriptions belong to an Owner.
+- Shared users are not billing units.
+- Adding Shared users does not create an additional charge.
+- Board, image, storage, video, and other limits are evaluated from total usage in the Owner scope.
+- A board cannot be shared across multiple Owners.
 
-## 6. プラン制限
+## 6. Plan Limits
 
-| プラン | ボード数 | 画像数 | 総ストレージ | 1ファイル上限 | 最大解像度 | 動画 | スケジュール | 拡張テンプレート | メニュー画像 | 端末状態 |
+| Plan | Boards | Images | Total storage | Per-file limit | Max resolution | Video | Scheduling | Extended templates | Menu images | Device status |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- |
-| Free | 1 | 3 | 300MB | 5MB | 1920px | 不可 | 不可 | 不可 | 不可 | 不可 |
-| Lite | 10 | 無制限 | 5GB | 100MB | 1920px | 可 | 時刻・曜日 | 可 | 不可 | 可 |
-| Standard | 100 | 無制限 | 20GB | 500MB | 3840px | 可 | 時刻・曜日・日付 | 可 | 可 | 可 |
-| Standard+ | 300 | 無制限 | 100GB | 2GB | 3840px | 可 | 時刻・曜日・日付 | 可 | 可 | 可 |
-| Self-hosted / Unlimited | 無制限 | 無制限 | 無制限 | 無制限 | 無制限 | 可 | 時刻・曜日・日付 | 可 | 可 | 可 |
+| Free | 1 | 3 | 300 MB | 5 MB | 1920 px | No | No | No | No | No |
+| Lite | 10 | Unlimited | 5 GB | 100 MB | 1920 px | Yes | Time / weekday | Yes | No | Yes |
+| Standard | 100 | Unlimited | 20 GB | 500 MB | 3840 px | Yes | Time / weekday / date | Yes | Yes | Yes |
+| Standard+ | 300 | Unlimited | 100 GB | 2 GB | 3840 px | Yes | Time / weekday / date | Yes | Yes | Yes |
+| Self-hosted / Unlimited | Unlimited | Unlimited | Unlimited | Unlimited | Unlimited | Yes | Time / weekday / date | Yes | Yes | Yes |
 
-`PLAN_ENFORCEMENT_MODE=unlimited` ではこの表の制限は適用しません。`PLAN_ENFORCEMENT_MODE=billing` では、Owner の Stripe subscription から effective plan を解決し、API と表示 payload の両方で制限を適用します。
+These limits do not apply when `PLAN_ENFORCEMENT_MODE=unlimited`. With `PLAN_ENFORCEMENT_MODE=billing`, the effective plan is resolved from the Owner's Stripe subscription and enforced in both APIs and display payloads.
 
-ダウングレード予約またはキャンセル予約では、現在の契約期間中は現行プランを維持し、次回更新日で移行先プランの制限を適用します。Keinage は移行先プランに収まる有効ボード候補を自動選択し、Owner は Billing 画面から候補を変更できます。
+During a scheduled downgrade or cancellation, the current plan remains active until the end of the billing period. Keinage automatically selects active-board candidates that fit the future plan, and the Owner can change the selection on the Billing page.
 
-## 7. ストレージ構成
+## 7. Storage
 
-### 7.1 ローカル保存
+### 7.1 Local Storage
 
-S3関連の接続値を空にすると、メディアはローカル `uploads/` に保存されます。Docker Compose では永続化対象の volume / mount を消すとアップロード済みファイルも消えるため、バックアップ対象に含めてください。
+When S3 connection settings are empty, media is stored in local `uploads/`. Docker Compose volumes or mounts contain uploaded files and must be included in backups. Removing them deletes the files.
 
-### 7.2 AWS S3 + IAM Role
+### 7.2 AWS S3 with an IAM Role
 
-AWS上で運用する場合は、`S3_REGION` と `S3_BUCKET` を設定し、`S3_ENDPOINT` と静的 Access Key / Secret は空のままにします。アプリは AWS SDK の default credential provider chain に任せます。
+On AWS, set `S3_REGION` and `S3_BUCKET`, and leave `S3_ENDPOINT` and static access keys empty. The application uses the AWS SDK default credential provider chain.
 
 ```bash
 S3_REGION=ap-northeast-1
@@ -149,11 +155,11 @@ S3_SECRET_ACCESS_KEY=
 S3_PRESIGNED_UPLOAD_EXPIRES_SECONDS=900
 ```
 
-S3 storage 利用時、動画アップロードはブラウザから S3 へ直接 PUT します。S3 bucket の CORS には、Keinage を開く origin からの `PUT` と `HEAD`、`Content-Type` header、`ETag` exposure を許可してください。
+When using S3 storage, videos are uploaded directly from the browser to S3. Configure bucket CORS to allow `PUT` and `HEAD` from the Keinage origin, permit the `Content-Type` header, and expose `ETag`.
 
-### 7.3 Private S3 + CloudFront Signed URL
+### 7.3 Private S3 with CloudFront Signed URLs
 
-S3 bucket を private にしたまま配信する場合は、CloudFront Signed URL 配信を使います。ブラウザには `/uploads/<mediaId>` 形式だけを返し、Keinage が Owner / Board の公開設定を確認してから短時間有効な CloudFront Signed URL へ 302 redirect します。
+Use CloudFront signed URLs to deliver content while keeping the S3 bucket private. Browsers receive only `/uploads/<mediaId>`. Keinage checks Owner / Board visibility, then returns a 302 redirect to a short-lived CloudFront signed URL.
 
 ```bash
 STORAGE_DELIVERY_MODE=cloudfront-signed-url
@@ -164,9 +170,9 @@ CLOUDFRONT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY--
 CLOUDFRONT_SIGNED_URL_EXPIRES_SECONDS=300
 ```
 
-### 7.4 RustFS / MinIO などのS3互換ストレージ
+### 7.4 S3-compatible Storage such as RustFS / MinIO
 
-RustFS / MinIO などでは endpoint、path-style、静的 credentials を設定します。
+Configure an endpoint, path-style addressing, and static credentials for RustFS, MinIO, and similar services.
 
 ```bash
 S3_INTERNAL_ENDPOINT=http://rustfs:9000
@@ -178,20 +184,20 @@ S3_FORCE_PATH_STYLE=true
 S3_PUBLIC_BASE_URL=http://localhost:9000/keinage-media
 ```
 
-Docker Compose 内の app から接続する場合は `S3_INTERNAL_ENDPOINT` を優先します。ブラウザから直接配信する場合は、ブラウザが到達できる `S3_PUBLIC_BASE_URL` を設定してください。
+The application container prefers `S3_INTERNAL_ENDPOINT`. For direct browser delivery, set `S3_PUBLIC_BASE_URL` to an address reachable by the browser.
 
-RustFS を使う最短手順:
+Quick RustFS setup:
 
-1. `docker-compose.yml` の `rustfs` サービスコメントを外します。
-2. `.env` で `S3_INTERNAL_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY_ID`、`S3_SECRET_ACCESS_KEY`、`S3_FORCE_PATH_STYLE` を設定します。
-3. `docker compose up -d db rustfs app` を実行します。
-4. RustFS の Web UI で `keinage-media` バケットを作成します。
+1. Uncomment the `rustfs` service in `docker-compose.yml`.
+2. Set `S3_INTERNAL_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `S3_FORCE_PATH_STYLE` in `.env`.
+3. Run `docker compose up -d db rustfs app`.
+4. Create the `keinage-media` bucket in the RustFS web UI.
 
-## 8. 認証・メール・Super Owner
+## 8. Authentication, Email, and Super Owner
 
 ### 8.1 SMTP
 
-Owner 登録リンク、Shared user 招待リンク、PIN / password reset、重要な会員情報・課金情報変更通知をメール送信する場合は `SMTP_*` を設定します。
+Configure `SMTP_*` to send Owner registration links, Shared user invitations, PIN / password resets, and important account or billing notifications.
 
 ```bash
 APP_PUBLIC_ORIGIN=https://keinage.example.com
@@ -202,11 +208,11 @@ SMTP_PASS=your-password-here
 SMTP_FROM=noreply@example.com
 ```
 
-SMTP 未設定時、未認証の Owner signup / PIN reset メールフローは既定で無効です。ローカル開発で signup 直リンクのプレビューを使う場合だけ、`ALLOW_UNAUTHENTICATED_SIGNUP_PREVIEW=true` と localhost の `APP_PUBLIC_ORIGIN` を設定します。
+Without SMTP, unauthenticated Owner signup and PIN-reset email flows are disabled by default. For local development only, enable direct signup-link previews with `ALLOW_UNAUTHENTICATED_SIGNUP_PREVIEW=true` and a localhost `APP_PUBLIC_ORIGIN`.
 
 ### 8.2 Google OAuth/OIDC
 
-Google アカウントによる Owner 登録、Shared user 登録、ログインを有効にする場合は、Google Cloud Console の OAuth クライアントに次の Redirect URI を登録します。
+To enable Owner registration, Shared user registration, and login through Google, register this redirect URI with the OAuth client in Google Cloud Console:
 
 ```text
 ${APP_PUBLIC_ORIGIN}/api/auth/google/callback
@@ -218,11 +224,11 @@ GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
 ```
 
-`APP_PUBLIC_ORIGIN` や Redirect URI に `0.0.0.0` を使わないでください。ローカル開発では `http://localhost:3000` を使います。
+Do not use `0.0.0.0` in `APP_PUBLIC_ORIGIN` or the redirect URI. Use `http://localhost:3000` for local development.
 
-### 8.3 Passkey
+### 8.3 Passkeys
 
-Owner アカウントに Passkey 二要素認証を追加できます。
+Passkeys can provide two-factor authentication for Owner accounts.
 
 ```bash
 WEBAUTHN_ENABLED=true
@@ -232,11 +238,11 @@ WEBAUTHN_RP_NAME=Keinage
 WEBAUTHN_ORIGIN=https://keinage.example.com
 ```
 
-本番環境では HTTPS が必要です。ローカル開発ではブラウザ仕様により `http://localhost:3000` を利用できます。
+Production environments require HTTPS. Browser rules allow `http://localhost:3000` for local development.
 
 ### 8.4 Super Owner
 
-Super Owner は公式SaaSや公開インスタンスの運営者向け高権限ユーザーです。デフォルト管理者アカウントや初期パスワードはありません。
+Super Owner is a privileged operator account for the official SaaS service or a public instance. There is no default administrator account or initial password.
 
 ```bash
 SUPER_OWNER_EMAIL=admin@example.com
@@ -244,24 +250,24 @@ SUPER_OWNER_BOOTSTRAP_ENABLED=true
 SUPER_OWNER_REQUIRE_GOOGLE=true
 ```
 
-公式SaaSでは Google OAuth/OIDC を有効化したうえで `SUPER_OWNER_REQUIRE_GOOGLE=true` を推奨します。Super Owner 作成後は `SUPER_OWNER_BOOTSTRAP_ENABLED=false` に戻して構いません。
+For official SaaS, enable Google OAuth/OIDC and set `SUPER_OWNER_REQUIRE_GOOGLE=true`. After creating the Super Owner, you may return `SUPER_OWNER_BOOTSTRAP_ENABLED` to `false`.
 
-## 9. Migration / Deployment の注意点
+## 9. Migration and Deployment Notes
 
-- 本番反映前に `pnpm build` を通してください。
-- DB migration は app 起動前に1回だけ実行される構成にしてください。複数appインスタンスが同時に migration を走らせる構成は避けてください。
-- Docker entrypoint は起動前に migration を実行します。水平スケールする場合は、migration job と app 起動を分ける運用を検討してください。
-- `DATABASE_URL`、Stripe secret、CloudFront private key、SMTP password、Google client secret は secret manager や環境変数で注入し、Git管理しないでください。
-- Stripe webhook endpoint は raw body と `STRIPE_WEBHOOK_SECRET` で署名検証します。proxy や middleware で body を改変しないでください。
-- Stripe price ID を変更する場合は、Stripe側の price と env の対応を先に更新し、旧subscriptionのWebhook処理が残っても復元できるようにしてください。
-- S3 direct upload を使う場合、CORS と bucket policy をデプロイ前に確認してください。
-- CloudFront Signed URL を使う場合、S3 bucket の public access block と CloudFront Origin Access Control を併用することを推奨します。
-- `TRUST_PROXY_HEADERS=true` は、信頼できる proxy が `x-forwarded-for` などを上書きする構成でのみ有効化してください。
-- 監査ログには password、token、secret、Stripe署名、WebAuthn challenge を保存しません。IPアドレスは hash 化されます。
+- Run `pnpm build` before production deployment.
+- Run database migrations exactly once before starting the application. Avoid running migrations concurrently from multiple application instances.
+- The Docker entrypoint runs migrations before startup. When horizontally scaling, consider separating the migration job from application startup.
+- Inject `DATABASE_URL`, Stripe secrets, CloudFront private keys, SMTP passwords, and Google client secrets through a secrets manager or environment variables. Do not commit them to Git.
+- Stripe webhook endpoints verify the raw body with `STRIPE_WEBHOOK_SECRET`. Do not let a proxy or middleware modify the body.
+- When changing Stripe price IDs, update the Stripe prices and environment mapping first so delayed webhooks from old subscriptions can still be reconciled.
+- Verify CORS and bucket policies before deploying S3 direct uploads.
+- For CloudFront signed URLs, combine the S3 public access block with CloudFront Origin Access Control.
+- Enable `TRUST_PROXY_HEADERS=true` only when a trusted proxy overwrites headers such as `x-forwarded-for`.
+- Audit logs never store passwords, tokens, secrets, Stripe signatures, or WebAuthn challenges. IP addresses are hashed.
 
-## 10. 関連ドキュメント
+## 10. Related Documentation
 
-- [SPEC.md](./SPEC.md) — ユーザー視点の仕様
-- [DESIGN.md](./DESIGN.md) — 内部設計
-- [API.md](./API.md) — 画面/API route
-- [SECURITY.md](./SECURITY.md) — production / 公式SaaS向けセキュリティ設定
+- [SPEC.md](./SPEC.md) - User-facing specification
+- [DESIGN.md](./DESIGN.md) - Internal design
+- [API.md](./API.md) - Page and API routes
+- [SECURITY.md](./SECURITY.md) - Security settings for production and official SaaS deployments

@@ -14,6 +14,7 @@ import {
   Settings,
   Shield,
   Users,
+  UserRoundSearch,
   Menu,
   X,
 } from "lucide-react";
@@ -161,6 +162,15 @@ function DashboardShellContent({
         {role === "admin" && (
           <SidebarLink href="/users" icon={Users} onClick={closeSidebar}>
             {t("dashboard.navUsers")}
+          </SidebarLink>
+        )}
+        {isSuperOwner && (
+          <SidebarLink
+            href="/super-owner/users"
+            icon={UserRoundSearch}
+            onClick={closeSidebar}
+          >
+            {t("dashboard.navAllUsers")}
           </SidebarLink>
         )}
         {role === "admin" && billingEnabled && (
