@@ -252,6 +252,19 @@ SUPER_OWNER_REQUIRE_GOOGLE=true
 
 For official SaaS, enable Google OAuth/OIDC and set `SUPER_OWNER_REQUIRE_GOOGLE=true`. After creating the Super Owner, you may return `SUPER_OWNER_BOOTSTRAP_ENABLED` to `false`.
 
+For a private personal or family instance with one Owner and invited Shared users, use:
+
+```bash
+OWNER_SIGNUP_MODE=super-owner-only
+SUPER_OWNER_EMAIL=owner@example.com
+SUPER_OWNER_BOOTSTRAP_ENABLED=true
+SUPER_OWNER_REQUIRE_GOOGLE=false
+BILLING_MODE=disabled
+PLAN_ENFORCEMENT_MODE=unlimited
+```
+
+In this mode, only the initial Owner matching `SUPER_OWNER_EMAIL` can sign up. Shared users can still register exclusively through invitations from that Owner. After the initial account has received Super Owner access, set `SUPER_OWNER_BOOTSTRAP_ENABLED=false`; existing login and Shared-user invitations continue to work. Use `OWNER_SIGNUP_MODE=disabled` to stop every new Owner registration, or `open` (the default when unset) to preserve public Owner signup.
+
 ## 9. Migration and Deployment Notes
 
 - Run `pnpm build` before production deployment.

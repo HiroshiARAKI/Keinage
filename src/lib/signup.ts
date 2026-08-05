@@ -7,8 +7,52 @@ export const SIGNUP_REQUEST_COOKIE_MAX_AGE = 60 * 30;
 export const SIGNUP_TOKEN_TTL_MS = 10 * 60 * 1000;
 export const ORGANIZATION_NAME_MAX_LENGTH = 120;
 
+export type OwnerSignupMode = "open" | "disabled" | "super-owner-only";
+export type OwnerSignupProvider = "credentials" | "google";
+
 const SIGNUP_USER_ID_RE = /^[a-zA-Z0-9_\-]{3,32}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Controls creation of top-level Owner accounts. Shared users are invitation-only
+ * and are intentionally unaffected by this setting.
+ *
+ * Unknown explicit values fail closed. The unset default remains open for
+ * backward compatibility with existing self-hosted installations.
+ */
+export function getOwnerSignupMode(): OwnerSignupMode {
+  const value = process.env.OWNER_SIGNUP_MODE?.trim().toLowerCase();
+  if (!value || value === "open") return "open";
+  if (value === "super-owner-only") return "super-owner-only";
+  return "disabled";
+}
+
+export function isOwnerSignupEnabled(): boolean {
+  const mode = getOwnerSignupMode();
+  if (mode === "open") return true;
+  if (mode === "disabled") return false;
+
+  return process.env.SUPER_OWNER_BOOTSTRAP_ENABLED === "true" &&
+    isValidSignupEmail(process.env.SUPER_OWNER_EMAIL?.trim() ?? "");
+}
+
+export function isOwnerSignupAllowedForEmail(
+  email: string,
+  provider: OwnerSignupProvider,
+): boolean {
+  const mode = getOwnerSignupMode();
+  if (mode === "open") return true;
+  if (mode === "disabled" || !isOwnerSignupEnabled()) return false;
+  if (
+    process.env.SUPER_OWNER_REQUIRE_GOOGLE === "true" &&
+    provider !== "google"
+  ) {
+    return false;
+  }
+
+  return normalizeSignupEmail(email) ===
+    normalizeSignupEmail(process.env.SUPER_OWNER_EMAIL ?? "");
+}
 
 export function isValidSignupUserId(userId: string): boolean {
   return SIGNUP_USER_ID_RE.test(userId);

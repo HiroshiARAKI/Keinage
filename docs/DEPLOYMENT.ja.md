@@ -252,6 +252,19 @@ SUPER_OWNER_REQUIRE_GOOGLE=true
 
 公式SaaSでは Google OAuth/OIDC を有効化したうえで `SUPER_OWNER_REQUIRE_GOOGLE=true` を推奨します。Super Owner 作成後は `SUPER_OWNER_BOOTSTRAP_ENABLED=false` に戻して構いません。
 
+個人・家族用など、単一OwnerとそのShared userだけに閉じる場合は次を設定します。
+
+```bash
+OWNER_SIGNUP_MODE=super-owner-only
+SUPER_OWNER_EMAIL=owner@example.com
+SUPER_OWNER_BOOTSTRAP_ENABLED=true
+SUPER_OWNER_REQUIRE_GOOGLE=false
+BILLING_MODE=disabled
+PLAN_ENFORCEMENT_MODE=unlimited
+```
+
+このモードでは `SUPER_OWNER_EMAIL` と一致する初期Ownerだけが登録でき、Shared userはそのOwnerからの招待でのみ登録できます。初期登録とSuper Owner付与を確認したら `SUPER_OWNER_BOOTSTRAP_ENABLED=false` に変更してください。既存のログインとShared user招待には影響しません。`OWNER_SIGNUP_MODE=disabled` はすべての新規Owner登録を停止し、`open`（未設定時の既定値）は従来どおりOwner登録を許可します。
+
 ## 9. Migration / Deployment の注意点
 
 - 本番反映前に `pnpm build` を通してください。

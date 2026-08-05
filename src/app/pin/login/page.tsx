@@ -21,6 +21,7 @@ import { sanitizeRedirectTarget } from "@/lib/utils";
 import { isGoogleAuthEnabled } from "@/lib/google-auth";
 import { getWebAuthnRedirectForSession } from "@/lib/webauthn";
 import LoginClient from "./LoginClient";
+import { getOwnerSignupMode } from "@/lib/signup";
 
 export const dynamic = "force-dynamic";
 
@@ -140,6 +141,7 @@ export default async function LoginPage({
       }
       showPinLoginLink={showPinLoginLink}
       googleAuthEnabled={isGoogleAuthEnabled()}
+      ownerSignupEnabled={getOwnerSignupMode() === "open"}
       initialError={
         error === "shared-user-inactive-due-to-plan"
           ? "shared-user-inactive-due-to-plan"
