@@ -20,7 +20,11 @@ import {
 import { generateSessionToken } from "@/lib/pin";
 import { sendSignupCompletedEmail } from "@/lib/mail";
 import { buildPublicAppUrl } from "@/lib/public-origin";
-import { SIGNUP_REQUEST_COOKIE } from "@/lib/signup";
+import {
+  SIGNUP_REQUEST_COOKIE,
+  getOwnerSignupMode,
+  isOwnerSignupAllowedForEmail,
+} from "@/lib/signup";
 import { maybeBootstrapSuperOwner } from "@/lib/super-owner";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
@@ -61,6 +65,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "無効または期限切れの登録リンクです" },
       { status: 400 },
+    );
+  }
+  if (!isOwnerSignupAllowedForEmail(signupRequest.email, "credentials")) {
+    return NextResponse.json(
+      {
+        error: "この環境ではOwnerアカウントの新規登録は許可されていません",
+        code: "owner_signup_disabled",
+      },
+      { status: 403 },
+    );
+  }
+  if (
+    getOwnerSignupMode() === "super-owner-only" &&
+    await db.query.users.findFirst()
+  ) {
+    return NextResponse.json(
+      {
+        error: "初期Super Ownerは既に登録されています",
+        code: "owner_signup_disabled",
+      },
+      { status: 403 },
     );
   }
 

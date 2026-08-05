@@ -16,6 +16,8 @@ import {
   SIGNUP_REQUEST_COOKIE_MAX_AGE,
   computeSignupExpiry,
   generateSignupToken,
+  getOwnerSignupMode,
+  isOwnerSignupAllowedForEmail,
   isValidOrganizationName,
   isValidSignupEmail,
   isValidSignupUserId,
@@ -62,6 +64,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "有効なメールアドレスを入力してください" },
       { status: 400 },
+    );
+  }
+  if (!isOwnerSignupAllowedForEmail(normalizedEmail, "credentials")) {
+    return NextResponse.json(
+      {
+        error: "この環境ではOwnerアカウントの新規登録は許可されていません",
+        code: "owner_signup_disabled",
+      },
+      { status: 403 },
+    );
+  }
+  if (
+    getOwnerSignupMode() === "super-owner-only" &&
+    await db.query.users.findFirst()
+  ) {
+    return NextResponse.json(
+      {
+        error: "初期Super Ownerは既に登録されています",
+        code: "owner_signup_disabled",
+      },
+      { status: 403 },
     );
   }
   const normalizedPhoneNumber =

@@ -5,6 +5,10 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { signupRequests } from "@/db/schema";
 import SignupPasswordClient from "./SignupPasswordClient";
+import {
+  getOwnerSignupMode,
+  isOwnerSignupAllowedForEmail,
+} from "@/lib/signup";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +29,15 @@ export default async function SignupTokenPage({
   });
 
   if (!signupRequest) {
+    notFound();
+  }
+  if (!isOwnerSignupAllowedForEmail(signupRequest.email, "credentials")) {
+    notFound();
+  }
+  if (
+    getOwnerSignupMode() === "super-owner-only" &&
+    await db.query.users.findFirst()
+  ) {
     notFound();
   }
 
