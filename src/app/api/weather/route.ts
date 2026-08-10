@@ -4,10 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { boards } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getSessionUser } from "@/lib/auth";
+import { getBoardDisplayAccessDecision } from "@/lib/board-display-authorization";
 import { isBoardDisplayable } from "@/lib/board-status";
 import { getOwnerSetting } from "@/lib/owner-settings";
-import { isInOwnerScope, resolveOwnerUserId } from "@/lib/ownership";
+import { resolveOwnerUserId } from "@/lib/ownership";
+import { getSessionUser } from "@/lib/auth";
 import { findOpenWeatherCity } from "@/lib/weather/openweather-cities";
 import { getWeatherProvider } from "@/lib/weather/provider";
 import { getWeatherForecast } from "@/lib/weather/service";
@@ -26,15 +27,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Board not found" }, { status: 404 });
     }
 
-    if (board.visibility === "private") {
-      const session = await getSessionUser();
-      if (!session) {
-        return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
-      }
-
-      if (!isInOwnerScope(session.user, board.ownerUserId)) {
-        return NextResponse.json({ error: "Board not found" }, { status: 404 });
-      }
+    const access = await getBoardDisplayAccessDecision(request, board);
+    if (access !== "allowed") {
+      return NextResponse.json(
+        { error: access === "unauthorized" ? "認証が必要です" : "Board not found" },
+        { status: access === "unauthorized" ? 401 : 404 },
+      );
     }
 
     ownerUserId = board.ownerUserId;

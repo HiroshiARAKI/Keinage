@@ -3,10 +3,12 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
+import { withBoardDisplayAccessQuery } from "@/lib/board-display-access";
 import { WEATHER_UPDATED_EVENT } from "@/lib/weather/events";
 
 interface UseSSEOptions {
   boardId: string;
+  displayDeviceKey?: string | null;
   onEvent: (event: string, data: Record<string, unknown>) => void;
 }
 
@@ -15,7 +17,7 @@ interface UseSSEOptions {
  * and calls onEvent whenever a server event is received.
  * Handles automatic reconnection on disconnect.
  */
-export function useSSE({ boardId, onEvent }: UseSSEOptions) {
+export function useSSE({ boardId, displayDeviceKey, onEvent }: UseSSEOptions) {
   const onEventRef = useRef(onEvent);
 
   useEffect(() => {
@@ -23,7 +25,11 @@ export function useSSE({ boardId, onEvent }: UseSSEOptions) {
   }, [onEvent]);
 
   const connect = useCallback(() => {
-    const es = new EventSource(`/api/sse/${boardId}`);
+    const url = withBoardDisplayAccessQuery(
+      `/api/sse/${boardId}`,
+      displayDeviceKey,
+    );
+    const es = new EventSource(url);
 
     // Listen for all named events via the generic message handler
     // Named events emitted by board and owner-setting mutations.
@@ -55,7 +61,7 @@ export function useSSE({ boardId, onEvent }: UseSSEOptions) {
     };
 
     return es;
-  }, [boardId]);
+  }, [boardId, displayDeviceKey]);
 
   useEffect(() => {
     const es = connect();

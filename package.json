@@ -16,6 +16,7 @@
     "test:audit-cleanup": "node --test docker/cleanup-audit-logs.test.cjs",
     "maintenance:cleanup": "node docker/maintenance-cleanup.cjs",
     "test:maintenance-cleanup": "node --test docker/maintenance-cleanup.test.cjs",
+    "test:board-display": "NODE_OPTIONS=--conditions=react-server tsx --test src/lib/board-display-access.test.ts src/lib/board-display-authorization.test.ts",
     "test:weather": "NODE_OPTIONS=--conditions=react-server tsx --test src/lib/weather/*.test.ts src/lib/weather/providers/*.test.ts"
   },
   "dependencies": {

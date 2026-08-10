@@ -4,14 +4,13 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/db";
 import { boards, mediaItems, messages } from "@/db/schema";
 import { eq, asc, and, or, isNull, gt } from "drizzle-orm";
-import { getSessionUser } from "@/lib/auth";
+import { getBoardPageDisplayAccessDecision } from "@/lib/board-display-authorization";
 import { getEffectivePlanForOwner } from "@/lib/billing";
 import { isBoardDisplayable } from "@/lib/board-status";
 import { recordBoardViewed } from "@/lib/board-view-tracking";
 import { applyMediaPlanRestrictions } from "@/lib/media-plan";
 import { isCloudFrontSignedDeliveryMode } from "@/lib/cloudfront-signed-url";
 import { deliveryUrlForMediaItem } from "@/lib/media-storage";
-import { isInOwnerScope } from "@/lib/ownership";
 import { resolveSplitViewMediaReferences } from "@/lib/split-view";
 import { getTemplate } from "@/lib/templates";
 import { normalizeConfig } from "@/lib/utils";
@@ -41,16 +40,15 @@ export default async function BoardPage({
   });
 
   if (board.visibility === "private") {
-    const session = await getSessionUser();
+    const access = await getBoardPageDisplayAccessDecision(board);
     console.log("[board/page] Private board auth", {
       boardId,
-      hasSession: !!session,
+      access,
     });
-    if (!session) {
+    if (access === "unauthorized") {
       redirect(`/pin?redirectTo=${encodeURIComponent(`/${boardId}`)}`);
     }
-
-    if (!isInOwnerScope(session.user, board.ownerUserId)) {
+    if (access === "not-found") {
       notFound();
     }
   }

@@ -7,6 +7,10 @@ import { Check, Maximize2, Minimize2, Share2 } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { WatermarkOverlay } from "@/components/board/WatermarkOverlay";
 import { useSSE } from "@/hooks/useSSE";
+import {
+  getOrCreateBoardDisplayDeviceKey,
+  withBoardDisplayAccessQuery,
+} from "@/lib/board-display-access";
 import { sharePublicBoard as sharePublicBoardLink } from "@/lib/board-share";
 import { parseJsonObject } from "@/lib/utils";
 import {
@@ -23,8 +27,6 @@ import type {
 
 const CURSOR_HIDE_DELAY = 3000;
 const DEVICE_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
-const DEVICE_KEY_STORAGE_KEY = "keinage-display-device-key";
-const DISPLAY_ACCESS_QUERY_PARAM = "displayDeviceKey";
 const BOARD_DESIGN_HEIGHT = 1080;
 
 type BoardViewportSize = {
@@ -65,35 +67,11 @@ function parsePublicBoardPlan(raw: unknown): PublicBoardPlan {
   };
 }
 
-function createDeviceKey() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID().replaceAll("-", "");
-  }
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-}
-
-function getOrCreateDeviceKey() {
-  try {
-    const existing = window.localStorage.getItem(DEVICE_KEY_STORAGE_KEY);
-    if (existing) return existing;
-    const created = createDeviceKey();
-    window.localStorage.setItem(DEVICE_KEY_STORAGE_KEY, created);
-    return created;
-  } catch {
-    return createDeviceKey();
-  }
-}
-
 function withDisplayAccessQuery(filePath: string, deviceKey: string) {
   if (!filePath.startsWith("/uploads/")) {
     return filePath;
   }
-
-  const [pathname = "", query = ""] = filePath.split("?", 2);
-  const params = new URLSearchParams(query);
-  params.set(DISPLAY_ACCESS_QUERY_PARAM, deviceKey);
-  const serialized = params.toString();
-  return serialized ? `${pathname}?${serialized}` : pathname;
+  return withBoardDisplayAccessQuery(filePath, deviceKey);
 }
 
 /**
@@ -213,7 +191,11 @@ export default function LiveBoard({
   // --- SSE live updates ---
   const refetchData = useCallback(async () => {
     try {
-      const res = await fetch(`/api/public/boards/${initialBoard.id}`);
+      const url = withBoardDisplayAccessQuery(
+        `/api/public/boards/${initialBoard.id}`,
+        displayDeviceKey,
+      );
+      const res = await fetch(url);
       if (!res.ok) return;
       const data = await res.json();
 
@@ -236,7 +218,7 @@ export default function LiveBoard({
     } catch {
       // Network error; will retry on next SSE event
     }
-  }, [initialBoard.id]);
+  }, [displayDeviceKey, initialBoard.id]);
 
   const handleSSEEvent = useCallback(
     (event: string) => {
@@ -253,11 +235,12 @@ export default function LiveBoard({
 
   useSSE({
     boardId: initialBoard.id,
+    displayDeviceKey,
     onEvent: handleSSEEvent,
   });
 
   useEffect(() => {
-    const deviceKey = getOrCreateDeviceKey();
+    const deviceKey = getOrCreateBoardDisplayDeviceKey();
     const raf = requestAnimationFrame(() => setDisplayDeviceKey(deviceKey));
     let stopped = false;
 
