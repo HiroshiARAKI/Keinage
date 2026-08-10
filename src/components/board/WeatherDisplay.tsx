@@ -3,12 +3,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import {
   UmbrellaIcon,
   WeatherConditionIcon,
 } from "@/components/board/WeatherIcons";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { WEATHER_REFRESH_BROWSER_EVENT } from "@/lib/weather/events";
+import { formatWeatherFetchedAt } from "@/lib/weather/format";
 import type { WeatherCondition, WeatherForecast } from "@/lib/weather/types";
 
 interface WeatherDisplayProps {
@@ -19,6 +21,8 @@ interface WeatherDisplayProps {
   fontSize?: number;
   /** Custom font family */
   fontFamily?: string;
+  /** Show the provider fetch timestamp in the card header. */
+  showFetchedAt?: boolean;
   className?: string;
 }
 
@@ -57,10 +61,11 @@ export function WeatherDisplay({
   bgOpacity = 0.56,
   fontSize = 18,
   fontFamily,
+  showFetchedAt = false,
   className,
 }: WeatherDisplayProps) {
   const [weather, setWeather] = useState<WeatherForecast | null>(null);
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   const fetchWeather = useCallback(async () => {
     try {
@@ -99,9 +104,13 @@ export function WeatherDisplay({
   const cardWidth = Math.max(660, Math.round(fontSize * 40));
   const titleSize = Math.max(13, Math.round(fontSize * 0.78));
   const labelSize = Math.max(12, Math.round(fontSize * 0.72));
+  const fetchedAtSize = Math.max(10, Math.round(fontSize * 0.75));
   const highSize = Math.max(32, Math.round(fontSize * 2.35));
   const lowSize = Math.max(25, Math.round(fontSize * 1.75));
   const iconSize = Math.max(72, Math.round(fontSize * 5.2));
+  const fetchedAt = showFetchedAt
+    ? formatWeatherFetchedAt(weather.fetchedAt, locale)
+    : null;
 
   return (
     <section
@@ -116,10 +125,25 @@ export function WeatherDisplay({
       aria-label={t("weather.cardLabel")}
     >
       <header
-        className="border-b border-white/20 px-6 py-3 font-semibold tracking-wide"
+        className="flex items-start justify-between gap-4 border-b border-white/20 px-6 py-3 font-semibold tracking-wide"
         style={{ fontSize: Math.max(15, Math.round(fontSize * 0.95)) }}
       >
-        {weather.location.name}
+        <span className="min-w-0 truncate">{weather.location.name}</span>
+        {fetchedAt && (
+          <time
+            dateTime={weather.fetchedAt}
+            aria-label={`${t("common.updatedAt")} ${fetchedAt}`}
+            className="flex shrink-0 items-center gap-[0.35em] whitespace-nowrap pt-[0.12em] font-normal tracking-normal opacity-55"
+            style={{ fontSize: fetchedAtSize }}
+          >
+            {fetchedAt}
+            <RefreshCw
+              aria-hidden="true"
+              className="size-[0.82em] shrink-0"
+              strokeWidth={1.8}
+            />
+          </time>
+        )}
       </header>
 
       <div className="grid grid-cols-[1.05fr_.82fr_1.8fr] divide-x divide-white/15">

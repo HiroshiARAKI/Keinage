@@ -422,6 +422,7 @@ export function ClockWeatherGroup({
       bgOpacity={weather?.bgOpacity}
       fontSize={weather?.fontSize}
       fontFamily={weather?.fontFamily}
+      showFetchedAt
       className={itemClassName}
     />
   );
