@@ -3,16 +3,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import {
   UmbrellaIcon,
   WeatherConditionIcon,
 } from "@/components/board/WeatherIcons";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { WEATHER_REFRESH_BROWSER_EVENT } from "@/lib/weather/events";
-import {
-  formatWeatherFetchedAt,
-  formatWeatherFetchedAtLabel,
-} from "@/lib/weather/format";
+import { formatWeatherFetchedAt } from "@/lib/weather/format";
 import type { WeatherCondition, WeatherForecast } from "@/lib/weather/types";
 
 interface WeatherDisplayProps {
@@ -113,10 +111,6 @@ export function WeatherDisplay({
   const fetchedAt = showFetchedAt
     ? formatWeatherFetchedAt(weather.fetchedAt, locale)
     : null;
-  const updatedAtLabel = t("common.updatedAt");
-  const fetchedAtLabel = fetchedAt
-    ? formatWeatherFetchedAtLabel(fetchedAt, updatedAtLabel, locale)
-    : null;
 
   return (
     <section
@@ -135,24 +129,19 @@ export function WeatherDisplay({
         style={{ fontSize: Math.max(15, Math.round(fontSize * 0.95)) }}
       >
         <span className="min-w-0 truncate">{weather.location.name}</span>
-        {fetchedAtLabel && (
+        {fetchedAt && (
           <time
             dateTime={weather.fetchedAt}
-            aria-label={fetchedAtLabel}
-            className="shrink-0 whitespace-nowrap pt-[0.12em] font-normal tracking-normal opacity-55"
+            aria-label={`${t("common.updatedAt")} ${fetchedAt}`}
+            className="flex shrink-0 items-center gap-[0.35em] whitespace-nowrap pt-[0.12em] font-normal tracking-normal opacity-55"
             style={{ fontSize: fetchedAtSize }}
           >
-            {locale === "ja-JP" ? (
-              <>
-                {fetchedAt}{" "}
-                <span className="text-[0.85em]">{updatedAtLabel}</span>
-              </>
-            ) : (
-              <>
-                <span className="text-[0.85em]">{updatedAtLabel}</span>{" "}
-                {fetchedAt}
-              </>
-            )}
+            {fetchedAt}
+            <RefreshCw
+              aria-hidden="true"
+              className="size-[0.82em] shrink-0"
+              strokeWidth={1.8}
+            />
           </time>
         )}
       </header>

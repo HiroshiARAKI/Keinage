@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  formatWeatherFetchedAt,
-  formatWeatherFetchedAtLabel,
-} from "./format";
+import { formatWeatherFetchedAt } from "./format";
 
 test("formats a weather fetch timestamp without seconds", () => {
   const formatted = formatWeatherFetchedAt(
@@ -22,18 +19,4 @@ test("formats a weather fetch timestamp without seconds", () => {
 
 test("returns null for an invalid weather fetch timestamp", () => {
   assert.equal(formatWeatherFetchedAt("invalid", "ja-JP"), null);
-});
-
-test("places the update label after the timestamp in Japanese", () => {
-  assert.equal(
-    formatWeatherFetchedAtLabel("08/10 14:35", "更新", "ja-JP"),
-    "08/10 14:35 更新",
-  );
-});
-
-test("places the update label before the timestamp in other locales", () => {
-  assert.equal(
-    formatWeatherFetchedAtLabel("08/10, 02:35 PM", "Updated", "en-US"),
-    "Updated 08/10, 02:35 PM",
-  );
 });

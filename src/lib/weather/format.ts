@@ -18,13 +18,3 @@ export function formatWeatherFetchedAt(
     timeZone: options?.timeZone,
   }).format(date);
 }
-
-export function formatWeatherFetchedAtLabel(
-  formattedTimestamp: string,
-  updatedAtLabel: string,
-  locale: SupportedLocale,
-): string {
-  return locale === "ja-JP"
-    ? `${formattedTimestamp} ${updatedAtLabel}`
-    : `${updatedAtLabel} ${formattedTimestamp}`;
-}
