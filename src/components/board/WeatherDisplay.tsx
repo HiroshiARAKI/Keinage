@@ -9,7 +9,10 @@ import {
 } from "@/components/board/WeatherIcons";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { WEATHER_REFRESH_BROWSER_EVENT } from "@/lib/weather/events";
-import { formatWeatherFetchedAt } from "@/lib/weather/format";
+import {
+  formatWeatherFetchedAt,
+  formatWeatherFetchedAtLabel,
+} from "@/lib/weather/format";
 import type { WeatherCondition, WeatherForecast } from "@/lib/weather/types";
 
 interface WeatherDisplayProps {
@@ -110,6 +113,9 @@ export function WeatherDisplay({
   const fetchedAt = showFetchedAt
     ? formatWeatherFetchedAt(weather.fetchedAt, locale)
     : null;
+  const fetchedAtLabel = fetchedAt
+    ? formatWeatherFetchedAtLabel(fetchedAt, t("common.updatedAt"), locale)
+    : null;
 
   return (
     <section
@@ -128,13 +134,13 @@ export function WeatherDisplay({
         style={{ fontSize: Math.max(15, Math.round(fontSize * 0.95)) }}
       >
         <span className="min-w-0 truncate">{weather.location.name}</span>
-        {fetchedAt && (
+        {fetchedAtLabel && (
           <time
             dateTime={weather.fetchedAt}
             className="shrink-0 whitespace-nowrap pt-[0.12em] font-normal tracking-normal opacity-55"
             style={{ fontSize: fetchedAtSize }}
           >
-            {t("common.updatedAt")} {fetchedAt}
+            {fetchedAtLabel}
           </time>
         )}
       </header>
