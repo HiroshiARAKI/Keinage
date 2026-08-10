@@ -90,12 +90,23 @@ export function WeatherDisplay({
     const refreshWeather = () => {
       void fetchWeather();
     };
+    const refreshVisibleWeather = () => {
+      if (document.visibilityState === "visible") {
+        void fetchWeather();
+      }
+    };
     window.addEventListener(WEATHER_REFRESH_BROWSER_EVENT, refreshWeather);
+    window.addEventListener("focus", refreshVisibleWeather);
+    window.addEventListener("online", refreshWeather);
+    document.addEventListener("visibilitychange", refreshVisibleWeather);
 
     return () => {
       window.clearTimeout(initialTimer);
       window.clearInterval(interval);
       window.removeEventListener(WEATHER_REFRESH_BROWSER_EVENT, refreshWeather);
+      window.removeEventListener("focus", refreshVisibleWeather);
+      window.removeEventListener("online", refreshWeather);
+      document.removeEventListener("visibilitychange", refreshVisibleWeather);
     };
   }, [fetchWeather]);
 
