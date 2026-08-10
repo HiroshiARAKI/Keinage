@@ -113,8 +113,9 @@ export function WeatherDisplay({
   const fetchedAt = showFetchedAt
     ? formatWeatherFetchedAt(weather.fetchedAt, locale)
     : null;
+  const updatedAtLabel = t("common.updatedAt");
   const fetchedAtLabel = fetchedAt
-    ? formatWeatherFetchedAtLabel(fetchedAt, t("common.updatedAt"), locale)
+    ? formatWeatherFetchedAtLabel(fetchedAt, updatedAtLabel, locale)
     : null;
 
   return (
@@ -137,10 +138,21 @@ export function WeatherDisplay({
         {fetchedAtLabel && (
           <time
             dateTime={weather.fetchedAt}
+            aria-label={fetchedAtLabel}
             className="shrink-0 whitespace-nowrap pt-[0.12em] font-normal tracking-normal opacity-55"
             style={{ fontSize: fetchedAtSize }}
           >
-            {fetchedAtLabel}
+            {locale === "ja-JP" ? (
+              <>
+                {fetchedAt}{" "}
+                <span className="text-[0.85em]">{updatedAtLabel}</span>
+              </>
+            ) : (
+              <>
+                <span className="text-[0.85em]">{updatedAtLabel}</span>{" "}
+                {fetchedAt}
+              </>
+            )}
           </time>
         )}
       </header>
