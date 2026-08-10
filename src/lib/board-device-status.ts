@@ -3,11 +3,12 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { boardDisplayDevices, boards } from "@/db/schema";
+import { BOARD_DISPLAY_ACCESS_QUERY_PARAM } from "@/lib/board-display-access";
 import { getEffectivePlanForOwner, type EffectivePlan } from "@/lib/billing";
 
 export const BOARD_DEVICE_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 export const BOARD_DEVICE_ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
-export const BOARD_DISPLAY_ACCESS_QUERY_PARAM = "displayDeviceKey";
+export { BOARD_DISPLAY_ACCESS_QUERY_PARAM };
 export const BOARD_DISPLAY_ACCESS_GRACE_MS = 30 * 60 * 1000;
 
 const DEVICE_KEY_MAX_LENGTH = 128;

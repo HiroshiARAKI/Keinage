@@ -9,6 +9,10 @@ import {
   WeatherConditionIcon,
 } from "@/components/board/WeatherIcons";
 import { useLocale } from "@/components/i18n/LocaleProvider";
+import {
+  getOrCreateBoardDisplayDeviceKey,
+  withBoardDisplayAccessQuery,
+} from "@/lib/board-display-access";
 import { WEATHER_REFRESH_BROWSER_EVENT } from "@/lib/weather/events";
 import { formatWeatherFetchedAt } from "@/lib/weather/format";
 import type { WeatherCondition, WeatherForecast } from "@/lib/weather/types";
@@ -70,7 +74,11 @@ export function WeatherDisplay({
   const fetchWeather = useCallback(async () => {
     try {
       const search = boardId ? `?boardId=${encodeURIComponent(boardId)}` : "";
-      const response = await fetch(`/api/weather${search}`, {
+      const url = withBoardDisplayAccessQuery(
+        `/api/weather${search}`,
+        getOrCreateBoardDisplayDeviceKey(),
+      );
+      const response = await fetch(url, {
         cache: "no-store",
       });
       if (!response.ok) return;
