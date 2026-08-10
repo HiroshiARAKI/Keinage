@@ -8,6 +8,17 @@ interface CachedWeather {
   expiresAt: number;
 }
 
+const CACHE_REFRESH_EARLY_MAX_MS = 2 * 60 * 1000;
+const CACHE_REFRESH_EARLY_RATIO = 0.1;
+
+function cacheLifetimeMs(ttlMs: number): number {
+  const refreshEarlyMs = Math.min(
+    CACHE_REFRESH_EARLY_MAX_MS,
+    Math.floor(ttlMs * CACHE_REFRESH_EARLY_RATIO),
+  );
+  return Math.max(0, ttlMs - refreshEarlyMs);
+}
+
 export interface WeatherResult {
   forecast: WeatherForecast;
   cacheStatus: "hit" | "miss" | "stale";
@@ -120,7 +131,10 @@ export class CachedWeatherProvider {
         : incoming;
       this.weatherCache.set(locationId, {
         data: forecast,
-        expiresAt: Date.now() + this.ttlMs,
+        // The browser poll timer starts before the initial provider request
+        // finishes. Refresh slightly early so the TTL-boundary poll cannot
+        // hit a cache that expires only moments later.
+        expiresAt: Date.now() + cacheLifetimeMs(this.ttlMs),
       });
       return { forecast, cacheStatus: "miss" };
     } catch (error) {

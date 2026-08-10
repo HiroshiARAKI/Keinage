@@ -38,6 +38,38 @@ test("same-day merge retains values omitted by a later response", () => {
   assert.equal(merged.precipitation[0].probability, 10);
 });
 
+test("refreshes at the TTL boundary when the initial request finished later", async (t) => {
+  let now = 0;
+  let calls = 0;
+  t.mock.method(Date, "now", () => now);
+
+  const provider: WeatherProvider = {
+    id: "test",
+    defaultLocationId: "1",
+    cacheTtlMs: 60_000,
+    isLocationId: (value) => value === "1",
+    fetchForecast: async () => {
+      calls += 1;
+      now += 2_000;
+      return forecast(20 + calls);
+    },
+  };
+  const cache = new CachedWeatherProvider(provider);
+
+  await cache.getForecast("1");
+  now = 50_000;
+  const cached = await cache.getForecast("1");
+  assert.equal(calls, 1);
+  assert.equal(cached.cacheStatus, "hit");
+
+  now = 60_000;
+  const refreshed = await cache.getForecast("1");
+
+  assert.equal(calls, 2);
+  assert.equal(refreshed.cacheStatus, "miss");
+  assert.equal(refreshed.forecast.temperature.maxCelsius, 22);
+});
+
 test("concurrent refresh returns stale cache without starting a duplicate request", async () => {
   let resolveRefresh: ((value: WeatherForecast) => void) | null = null;
   let calls = 0;
