@@ -15,12 +15,14 @@ export default function LoginClient({
   notice,
   showPinLoginLink,
   googleAuthEnabled,
+  ownerSignupEnabled,
   initialError,
 }: {
   redirectTo?: string | null;
   notice?: "password-reset" | "signup-existing" | null;
   showPinLoginLink: boolean;
   googleAuthEnabled: boolean;
+  ownerSignupEnabled: boolean;
   initialError?: "shared-user-inactive-due-to-plan" | null;
 }) {
   const { t, setLocale } = useLocale();
@@ -192,12 +194,14 @@ export default function LoginClient({
             >
               {t("auth.login.forgotPassword")}
             </Link>
-            <Link
-              href="/signup"
-              className="block text-sm text-gray-500 hover:text-blue-600"
-            >
-              アカウントを作成する
-            </Link>
+            {ownerSignupEnabled && (
+              <Link
+                href="/signup"
+                className="block text-sm text-gray-500 hover:text-blue-600"
+              >
+                アカウントを作成する
+              </Link>
+            )}
           </div>
         </div>
       </div>

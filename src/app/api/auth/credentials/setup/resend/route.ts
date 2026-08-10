@@ -14,6 +14,8 @@ import {
   SIGNUP_REQUEST_COOKIE,
   computeSignupExpiry,
   generateSignupToken,
+  getOwnerSignupMode,
+  isOwnerSignupAllowedForEmail,
 } from "@/lib/signup";
 import {
   buildRateLimitKey,
@@ -42,6 +44,27 @@ export async function POST(request: NextRequest) {
 
   if (!signupRequest) {
     return NextResponse.json({ error: "仮登録情報が見つかりません" }, { status: 404 });
+  }
+  if (!isOwnerSignupAllowedForEmail(signupRequest.email, "credentials")) {
+    return NextResponse.json(
+      {
+        error: "この環境ではOwnerアカウントの新規登録は許可されていません",
+        code: "owner_signup_disabled",
+      },
+      { status: 403 },
+    );
+  }
+  if (
+    getOwnerSignupMode() === "super-owner-only" &&
+    await db.query.users.findFirst()
+  ) {
+    return NextResponse.json(
+      {
+        error: "初期Super Ownerは既に登録されています",
+        code: "owner_signup_disabled",
+      },
+      { status: 403 },
+    );
   }
   const resendRateLimit = await consumeRateLimit({
     rateLimitKey: buildRateLimitKey({

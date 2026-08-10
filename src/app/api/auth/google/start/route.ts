@@ -21,7 +21,9 @@ import {
 } from "@/lib/rate-limit";
 import {
   ORGANIZATION_NAME_MAX_LENGTH,
+  getOwnerSignupMode,
   isValidOrganizationName,
+  isOwnerSignupEnabled,
   normalizeOrganizationName,
 } from "@/lib/signup";
 
@@ -136,6 +138,29 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams.get("organizationName"),
   );
   let sharedSignupToken: string | null = null;
+
+  if (mode === "owner-signup" && !isOwnerSignupEnabled()) {
+    return NextResponse.json(
+      {
+        error: "この環境ではOwnerアカウントの新規登録は許可されていません",
+        code: "owner_signup_disabled",
+      },
+      { status: 403 },
+    );
+  }
+  if (
+    mode === "owner-signup" &&
+    getOwnerSignupMode() === "super-owner-only" &&
+    await db.query.users.findFirst()
+  ) {
+    return NextResponse.json(
+      {
+        error: "初期Super Ownerは既に登録されています",
+        code: "owner_signup_disabled",
+      },
+      { status: 403 },
+    );
+  }
 
   if (organizationName !== null && !isValidOrganizationName(organizationName)) {
     return NextResponse.json(

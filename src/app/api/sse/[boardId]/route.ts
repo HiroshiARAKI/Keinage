@@ -4,10 +4,9 @@ import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { boards } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getSessionUser } from "@/lib/auth";
+import { getBoardDisplayAccessDecision } from "@/lib/board-display-authorization";
 import { isBoardDisplayable } from "@/lib/board-status";
 import { addClient, removeClient } from "@/lib/sse";
-import { isInOwnerScope } from "@/lib/ownership";
 
 export const dynamic = "force-dynamic";
 
@@ -27,15 +26,12 @@ export async function GET(
     return new Response("Board not found", { status: 404 });
   }
 
-  if (board.visibility === "private") {
-    const session = await getSessionUser();
-    if (!session) {
-      return new Response("Unauthorized", { status: 401 });
-    }
-
-    if (!isInOwnerScope(session.user, board.ownerUserId)) {
-      return new Response("Board not found", { status: 404 });
-    }
+  const access = await getBoardDisplayAccessDecision(request, board);
+  if (access !== "allowed") {
+    return new Response(
+      access === "unauthorized" ? "Unauthorized" : "Board not found",
+      { status: access === "unauthorized" ? 401 : 404 },
+    );
   }
 
   const stream = new ReadableStream({

@@ -34,6 +34,10 @@ import {
   SharedUserLimitError,
   withSharedUserPlanLock,
 } from "@/lib/shared-user-plan";
+import {
+  getOwnerSignupMode,
+  isOwnerSignupAllowedForEmail,
+} from "@/lib/signup";
 
 const SETUP_SESSION_MAX_AGE = 60 * 15;
 const GOOGLE_USER_ID_FALLBACK = "google-user";
@@ -288,6 +292,15 @@ export async function GET(request: NextRequest) {
   }
 
   if (flow.mode === "owner-signup") {
+    if (!isOwnerSignupAllowedForEmail(googleUser.email, "google")) {
+      return errorRedirect(request, "/pin/login", "owner-signup-disabled");
+    }
+    if (
+      getOwnerSignupMode() === "super-owner-only" &&
+      await db.query.users.findFirst()
+    ) {
+      return errorRedirect(request, "/pin/login", "owner-signup-disabled");
+    }
     const existingAccount = await db.query.authAccounts.findFirst({
       where: and(
         eq(authAccounts.provider, GOOGLE_AUTH_PROVIDER),

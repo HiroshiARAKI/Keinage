@@ -4,19 +4,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { boards, mediaItems, messages } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
-import { getSessionUser } from "@/lib/auth";
+import { getBoardDisplayAccessDecision } from "@/lib/board-display-authorization";
 import { getEffectivePlanForOwner } from "@/lib/billing";
 import { isBoardDisplayable } from "@/lib/board-status";
 import { recordBoardViewed } from "@/lib/board-view-tracking";
 import { isCloudFrontSignedDeliveryMode } from "@/lib/cloudfront-signed-url";
 import { applyMediaPlanRestrictions } from "@/lib/media-plan";
 import { deliveryUrlForMediaItem } from "@/lib/media-storage";
-import { isInOwnerScope } from "@/lib/ownership";
 import { resolveSplitViewMediaReferences } from "@/lib/split-view";
 import { normalizeConfig } from "@/lib/utils";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -28,15 +27,12 @@ export async function GET(
     return NextResponse.json({ error: "Board not found" }, { status: 404 });
   }
 
-  if (board.visibility === "private") {
-    const session = await getSessionUser();
-    if (!session) {
-      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
-    }
-
-    if (!isInOwnerScope(session.user, board.ownerUserId)) {
-      return NextResponse.json({ error: "Board not found" }, { status: 404 });
-    }
+  const access = await getBoardDisplayAccessDecision(request, board);
+  if (access !== "allowed") {
+    return NextResponse.json(
+      { error: access === "unauthorized" ? "認証が必要です" : "Board not found" },
+      { status: access === "unauthorized" ? 401 : 404 },
+    );
   }
 
   await recordBoardViewed(board);

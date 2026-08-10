@@ -8,6 +8,10 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { DateTimeClock } from "@/components/board/DateTimeClock";
 import { WeatherDisplay } from "@/components/board/WeatherDisplay";
 import { GoogleFontLoader } from "@/components/board/GoogleFontLoader";
+import {
+  getOrCreateBoardDisplayDeviceKey,
+  withBoardDisplayAccessQuery,
+} from "@/lib/board-display-access";
 import type { BoardTemplateProps, Message } from "@/types";
 
 /** Default config for the Message Board template */
@@ -118,7 +122,11 @@ export default function MessageBoard({
   // Poll for updated messages from the server
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await fetch(`/api/public/boards/${board.id}/messages`);
+      const url = withBoardDisplayAccessQuery(
+        `/api/public/boards/${board.id}/messages`,
+        getOrCreateBoardDisplayDeviceKey(),
+      );
+      const res = await fetch(url);
       if (!res.ok) return;
       const data: Message[] = await res.json();
       const sorted = data
